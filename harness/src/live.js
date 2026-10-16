@@ -8,6 +8,7 @@ import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
 import { createExperientialComplete } from "./experiential.js";
 import { createOpenCodeGoComplete } from "./opencodeGo.js";
+import { createArenaScorer } from "./arena.js";
 import { ensurePromptStore, finishGame, outcomeForView, replayDigest, savePromptStore, selectPrompts } from "./prompts.js";
 
 export const TOKEN_REFRESH_MS = 55 * 60 * 1000;
@@ -56,6 +57,19 @@ export function liveConfigFromEnv(env = process.env) {
   const temperature = env.PROMPT_TEMPERATURE == null || nonempty(env.PROMPT_TEMPERATURE) === "" ? 0.5 : Number(env.PROMPT_TEMPERATURE);
   if (!Number.isFinite(epsilon) || epsilon < 0 || epsilon > 1) throw new Error("PROMPT_EPSILON must be between 0 and 1");
   if (!Number.isFinite(temperature) || temperature < 0) throw new Error("PROMPT_TEMPERATURE must be >= 0");
+  const arenaRaw = nonempty(env.MAFIOSO_ARENA_GAMES);
+  let arenaGames = 0;
+  if (arenaRaw) {
+    const n = Number(arenaRaw);
+    if (!Number.isInteger(n) || n < 0 || n > 50) throw new Error("MAFIOSO_ARENA_GAMES must be an integer 0..50");
+    arenaGames = n;
+  }
+  const seedRaw = nonempty(env.MAFIOSO_ARENA_SEED);
+  const arenaSeed = seedRaw ? Number(seedRaw) : 1;
+  if (!Number.isInteger(arenaSeed)) throw new Error("MAFIOSO_ARENA_SEED must be an integer");
+  const marginRaw = nonempty(env.MAFIOSO_ARENA_MARGIN);
+  const arenaMargin = marginRaw ? Number(marginRaw) : 0;
+  if (!Number.isFinite(arenaMargin) || arenaMargin < 0) throw new Error("MAFIOSO_ARENA_MARGIN must be >= 0");
   return {
     live: env.MAFIOSO_LIVE === "1",
     baseUrl: new URL(baseUrl).origin,
@@ -68,6 +82,9 @@ export function liveConfigFromEnv(env = process.env) {
     transport: (nonempty(env.MAFIOSO_TRANSPORT) || "stream").toLowerCase(),
     epsilon,
     temperature,
+    arenaGames,
+    arenaSeed,
+    arenaMargin,
     lobbyName: nonempty(env.LOBBY_NAME) || "mafioso-bots",
   };
 }
@@ -380,7 +397,19 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {
-    const done = await finishGame({ store, results, complete, summary: replayDigest(table.views), now: now() });
+    const scorePrompt = cfg.arenaGames > 0
+      ? createArenaScorer({
+        seed: cfg.arenaSeed,
+        games: cfg.arenaGames,
+        mafiosoSeats: Math.min(3, cfg.botCount),
+        complete,
+        maxDays: 4,
+      })
+      : undefined;
+    const done = await finishGame({
+      store, results, complete, summary: replayDigest(table.views), now: now(),
+      scorePrompt, margin: cfg.arenaMargin,
+    });
     store = done.store;
     await savePromptStore(cfg.promptDir, store);
     say(`scored ${results.length} bots; new prompts=${done.children.map((c) => c.id).join(",") || "none"}; skipped=${done.skipped.map((s) => s.reason).join(",") || "none"}`);

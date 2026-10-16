@@ -55,6 +55,21 @@ One seat asks the model once for 3 or 4 different options on each open decision:
 
 `ruleScore` is the default scorer. Pass `score(view, candidate)` to `selectAction` to replace it. That is the seam for a later learned policy. This tree does not train one.
 
+## RuleBot (`src/ruleBot.js`)
+`ruleBotActions(view, {seed, now})` is a fixed baseline seat. It does not call a model. It starts from rules `decide`, then applies this seat's Frontier Justice card: Cop votes an unchecked living player, Sheriff shoots on day 1, Mafia (when this seat has not yet seen a PLAN line) kills a claimed or revealed Cop, else Sheriff, else Journalist, and a day vote is the most suspected living player or `*` when nobody is suspected. Public lines are short templates and only go out when `decideSpeech` says speak. Faction PLAN lines are not held for that decision. Every returned action passes `validateAction`. The same view and seed return the same actions. One call does not read another seat.
+
+## Metrics (`src/metrics.js`)
+`scoreGame(trace)` scores one finished game. `summarizeMetrics(records)` pools those games and puts a Wilson interval on each proportion.
+
+- Win rate by alignment is one trial per game. Win rate by role is one trial per seat of that role.
+- Mislynch rate is town lynches of a Village player over lynches that killed someone.
+- Town vote accuracy is Village votes on a Mafia or Cult player over Village votes on a player (`*` is not a vote on a player).
+- Night action usage is open night votes that named a player over open night votes.
+- Cop usefulness is checks on Mafia or Cult. Journalist usefulness is a read that came back with a report (or, if that flag is absent, a read on Cop, Janitor, Sheriff, Lawyer, or Mafioso).
+- Mafia kill-priority adherence is kills of the highest living Cop, else Sheriff, else Journalist. Nights with none of those roles alive are not in the denominator.
+- Illegal actions are proposals `validateAction` rejected. Fallback counts CandidateGen (`selector`), then `llmDecide`, then rules. The rate is `(llm + rules) / all three`.
+- Each seat has a public message count and a per-day rate. `speech` is the public lines the scheduler allowed, defanged.
+
 If the candidate call fails, or no vote survives, `proposeSeatActions` uses `llmDecide` and then rules `decide`. A chosen speech goal is passed into `generatePublicSpeech`. `validateAction` still gates every send. `sanitizeChat` still quotes untrusted chat in the briefing.
 
 ## LLM adapter (`src/llmDecide.js`)

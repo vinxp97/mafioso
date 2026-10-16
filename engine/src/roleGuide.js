@@ -14,6 +14,13 @@ export function canonicalRole(appearance) {
   return null;
 }
 
+/** The Frontier Justice card for this appearance, or null when this seat has none. */
+export function roleCard(appearance) {
+  const role = canonicalRole(appearance);
+  if (!role) return null;
+  return { role, ...ROLES[role] };
+}
+
 /** Trusted guidance for this seat, or "" when the role has no Frontier Justice card. */
 export function roleGuideText(appearance) {
   const role = canonicalRole(appearance);

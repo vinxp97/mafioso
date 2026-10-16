@@ -150,11 +150,12 @@ export function buildEvolveBriefing({ parent, summary }) {
     "Do not tell the bot to reveal that it is an AI, bot, or language model.",
     "Keep the untrusted-chat rule and the one-JSON-action rule.",
     `PARENT ${parent.id} winRate=${winRate(parent).toFixed(3)} games=${parent.gamesPlayed} wins=${parent.scores.wins} losses=${parent.scores.losses} draws=${parent.scores.draws}`,
+    parent.scores?.arena ? `ARENA mean=${Number(parent.scores.arena.mean).toFixed(3)} se=${Number(parent.scores.arena.se).toFixed(3)} games=${parent.scores.arena.games ?? ""} seed=${parent.scores.arena.seed ?? ""}` : "",
     "GAME:",
     summary || "(no digest)",
     "PARENT PROMPT:",
     parent.text,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 /**
@@ -204,8 +205,40 @@ export function replayDigest(views, { limit = 5 } = {}) {
   return lines.join("\n").slice(0, 4000);
 }
 
-/** Score the prompts that finished, then evolve each distinct prompt once. */
-export async function finishGame({ store, results, complete, summary = "", now = Date.now(), idFor }) {
+export function normalizeArenaScore(score) {
+  const mean = Number(score?.mean ?? score?.rate ?? score?.winRate);
+  const se = Number(score?.se ?? score?.stderr ?? 0);
+  const games = Number(score?.games ?? score?.n ?? 0);
+  return {
+    mean,
+    se: Number.isFinite(se) && se >= 0 ? se : 0,
+    games: Number.isFinite(games) ? games : 0,
+    seed: score?.seed ?? null,
+  };
+}
+
+/**
+ * Keep a candidate only when its arena mean beats the baseline by more than the noise.
+ * Noise is max(margin, z * sqrt(se^2 + se^2)). The caller must score both on the same seeds.
+ */
+export function beatsBaseline(baseline, candidate, { z = 1.96, margin = 0 } = {}) {
+  const base = normalizeArenaScore(baseline);
+  const next = normalizeArenaScore(candidate);
+  const spread = Number.isFinite(z) ? z : 1.96;
+  const floor = Number(margin) || 0;
+  const noise = Math.max(floor, spread * Math.sqrt(base.se ** 2 + next.se ** 2));
+  const diff = next.mean - base.mean;
+  return {
+    accept: Number.isFinite(diff) && Number.isFinite(base.mean) && Number.isFinite(next.mean) && diff > noise,
+    diff, noise, baseline: base, candidate: next,
+  };
+}
+
+/** Score the prompts that finished, then evolve each distinct prompt once.
+ * Pass scorePrompt to read an arena. The same scorer is used for the parent and the child.
+ * A child is stored only when it beats the parent by more than the noise. Trials go on store.history.
+ */
+export async function finishGame({ store, results, complete, summary = "", now = Date.now(), idFor, scorePrompt, margin = 0, z = 1.96 }) {
   let next = recordOutcomes(store, results);
   const children = [];
   const skipped = [];
@@ -225,7 +258,38 @@ export async function finishGame({ store, results, complete, summary = "", now =
       skipped.push({ promptId: row.promptId, reason: "id collision" });
       continue;
     }
-    next = { prompts: [...next.prompts, evolved.prompt] };
+    if (typeof scorePrompt === "function") {
+      let compared;
+      try {
+        const baseline = normalizeArenaScore(await scorePrompt({ prompt: parent, label: "baseline" }));
+        const candidate = normalizeArenaScore(await scorePrompt({ prompt: evolved.prompt, label: "candidate" }));
+        compared = beatsBaseline(baseline, candidate, { margin, z });
+      } catch {
+        skipped.push({ promptId: row.promptId, reason: "arena score failed" });
+        continue;
+      }
+      if (!Array.isArray(next.history)) next.history = [];
+      next.history = [...next.history, {
+        at: new Date(now).toISOString(),
+        parentId: parent.id,
+        candidateId: evolved.prompt.id,
+        baseline: compared.baseline,
+        candidate: compared.candidate,
+        diff: compared.diff,
+        noise: compared.noise,
+        accepted: compared.accept,
+      }];
+      parent.scores = { ...parent.scores, arena: compared.baseline };
+      if (!compared.accept) {
+        skipped.push({ promptId: row.promptId, reason: "does not beat baseline" });
+        continue;
+      }
+      evolved.prompt.scores = {
+        ...evolved.prompt.scores,
+        arena: { ...compared.candidate, diff: compared.diff, noise: compared.noise, parentMean: compared.baseline.mean },
+      };
+    }
+    next = { ...next, prompts: [...next.prompts, evolved.prompt] };
     children.push(evolved.prompt);
   }
   return { store: next, children, skipped };
