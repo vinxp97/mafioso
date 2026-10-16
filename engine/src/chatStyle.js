@@ -32,9 +32,13 @@ export function chatShorten(text, max = PUBLIC_MAX) {
 const ROLE_WORDS = "villager|vanilla|vt|town(?:ie)?|cop|journalist|sheriff|doctor|medic|mafioso|lawyer|janitor|godfather";
 const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming|as an?|as the)\\s+(?:(?:a|an|the|just|only|plain|a plain|real|actually)\\s+)*(${ROLE_WORDS})\\b`, "i");
 
+// "Sheriff here.", "cop btw", "sheriff, holding my shot": a bare role word that opens the line.
+const TRAIL_CLAIM_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*(?:here|btw|fyi|[.!]|$)`, "i");
+
 /** Role named in a self-claim, or null. */
 export function claimedRoleIn(text) {
-  const m = String(text || "").match(CLAIM_RE);
+  const t = String(text || "");
+  const m = t.match(CLAIM_RE) || t.match(TRAIL_CLAIM_RE);
   return m ? m[1].toLowerCase() : null;
 }
 
