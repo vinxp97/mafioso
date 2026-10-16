@@ -7,3 +7,4 @@ package-lock.json
 .DS_Store
 coverage/
 dist/
+harness/data/prompts/runtime/

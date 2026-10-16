@@ -23,7 +23,7 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
                          ┌────────────────────────────┤
                          ▼                            ▼
                    llmDecide(view)              decide(view)   # rules
-                   (LM Studio / fake)           nightAct, claims, factions
+                   (model backend / fake)       nightAct, claims, factions
                          │                            │
                          └──────── validateAction ────┘
                                       │
@@ -45,26 +45,62 @@ cd ../harness && npm install && npm test
 
 Node ≥ 18. No API keys required for tests (fake model + fixture SSE).
 
-## LM Studio (local Qwen)
+## Model backend
 
-LM Studio serves OpenAI Chat Completions at `http://127.0.0.1:1234/v1` by default.
+Pick one factory. Each returns `complete({system, user})` for `llmDecide` / `runLoopAsync`. Every reply is still parsed and passed through `validateAction`. Illegal actions and bad JSON fall back to rules `decide`.
 
-1. Load your Qwen GGUF in LM Studio and start the local server.
-2. Point the harness at it (see `.env.example`):
+They share `createOpenAICompatibleComplete` (`harness/src/openaiCompatible.js`): `POST {baseUrl}/chat/completions` with system + user messages, `stream: false`, and `response_format: { type: "json_object" }`. If the server rejects `response_format`, it retries once without that field. `temperature` / `max_tokens` are sent only when you pass finite numbers. This client is not the game API and does not use `DEV_HOSTS`.
+
+| Backend | Factory | Base URL | Key | Model |
+| --- | --- | --- | --- | --- |
+| LM Studio (local Qwen) | `createLmStudioComplete` | `http://127.0.0.1:1234/v1` | `LM_API_KEY` (default `lm-studio`, any non-empty string) | `LM_STUDIO_MODEL` (empty = first id from `GET /v1/models`) |
+| [Experiential Labs](https://platform.experientiallabs.ai/docs/openai-compatibility) | `createExperientialComplete` | `https://api.experientiallabs.ai/v1` | `EXPLABS_API_KEY` (`xpl_...`) | `EXPLABS_MODEL` (example `qwen3.8-27b`) |
+| [OpenCode Go](https://opencode.ai/docs/go/) | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`) |
+
+Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`. Placeholders only in `.env.example`. Do not commit keys.
+
+```js
+import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, runLoopAsync } from "./harness/src/index.js";
+
+// Local Qwen. Run this process on the same machine as LM Studio.
+const complete = createLmStudioComplete();
+
+// Hosted Qwen on Experiential Labs. Leave temperature unset unless that model accepts it.
+// const complete = createExperientialComplete();
+
+// OpenCode Go. Sends Authorization plus a stable x-opencode-session for this client.
+// const complete = createOpenCodeGoComplete();
+
+const { proposed } = await runLoopAsync(entries, { complete });
+```
+
+LM Studio only: `127.0.0.1:1234` is that PC’s loopback. A remote VPS does not see it unless you tunnel it. Smoke (live, not part of `npm test`):
 
 ```bash
 export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
-export LM_STUDIO_MODEL=          # empty = first model from GET /v1/models
-export LM_API_KEY=lm-studio      # LM Studio accepts any non-empty key
+export LM_STUDIO_MODEL=          # empty = first loaded model
+export LM_API_KEY=lm-studio
+cd harness && node scripts/lmstudio-smoke.mjs
 ```
 
-3. Pass the adapter’s `complete` into `runLoopAsync` (or the CLI once it lands). Every model reply still goes through `validateAction`.
+OpenCode Go also sends `user-agent: mafioso/0.1`. Set `OPENCODE_SESSION` to pin the session id, or leave it unset and the factory generates one id and reuses it for every call on that client.
 
-The bot process must reach that host (same machine as LM Studio, or a tunnel). The box / VPS cannot see your PC’s localhost unless you expose it on purpose.
+## Nine bots
 
-## Live play (not default)
+One process seats `BOT_COUNT` Dev API accounts (default 9) in a single private Testing game, reduces each account’s events, and sends only actions that pass `validateAction`. `MAFIOSO_LLM=lmstudio` is the default. `MAFIOSO_LIVE=0` (the Compose default) prints a dry-run line and does not connect.
 
-Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually a VPS-local Ultimafia (`http://127.0.0.1:3000`) to avoid Cloudflare Access. Private **Testing** lobbies only. Never commit secrets.
+| Where | Command | Dev API | LM Studio |
+| --- | --- | --- | --- |
+| Windows Docker Desktop | `docker compose up --build bots` | `https://dev.ultimafia.gg` unless you override it | `http://host.docker.internal:1234/v1` |
+| VPS (API already on port 3000) | `docker compose up --build vps` | `http://127.0.0.1:3000` | `http://127.0.0.1:1234/v1` if Qwen is on that machine |
+
+The VPS service uses host networking. `127.0.0.1` inside a normal bridge container is the container, not the VPS. Token exchange against `http://127.0.0.1:3000` is the path that already works there. Both origins are on the `DEV_HOSTS` allowlist. Prod is rejected.
+
+On Windows: start Docker Desktop, start LM Studio, load Qwen, start the local server on port 1234. Copy `.env.example` to `.env` and set `MAFIOSO_LIVE=1`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID` to join a game you already opened). Do not commit `.env`.
+
+`dev.ultimafia.gg` sits behind Cloudflare Access. A PC that only gets an Access wall or error 1010 needs `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in `.env`. Those headers are sent only to the game host, not to LM Studio.
+
+After the game, each prompt lineage that played is scored (win / loss / draw, plus per-role counts) and Qwen is asked for a child system prompt. The child is saved only if it still contains the never-admit-AI line and the JSON action contract. The next launch draws `BOT_COUNT` prompts with epsilon-greedy (default epsilon 0.2) so the nine bots can sit on different lineages. History is `harness/data/prompts/runtime/prompts.json` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
 
 ## Status
 
@@ -73,8 +109,8 @@ Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually 
 | Engine (wire, reduce, legal, night, claims, factions) | Tested offline |
 | LLM decide + rules fallback | Tested with fake model |
 | Harness Dev API stub + SSE replay | Tested offline |
-| LM Studio adapter | In progress |
-| Live stream loop / token refresh / send | Not started (needs approval + key) |
+| Model backends (LM Studio, Experiential Labs, OpenCode Go) | Tested offline (fake fetch). Live keys stay in env |
+| Live multi-bot runner + prompt evolve | Tested offline (fake fetch). Live run is on the Windows PC or the VPS |
 
 ## License
 
