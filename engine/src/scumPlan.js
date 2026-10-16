@@ -21,9 +21,46 @@ function alive(view, id) {
   return !!player && !player.left && !view.dead?.[id];
 }
 
+/** Faction chat: where PLAN lines go. Never a public meeting. */
 function factionMeeting(view, faction) {
   const name = FACTION_MEETINGS[faction] || faction;
-  return Object.values(view.meetings || {}).find((m) => m?.amMember && m.name === name) || null;
+  return Object.values(view.meetings || {}).find((m) => m?.amMember && m.name === name && (m.factionRole == null || m.factionRole === "chat")) || null;
+}
+
+/** Faction kill vote: the split "Mafia Kill" meeting, or a combined "Mafia" meeting that votes. */
+export function factionKillMeeting(view, faction = scumFaction(view)) {
+  if (!faction) return null;
+  const ms = Object.values(view.meetings || {}).filter((m) => m?.amMember);
+  return ms.find((m) => m.factionRole === "kill" && m.faction === faction)
+    || ms.find((m) => m.name === (FACTION_MEETINGS[faction] || faction) && m.factionRole !== "action" && m.voting) || null;
+}
+
+function factionActionMeeting(view, faction) {
+  return Object.values(view.meetings || {}).find((m) => m?.amMember && m.factionRole === "action" && m.faction === faction) || null;
+}
+
+export function isVoteKick(meeting) {
+  if (!meeting) return false;
+  const t = meeting.targets || [];
+  return /vote\s*kick/i.test(String(meeting.name || "")) || (t.length === 1 && /^kick$/i.test(String(t[0])));
+}
+
+/** Seats that lead the faction's night: lowest player id among living faction members. */
+export function factionLeader(view) {
+  const ids = [view.selfId, ...allies(view)].filter((id) => id && alive(view, id)).sort();
+  return ids[0] || null;
+}
+
+/** A living teammate's vote already in the kill meeting: copy it. */
+export function teammateKillVote(view) {
+  const kill = factionKillMeeting(view);
+  if (!kill) return null;
+  const mates = allies(view);
+  for (const [voter, t] of Object.entries(kill.votes || {})) {
+    const sel = Array.isArray(t) ? t[0] : t;
+    if (voter !== view.selfId && mates.has(voter) && sel && sel !== NO_ONE && (kill.targets || []).includes(sel) && !mates.has(sel)) return sel;
+  }
+  return null;
 }
 
 function blank(token) {
@@ -39,13 +76,13 @@ export function parsePlanLine(text) {
     killTarget,
     lynchTarget: blank(match[2]),
     claimRole: blank(match[3]) || "Cop",
-    lawyerTarget: blank(match[4]) || killTarget,
+    lawyerTarget: blank(match[4]),
     speakerId: blank(match[5]),
   };
 }
 
 export function formatPlanSpeech(plan) {
-  const line = `PLAN kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget || plan.killTarget} speaker=${plan.speakerId || "-"}`;
+  const line = `PLAN kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget || "-"} speaker=${plan.speakerId || "-"}`;
   return line.slice(0, MAX_SPEECH);
 }
 
@@ -67,7 +104,7 @@ export function noteFactionPlan(view, message) {
     killTarget: parsed.killTarget,
     lynchTarget: parsed.lynchTarget,
     claimRole: parsed.claimRole,
-    lawyerTarget: parsed.lawyerTarget || parsed.killTarget,
+    lawyerTarget: parsed.lawyerTarget,
     janitorTarget: parsed.killTarget,
     speakerId: parsed.speakerId || message.senderId || null,
     source: "chat",
@@ -87,7 +124,7 @@ export function agreedPlan(view) {
     if (!parsed) continue;
     return {
       ...parsed,
-      lawyerTarget: parsed.lawyerTarget || parsed.killTarget,
+      lawyerTarget: parsed.lawyerTarget,
       janitorTarget: parsed.killTarget,
       speakerId: parsed.speakerId || message.senderId || null,
       source: "chat",
@@ -110,6 +147,13 @@ function lawyerAsk(view, teammates) {
   return null;
 }
 
+// Loyal Lawyer makes a teammate look innocent: prefer a living non-Lawyer teammate.
+function lawyerTeammate(view, teammates) {
+  const roleOf = (id) => (id === view.selfId ? view.role : view.teammates?.[id]?.role || view.reveals?.[id]);
+  const pool = [view.selfId, ...teammates].filter((id) => id && alive(view, id) && !isLawyerRole(roleOf(id))).sort();
+  return pool.find((id) => /mafioso/i.test(String(roleOf(id) || ""))) || pool[0] || null;
+}
+
 function pickFrom(view, ids) {
   const memory = memoryOf(view);
   const fresh = ids.filter((id) => !memory.cleared.has(id));
@@ -121,7 +165,7 @@ function pickFrom(view, ids) {
 export function draftPlan(view) {
   const faction = scumFaction(view);
   if (!faction || view.phase?.phase !== "Night") return null;
-  const meeting = factionMeeting(view, faction);
+  const meeting = factionKillMeeting(view, faction);
   if (!meeting) return null;
   const teammates = allies(view);
   const killPool = (meeting.targets || []).filter((id) => id !== view.selfId && id !== NO_ONE && alive(view, id) && !teammates.has(id));
@@ -133,7 +177,7 @@ export function draftPlan(view) {
     killTarget,
     lynchTarget: pickFrom(view, lynchPool) || killTarget,
     claimRole: "Cop",
-    lawyerTarget: asked || killTarget,
+    lawyerTarget: asked || lawyerTeammate(view, teammates),
     janitorTarget: killTarget,
     speakerId: view.selfId,
     source: "draft",
@@ -156,46 +200,76 @@ function said(view, content) {
   return (view.messages || []).some((message) => message?.senderId === view.selfId && message.content === content);
 }
 
-export function lawyerSelection(meeting, plan) {
+export function lawyerSelection(meeting, plan, view = null) {
   const targets = meeting?.targets || [];
-  if (plan.lawyerTarget && targets.includes(plan.lawyerTarget)) return plan.lawyerTarget;
-  if (targets.includes(plan.killTarget)) return plan.killTarget;
+  const mates = view ? allies(view) : null;
+  const ok = (id) => id && targets.includes(id) && (!mates || mates.has(id) || id === view?.selfId);
+  if (ok(plan?.lawyerTarget)) return plan.lawyerTarget;
+  if (view) { const t = lawyerTeammate(view, mates); if (ok(t)) return t; }
   return null;
+}
+
+/** The Mafia kill this seat can see: majority of the faction meeting's votes. */
+export function factionKillVote(view) {
+  const faction = scumFaction(view);
+  const chat = faction ? factionKillMeeting(view, faction) : null;
+  const counts = {};
+  for (const t of Object.values(chat?.votes || {})) for (const id of Array.isArray(t) ? t : [t]) if (id && id !== NO_ONE) counts[id] = (counts[id] || 0) + 1;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 }
 
 export function janitorSelection(meeting, plan) {
   const targets = meeting?.targets || [];
-  const kill = plan.janitorTarget || plan.killTarget;
+  const kill = plan?.janitorTarget || plan?.killTarget;
   if (kill && targets.includes(kill)) return kill;
   const yes = targets.find((target) => /^yes$/i.test(String(target)));
   return yes || null;
 }
 
-function roleMeetings(view, chat) {
-  return Object.values(view.meetings || {}).filter((meeting) => meeting?.amMember && meeting.voting && meeting.canVote && meeting.id !== chat?.id);
+function roleMeetings(view) {
+  return Object.values(view.meetings || {}).filter((meeting) => meeting?.amMember && meeting.voting && meeting.canVote
+    && meeting.faction == null && meeting.name !== (FACTION_MEETINGS[scumFaction(view)] || "") && !isVoteKick(meeting));
 }
 
 function nightScum(view, faction) {
   const agreed = agreedPlan(view);
-  const plan = agreed || draftPlan(view);
+  const copied = teammateKillVote(view);
+  const leader = factionLeader(view) === view.selfId;
+  let plan = agreed || draftPlan(view);
+  // Only the first voter decides: a teammate's kill vote wins over this seat's own draft.
+  if (!agreed && copied) plan = { ...(plan || {}), killTarget: copied, janitorTarget: copied, source: "copy" };
+  if (view.role === "Janitor" && !agreed && !copied) {
+    const voted = factionKillVote(view);
+    if (voted) plan = { ...(plan || {}), killTarget: voted, janitorTarget: voted, source: plan?.source || "vote" };
+  }
   if (!plan) return null;
   const chat = factionMeeting(view, faction);
+  const kill = factionKillMeeting(view, faction);
   const out = [];
-  if (!agreed && chat?.speech) {
+  // One PLAN per faction, from the leader, in the faction chat only.
+  if (!agreed && !copied && leader && chat?.speech && (chat.name === "Mafia" || chat.name === "Cult")) {
     const content = formatPlanSpeech(plan);
     if (!said(view, content)) out.push({ event: "speak", data: { meetingId: chat.id, content } });
   }
-  if (chat?.voting && chat.canVote && (chat.targets || []).includes(plan.killTarget) && needsTarget(chat, view.selfId, plan.killTarget)) {
-    out.push({ event: "vote", data: { meetingId: chat.id, selection: plan.killTarget } });
+  const mayDecide = agreed || copied || leader;
+  if (mayDecide && kill?.voting && kill.canVote !== false && (kill.targets || []).includes(plan.killTarget) && needsTarget(kill, view.selfId, plan.killTarget)) {
+    out.push({ event: "vote", data: { meetingId: kill.id, selection: plan.killTarget } });
   }
-  for (const meeting of roleMeetings(view, chat)) {
+  const action = factionActionMeeting(view, faction);
+  // Every mafia seat ends the meeting once its kill vote is in (or going out in this batch).
+  const killDone = kill && (!unvoted(kill, view.selfId) || out.some((a) => a.event === "vote" && a.data.meetingId === kill.id));
+  if (action?.voting && action.canVote !== false && killDone && unvoted(action, view.selfId)) {
+    const yes = (action.targets || []).find((t) => /^yes$/i.test(String(t)));
+    if (yes) out.push({ event: "vote", data: { meetingId: action.id, selection: yes } });
+  }
+  for (const meeting of roleMeetings(view)) {
     if (isLawyerRole(view.role)) {
-      const selection = lawyerSelection(meeting, plan);
-      if (selection && needsTarget(meeting, view.selfId, selection)) out.push({ event: "vote", data: { meetingId: meeting.id, selection } });
+      const selection = lawyerSelection(meeting, plan, view);
+      if (selection && unvoted(meeting, view.selfId)) out.push({ event: "vote", data: { meetingId: meeting.id, selection } });
     }
     if (view.role === "Janitor") {
       const selection = janitorSelection(meeting, plan);
-      if (selection && needsTarget(meeting, view.selfId, selection)) out.push({ event: "vote", data: { meetingId: meeting.id, selection } });
+      if (selection && unvoted(meeting, view.selfId)) out.push({ event: "vote", data: { meetingId: meeting.id, selection } });
     }
   }
   return out;
@@ -234,10 +308,12 @@ export function scumOwesNightVote(view) {
   if (view.phase?.phase !== "Night") return false;
   const faction = scumFaction(view);
   if (!faction) return false;
-  const chat = factionMeeting(view, faction);
-  if (chat?.voting && chat.canVote && unvoted(chat, view.selfId) && (chat.targets || []).some((id) => id !== NO_ONE && id !== view.selfId)) return true;
+  const kill = factionKillMeeting(view, faction);
+  if (kill?.voting && kill.canVote !== false && unvoted(kill, view.selfId) && (kill.targets || []).some((id) => id !== NO_ONE && id !== view.selfId)) return true;
+  const action = factionActionMeeting(view, faction);
+  if (action?.voting && action.canVote !== false && unvoted(action, view.selfId)) return true;
   if (view.role !== "Janitor" && !isLawyerRole(view.role)) return false;
-  return roleMeetings(view, chat).some((meeting) => unvoted(meeting, view.selfId));
+  return roleMeetings(view).some((meeting) => unvoted(meeting, view.selfId));
 }
 
 export function planViolation(view, action) {
@@ -248,17 +324,18 @@ export function planViolation(view, action) {
   if (!meeting) return null;
   const faction = scumFaction(view);
   const factionName = faction ? (FACTION_MEETINGS[faction] || faction) : null;
-  if (factionName && meeting.name === factionName && (meeting.targets || []).includes(plan.killTarget) && action.data.selection !== plan.killTarget) {
+  const killM = factionKillMeeting(view, faction);
+  if (killM && meeting.id === killM.id && (meeting.targets || []).includes(plan.killTarget) && action.data.selection !== plan.killTarget) {
     return "kill vote must match the faction plan";
   }
   if (meeting.name === "Village" && plan.lynchTarget && (meeting.targets || []).includes(plan.lynchTarget) && !allies(view).has(plan.lynchTarget) && action.data.selection !== plan.lynchTarget) {
     return "day vote must match the faction plan";
   }
-  if (factionName && meeting.name !== factionName && isLawyerRole(view.role)) {
-    const selection = lawyerSelection(meeting, plan);
+  if (factionName && meeting.faction == null && meeting.name !== factionName && isLawyerRole(view.role)) {
+    const selection = lawyerSelection(meeting, plan, view);
     if (selection && action.data.selection !== selection) return "lawyer target must match the faction plan";
   }
-  if (factionName && meeting.name !== factionName && view.role === "Janitor") {
+  if (factionName && meeting.faction == null && meeting.name !== factionName && !isVoteKick(meeting) && view.role === "Janitor") {
     if (/^(no|skip|none|\*)$/i.test(String(action.data.selection))) return "janitor must not skip the clean";
     const selection = janitorSelection(meeting, plan);
     if (selection && action.data.selection !== selection) return "janitor must clean the kill";

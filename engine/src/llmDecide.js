@@ -1,6 +1,9 @@
+import { applySheriffRule } from "./sheriffGate.js";
+import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
 // JSON action shape follows UM-Autobot-Player agent.js ({action, meeting, target, text}).
+import { humanizeSpeak } from "./speechNames.js";
 import { validateAction, legalVotes } from "./legal.js";
 import { decide, supplementActions } from "./decide.js";
 import { isAlive } from "./reducer.js";
@@ -213,6 +216,7 @@ export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = 
  * @returns {Promise<{action:import('./types.js').ProposedAction|null, source:string, rejections:string[], schedule:object}>}
  */
 export async function generatePublicSpeech(view, { complete, schedule, now, maxRetries = 1, goal = null } = {}) {
+  if (view?.selfId && !selfAlive(view)) return { action: null, source: "scheduler", rejections: ["dead seat"], schedule: schedule || null };
   const sched = schedule || decideSpeech(view, { now });
   const rejections = [];
   const meeting = publicSpeechMeeting(view);
@@ -228,6 +232,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     `URGENCY: ${sched.urgency} (${(sched.reasons || []).join(", ")}).`,
     amendmentLine(sched.amendment),
     goal ? `SPEECH GOAL: ${defang(goal, 220)}\nThis is the aim of the line, not the line itself.` : "",
+    "Refer to players by their NAME from LIVING, never by id.",
     "Reply with one speak JSON for that meeting only. Do not vote or wait.",
   ].filter(Boolean).join("\n");
   const base = buildBriefing(view);
@@ -255,7 +260,7 @@ export function rulesSeatActions(view, opts = {}) {
     const line = (decide(view, opts) || []).find((action) => isPublicSpeak(view, action) && validateAction(view, action).ok && speechCap(view, { now: opts.now }).ok);
     if (line && !actions.some((action) => action.event === "speak" && action.data.meetingId === line.data.meetingId)) actions.push(line);
   }
-  return { actions, schedule: sched, source: "rules", rejections: [] };
+  return { actions: applySheriffRule(view, actions, { now: opts.now }), schedule: sched, source: "rules", rejections: [] };
 }
 
 function formatSpeechGoal(choice) {
@@ -274,7 +279,10 @@ function formatSpeechGoal(choice) {
  * CandidateGen failure, or a set with no legal vote, uses llmDecide and then rules decide.
  * Night and day votes are not dropped when the scheduler says wait.
  */
-export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score } = {}) {
+export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score, llmFallback = true, speechFirst = false } = {}) {
+  if (view?.selfId && !selfAlive(view)) {
+    return { actions: [], schedule: decideSpeech(view, { now }), source: "dead", rejections: ["dead seat"], speechGoal: null };
+  }
   const sched = await scheduleSpeech(view, { now, complete: scheduleComplete });
   const rules = rulesSeatActions(view, { rng, now, speechSchedule: { ...sched, speak: false } });
   const allowSpeech = !!sched.speak && !sched.capped && speechCap(view, { now }).ok;
@@ -282,7 +290,8 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
   let decided = { actions: rules.actions, source: "rules", rejections: [] };
   let speechGoal = null;
   const model = typeof complete === "function";
-  if (model && (rules.actions.length || allowSpeech)) {
+  // speechFirst: a speak decision costs exactly one model call (the speech line); votes stay on rules.
+  if (model && (rules.actions.length || allowSpeech) && !(speechFirst && allowSpeech)) {
     const decisions = openDecisions(view, { speechSchedule: speakSched });
     let selected = null;
     if (decisions.length) {
@@ -297,7 +306,7 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
         rejections: selected.dropped.map((item) => `${item.target || item.kind || "option"}: ${item.reason}`),
       };
       speechGoal = formatSpeechGoal(selected);
-    } else {
+    } else if (llmFallback) {
       // A due refresh already ran before the candidate briefing. Do not ask again on the fallback.
       const refreshed = decisions.length > 0 && memory !== false && view.memory?.due === false;
       decided = await llmDecide(view, {
@@ -313,7 +322,11 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
   ).filter((action) => validateAction(view, action).ok);
   if (allowSpeech && !actions.some((action) => isPublicSpeak(view, action))) {
     if (model) {
-      const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal: speechGoal });
+      const outGoal = (sched.reasons || []).includes("sheriff out")
+        ? "Out yourself as Sheriff now and say who you will shoot or why you are holding the shot."
+        : null;
+      const goal = [outGoal, speechGoal].filter(Boolean).join(" ") || null;
+      const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal });
       if (generated.action && validateAction(view, generated.action).ok) actions.push(generated.action);
     }
     if (!actions.some((action) => isPublicSpeak(view, action))) {
@@ -321,5 +334,8 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
       if (line) actions.push(line);
     }
   }
-  return { actions, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
+  const aimed = applySheriffRule(view, actions, { now });
+  const named = aimed.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
+    .filter((action) => action.event !== "speak" || String(action.data?.content || "").trim());
+  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
 }

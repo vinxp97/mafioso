@@ -61,12 +61,10 @@ test("Sheriff shoots on day 1", () => {
     { event: "meeting", data: { id: "gun", name: "Shoot", voting: true, canVote: true, amMember: true, targets: ["p2", "p3"], votes: {} } },
     { event: "meeting", data: { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "*"], votes: {} } },
   ]);
-  const act = ruleBotActions(view, { seed: 4 });
-  assertLegal(view, act.actions);
-  const shot = act.actions.find((action) => action.data.meetingId === "gun");
-  assert.equal(shot.event, "vote");
-  assert.ok(["p2", "p3"].includes(shot.data.selection));
-  assert.deepEqual(ruleBotActions(view, { seed: 4 }), act);
+  // No shot at the start of the day: the Sheriff outs and waits for discussion.
+  const early = ruleBotActions(view, { seed: 4 });
+  assertLegal(view, early.actions);
+  assert.equal(early.actions.find((action) => action.data.meetingId === "gun"), undefined);
 });
 
 test("mafia follows Cop over Sheriff over Journalist when those claims are visible", () => {

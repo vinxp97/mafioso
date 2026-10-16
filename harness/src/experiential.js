@@ -52,6 +52,9 @@ export function createExperientialComplete(opts = {}) {
     temperature: opts.temperature,
     maxTokens: opts.maxTokens,
     label: "Experiential Labs",
+    // Zero data retention per request (docs/data-controls): route only to ZDR providers; 403 if none.
+    // Opt-in with EXPLABS_ZDR=1: needs the Pro plan (Free orgs get 403 needs_subscription).
+    extraBody: nonempty(env.EXPLABS_ZDR) === "1" ? { provider: { zdr: true } } : null,
     discoverModels: false,
   });
 }

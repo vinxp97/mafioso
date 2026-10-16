@@ -1,3 +1,4 @@
+import { selfAlive } from "./reducer.js";
 // Per-seat public chat timing. One view, no shared queue.
 // Votes and night actions are not decided here. Village/public speech is.
 import { agreedPlan } from "./scumPlan.js";
@@ -18,7 +19,7 @@ const PRIVATE = new Set(["Mafia", "Cult"]);
 export function isPublicSpeechMeeting(meeting) {
   if (!meeting?.speech || !meeting.amMember) return false;
   const name = String(meeting.name || "");
-  if (PRIVATE.has(name) || /whisper/i.test(name)) return false;
+  if (PRIVATE.has(name) || meeting.faction || /^(mafia|cult)\b/i.test(name) || /whisper/i.test(name)) return false;
   return true;
 }
 
@@ -94,6 +95,32 @@ function unreportedHard(view) {
   });
 }
 
+function ownPhaseLines(view) {
+  const phase = view?.phase?.name || "";
+  return publicMessages(view).filter((message) => message.senderId === view.selfId && (!message.phase || !phase || message.phase === phase));
+}
+
+/** Frontier Justice: the Sheriff outs on Day 1. True until this seat has said "sheriff" today. */
+function sheriffMustOut(view) {
+  if (!/sheriff/i.test(String(view?.role || ""))) return false;
+  if (!/^day 1$/i.test(String(view?.phase?.name || "").trim())) return false;
+  return !ownPhaseLines(view).some((message) => /sheriff/i.test(String(message.content || "")));
+}
+
+/** ms into the phase before this seat may open a silent day: 2s plus 0–9s by seat id. */
+export function openingDelayMs(selfId) {
+  let h = 0;
+  for (const ch of String(selfId || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return 2_000 + (h % 10) * 1_000;
+}
+
+function opening(view, now) {
+  const start = Number(view?.phaseStartedAt);
+  if (now == null || !Number.isFinite(start) || view?.phaseStartedAt == null) return false;
+  if (ownPhaseLines(view).length) return false;
+  return Number(now) - start >= openingDelayMs(view.selfId);
+}
+
 function mustClaim(view, meeting) {
   if (!meeting) return false;
   const plan = agreedPlan(view);
@@ -103,8 +130,9 @@ function mustClaim(view, meeting) {
 }
 
 /** Werewolf Arena urgency. 4 named, 3 new info, 2 vote pressure, 1 a thought, 0 nothing new. */
-export function scoreUrgency(view) {
+export function scoreUrgency(view, { now } = {}) {
   const meeting = publicSpeechMeeting(view);
+  if (view?.selfId && !selfAlive(view)) return { urgency: 0, reasons: ["dead"] };
   if (!view?.selfId || view.finished || view.leftGame || !meeting) return { urgency: 0, reasons: ["no public chat"] };
   if (view.phase?.phase === "Night") return { urgency: 0, reasons: ["night"] };
   const reasons = [];
@@ -118,6 +146,10 @@ export function scoreUrgency(view) {
   if (accused(view, meeting)) bump(4, "accused");
   if (unreportedHard(view)) bump(3, "new info");
   if (mustClaim(view, meeting)) bump(3, "must claim");
+  if (sheriffMustOut(view)) bump(4, "sheriff out");
+  // A silent day otherwise deadlocks: nobody has "something new" until someone speaks first.
+  // Each seat opens after its own short, staggered delay into the phase (needs a timed state frame).
+  if (opening(view, now)) bump(2, "opening");
   const votes = Object.entries(meeting.votes || {}).filter(([voter, target]) => voter !== view.selfId && target != null && target !== "");
   if (votes.length) bump(2, "vote pressure");
   if (fresh.some((message) => message.senderId !== view.selfId)) bump(1, "thoughts");
@@ -184,11 +216,14 @@ export function speechCap(view, { now } = {}) {
  */
 export function decideSpeech(view, { now } = {}) {
   const meeting = publicSpeechMeeting(view);
-  const scored = scoreUrgency(view);
+  const scored = scoreUrgency(view, { now });
   const rates = speechRates(view);
   const cap = speechCap(view, { now });
   const threshold = speechThreshold(rates.amendment);
   const capped = !cap.ok;
+  if (view?.selfId && !selfAlive(view)) {
+    return { speak: false, urgency: 0, reasons: ["dead"], amendment: rates.amendment, path: "dead", meetingId: null, capped, threshold, reason: "dead" };
+  }
   const speak = !!meeting && !capped && scored.urgency >= threshold && scored.urgency > 0;
   let path = "wait";
   if (!meeting || view?.phase?.phase === "Night") path = "idle";
