@@ -101,8 +101,26 @@ function isLate(view, now) {
   return Number.isFinite(start) && Number.isFinite(clock) && clock - start >= SHERIFF_RULES.lateElapsedMs;
 }
 
+const GUILTY_RE = /\b(guilty|mafia|scum|mafioso|janitor|lawyer|red)\b/i;
+const SHERIFF_CLAIM_RE = /\b(?:i'?m|i am|im)\s+(?:the\s+|a\s+|real\s+)*sheriff\b/i;
+
+/** Someone who called this Sheriff guilty or counterclaimed Sheriff: shoot them, no timing gate. */
+export function sheriffThreat(view) {
+  if (!/sheriff/i.test(String(view?.role || ""))) return null;
+  for (const m of phaseLines(view).slice().reverse()) {
+    const from = m.senderId;
+    if (!from || from === view.selfId || !living(view, from)) continue;
+    const text = String(m.content || "");
+    if (SHERIFF_CLAIM_RE.test(text) || claimedRole(view, from) === "Sheriff") return { target: from, why: "counterclaimed Sheriff" };
+    if (mentions(view, text, view.selfId) && GUILTY_RE.test(text) && !/\b(not|isn'?t|no)\s+(guilty|mafia|scum)\b/i.test(text)) return { target: from, why: "called the Sheriff guilty" };
+  }
+  return null;
+}
+
 /** Whether this Sheriff may shoot now, and at whom. */
 export function sheriffShotReady(view, { now } = {}) {
+  const threat = sheriffThreat(view);
+  if (threat) return { ok: true, target: threat.target, why: threat.why };
   const lines = phaseLines(view);
   const outed = lines.some((m) => m.senderId === view?.selfId && /sheriff/i.test(String(m.content || "")));
   if (!outed) return { ok: false, reason: "sheriff has not outed" };

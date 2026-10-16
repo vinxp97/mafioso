@@ -2,7 +2,7 @@ import { sheriffShotCheck } from "./sheriffGate.js";
 import { isPublicSpeechMeeting } from "./scheduler.js";
 import { selfAlive } from "./reducer.js";
 import { MAX_SPEECH } from "./types.js";
-import { PUBLIC_MAX, earlyClaimBlock } from "./chatStyle.js";
+import { PUBLIC_MAX, earlyClaimBlock, repeatBlock } from "./chatStyle.js";
 import { agreedPlan } from "./scumPlan.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
@@ -33,6 +33,8 @@ export function validateAction(view, action) {
     if (String(action.data?.content || "").length > PUBLIC_MAX) return no("too long for chat");
     const claim = earlyClaimBlock(view, action.data?.content, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId, planRole: agreedPlan(view)?.claimRole });
     if (claim) return no(claim);
+    const again = repeatBlock(view, action.data.meetingId, action.data?.content);
+    if (again) return no(again);
   }
   const gun = sheriffShotCheck(view, action);
   if (!gun.ok) return no(gun.reason);

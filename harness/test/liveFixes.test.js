@@ -101,10 +101,11 @@ test("silent Day 1: several seats speak with a mock LLM, the Sheriff outs, nobod
   const all = Object.fromEntries(seats.map((id) => [id, { id, name: `Bot${id.slice(1)}` }]));
   const accounts = seats.map((id) => ({ accountId: `A${id}` }));
   const table = createBotTable(accounts);
+  let n = 0;
   const complete = async ({ user, purpose }) => {
     if (purpose === "speech" || user.includes("SCHEDULER: approved")) {
       const sheriff = user.includes("Out yourself as Sheriff");
-      return JSON.stringify({ action: "speak", meeting: "Village", text: sheriff ? "I'm Sheriff. Shooting at end of day if no claims." : "Morning. Anyone have a claim?" });
+      return JSON.stringify({ action: "speak", meeting: "Village", text: sheriff ? "I'm Sheriff. Shooting at end of day if no claims." : ["morning, who has thoughts", "quiet start huh", "anyone got a read", "bea feels odd to me", "lets get some talk going", "who is lurking today", "cat what do you think", "dan you there"][(n++) % 8] });
     }
     if (purpose === "scheduler") return '{"urgency":2,"speak":true,"reason":"ok"}';
     return "not json";
