@@ -627,6 +627,9 @@ export function scumChatterLines(view, rng = Math.random) {
     lynch && `ill push ${lynch.toLowerCase()} tmrw`, lynch && `${lynch.toLowerCase()} is an easy wagon`,
     `if pressed i fakeclaim ${claim === "cop" ? "villager" : claim}`, "dont all vote the same guy first", "who do we think cop is",
   ].filter(Boolean);
+  // Don't echo a teammate's line from tonight.
+  const said = new Set((view.messages || []).filter((m) => m.phase === view.phase?.name).map((m) => String(m.content || "").toLowerCase()));
+  for (let i = pool.length - 1; i >= 0; i--) if (said.has(pool[i])) pool.splice(i, 1);
   const out = [];
   while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   return out.slice(0, 1 + (rng() < 0.5 ? 1 : 0));

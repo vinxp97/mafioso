@@ -31,7 +31,7 @@ export function validateAction(view, action) {
     const leak = publicLeak(view, action.data?.content);
     if (leak) return no(`public leak: ${leak}`);
     if (String(action.data?.content || "").length > PUBLIC_MAX) return no("too long for chat");
-    const claim = earlyClaimBlock(view, action.data?.content, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
+    const claim = earlyClaimBlock(view, action.data?.content, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId, planRole: agreedPlan(view)?.claimRole });
     if (claim) return no(claim);
   }
   const gun = sheriffShotCheck(view, action);
