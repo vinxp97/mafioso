@@ -6,6 +6,7 @@ import { emptyDigest } from "./digest.js";
 import { emptyLedger } from "./factLedger.js";
 import { applySeatMemory, emptyMemory } from "./memory.js";
 import { emptyNotes, applyNotes } from "./notes.js";
+import { isPublicSpeechMeeting } from "./scheduler.js";
 import { noteFactionPlan } from "./scumPlan.js";
 const clone = (x) => (x === undefined ? x : structuredClone(x));
 
@@ -61,8 +62,23 @@ export function reduce(view, frame) {
     case "meeting": if (data?.id) v.meetings[data.id] = clone(data); break;
     case "leftMeeting": delete v.meetings[data]; break;
     case "message": case "quote":
-      if (data) { v.messages.push(clone(data)); v.claims = reduceClaims(v.claims || {}, data); }
+      if (data) {
+        const msg = clone(data);
+        if (msg.t == null && frame.t != null) msg.t = frame.t;
+        if (msg.phase == null) msg.phase = v.phase?.name || "";
+        const meeting = msg.meetingId ? v.meetings[msg.meetingId] : null;
+        if (typeof msg.public !== "boolean") msg.public = meeting ? isPublicSpeechMeeting(meeting) : msg.senderId !== "server";
+        v.messages.push(msg);
+        v.claims = reduceClaims(v.claims || {}, data);
+      }
       break;
+    case "speakCooldown": {
+      const ms = typeof data === "number" ? data : Number(data?.ms ?? data?.remaining);
+      const until = Number(data?.until ?? data?.t);
+      if (Number.isFinite(until) && until > 1e11) v.speechHoldUntil = until;
+      else if (Number.isFinite(ms) && ms > 0) v.speechHoldUntil = Number(frame.t ?? 0) + ms;
+      break;
+    }
     case "vote": case "unvote": {
       const m = v.meetings[data?.meetingId];
       if (!m) break;

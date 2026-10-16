@@ -2,7 +2,7 @@
 // Every returned action passes validateAction; otherwise falls back to rules decide().
 // JSON action shape follows UM-Autobot-Player agent.js ({action, meeting, target, text}).
 import { validateAction, legalVotes } from "./legal.js";
-import { decide } from "./decide.js";
+import { decide, supplementActions } from "./decide.js";
 import { isAlive } from "./reducer.js";
 import { allies, enemies, myFaction } from "./faction.js";
 import { memoryOf } from "./notes.js";
@@ -14,6 +14,7 @@ import { formatDigest } from "./digest.js";
 import { formatLedger } from "./factLedger.js";
 import { extractJsonObject } from "./jsonText.js";
 import { refreshSeatMemory } from "./memory.js";
+import { amendmentLine, decideSpeech, isPublicSpeak, publicSpeechMeeting, scheduleSpeech, speechCap } from "./scheduler.js";
 import { sanitizeChat } from "./sanitize.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
 
@@ -155,14 +156,28 @@ export function parseLlmAction(text, view = null) {
   return null;
 }
 
+function publicSpeechBlock(view, action, sched, now) {
+  if (!isPublicSpeak(view, action)) return "";
+  if (!sched?.speak) return `scheduler wait (${sched?.reason || "not now"})`;
+  const cap = speechCap(view, { now });
+  if (!cap.ok) return `scheduler ${cap.reason}`;
+  return "";
+}
+
+function withoutPublicSpeech(view, actions, sched) {
+  if (sched?.speak) return actions;
+  return (actions || []).filter((action) => !isPublicSpeak(view, action));
+}
+
 /**
  * @param {import('./types.js').GameView} view
- * @param {{complete:(p:{system:string,user:string})=>Promise<string>, maxRetries?:number, rng?:Function}} opts
+ * @param {{complete:(p:{system:string,user:string})=>Promise<string>, maxRetries?:number, rng?:Function, now?:number, memory?:boolean, speechSchedule?:object}} opts
  * @returns {Promise<{actions:import('./types.js').ProposedAction[], source:'llm'|'fallback', rejections:string[]}>}
  */
-export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = true } = {}) {
+export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = true, now, speechSchedule } = {}) {
   const rejections = [];
-  const fallback = () => ({ actions: decide(view, { rng }), source: "fallback", rejections });
+  const sched = speechSchedule || decideSpeech(view, { now });
+  const fallback = () => ({ actions: withoutPublicSpeech(view, decide(view, { rng }), sched), source: "fallback", rejections });
   if (!view.selfId || view.finished || view.leftGame || typeof complete !== "function") return fallback();
   if (memory !== false && view.memory?.due) await refreshSeatMemory(view, { complete });
   const base = buildBriefing(view);
@@ -183,7 +198,93 @@ export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = 
     if (!v.ok) { rejections.push(`${a.event} rejected: ${v.reason}`); continue; }
     const policy = planViolation(view, a) || wastedNightTarget(view, a);
     if (policy) { rejections.push(`${a.event} rejected: ${policy}`); continue; }
+    const timing = publicSpeechBlock(view, a, sched, now);
+    if (timing) { rejections.push(`speak rejected: ${timing}`); continue; }
     return { actions: [a], source: "llm", rejections };
   }
   return fallback();
+}
+
+/**
+ * What to say after the scheduler has approved one public line.
+ * Uses the same briefing as llmDecide (role card, ledger, board, digest, last K chat).
+ * @returns {Promise<{action:import('./types.js').ProposedAction|null, source:string, rejections:string[], schedule:object}>}
+ */
+export async function generatePublicSpeech(view, { complete, schedule, now, maxRetries = 1 } = {}) {
+  const sched = schedule || decideSpeech(view, { now });
+  const rejections = [];
+  const meeting = publicSpeechMeeting(view);
+  if (!sched?.speak || sched.capped) {
+    return { action: null, source: "scheduler", rejections: [sched?.reason || "not now"], schedule: sched };
+  }
+  const cap = speechCap(view, { now });
+  if (!cap.ok || !meeting || typeof complete !== "function") {
+    return { action: null, source: "scheduler", rejections: [cap.ok ? "no generator" : cap.reason], schedule: sched };
+  }
+  const note = [
+    `SCHEDULER: approved one public message in meeting ${meeting.id} (${meeting.name}).`,
+    `URGENCY: ${sched.urgency} (${(sched.reasons || []).join(", ")}).`,
+    amendmentLine(sched.amendment),
+    "Reply with one speak JSON for that meeting only. Do not vote or wait.",
+  ].join("\n");
+  const base = buildBriefing(view);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const user = rejections.length ? `${base}\n${note}\nYOUR PREVIOUS REPLY WAS REJECTED: ${rejections.at(-1)}. Reply with one legal speak.` : `${base}\n${note}`;
+    let out;
+    try { out = await complete({ system: SYSTEM_PROMPT, user, purpose: "speech" }); } catch { rejections.push("model error"); continue; }
+    const action = parseLlmAction(out, view);
+    if (!action || action.event !== "speak") { rejections.push("need a speak action"); continue; }
+    if (!isPublicSpeak(view, action)) { rejections.push("not public chat"); continue; }
+    const checked = validateAction(view, action);
+    if (!checked.ok) { rejections.push(checked.reason); continue; }
+    const again = speechCap(view, { now });
+    if (!again.ok) { rejections.push(again.reason); return { action: null, source: "scheduler", rejections, schedule: sched }; }
+    return { action, source: "llm", rejections, schedule: sched };
+  }
+  return { action: null, source: "llm", rejections, schedule: sched };
+}
+
+/** Rules actions for one seat. Public speech stays only when this seat's scheduler says speak. */
+export function rulesSeatActions(view, opts = {}) {
+  const sched = opts.speechSchedule || decideSpeech(view, { now: opts.now });
+  const actions = withoutPublicSpeech(view, decide(view, opts), sched).filter((action) => validateAction(view, action).ok);
+  if (sched.speak) {
+    const line = (decide(view, opts) || []).find((action) => isPublicSpeak(view, action) && validateAction(view, action).ok && speechCap(view, { now: opts.now }).ok);
+    if (line && !actions.some((action) => action.event === "speak" && action.data.meetingId === line.data.meetingId)) actions.push(line);
+  }
+  return { actions, schedule: sched, source: "rules", rejections: [] };
+}
+
+/**
+ * One seat: scheduler, then votes/night actions, then a speech generator when public chat is approved.
+ * Night and day votes are not dropped when the scheduler says wait.
+ */
+export async function proposeSeatActions(view, { complete, rng, now, maxRetries, memory, scheduleComplete } = {}) {
+  const sched = await scheduleSpeech(view, { now, complete: scheduleComplete });
+  const rules = rulesSeatActions(view, { rng, now, speechSchedule: { ...sched, speak: false } });
+  const allowSpeech = !!sched.speak && !sched.capped && speechCap(view, { now }).ok;
+  let decided = { actions: rules.actions, source: "rules", rejections: [] };
+  const model = typeof complete === "function";
+  if (model && (rules.actions.length || allowSpeech)) {
+    decided = await llmDecide(view, {
+      complete, rng, now, maxRetries, memory,
+      speechSchedule: allowSpeech ? sched : { ...sched, speak: false },
+    });
+  }
+  const actions = supplementActions(
+    withoutPublicSpeech(view, decided.actions, allowSpeech ? sched : { speak: false }),
+    rules.actions,
+    view,
+  ).filter((action) => validateAction(view, action).ok);
+  if (allowSpeech && !actions.some((action) => isPublicSpeak(view, action))) {
+    if (model) {
+      const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries });
+      if (generated.action && validateAction(view, generated.action).ok) actions.push(generated.action);
+    }
+    if (!actions.some((action) => isPublicSpeak(view, action))) {
+      const line = rulesSeatActions(view, { rng, now, speechSchedule: sched }).actions.find((action) => isPublicSpeak(view, action));
+      if (line) actions.push(line);
+    }
+  }
+  return { actions, schedule: sched, source: decided.source, rejections: decided.rejections };
 }
