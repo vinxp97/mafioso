@@ -7,6 +7,7 @@ import { isAlive } from "./reducer.js";
 import { allies, enemies, myFaction } from "./faction.js";
 import { memoryOf } from "./notes.js";
 import { mustActMeeting } from "./nightAct.js";
+import { roleGuideForView } from "./roleGuide.js";
 import { agreedPlan, planViolation, scumFaction, scumOwesNightVote } from "./scumPlan.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
 
@@ -52,6 +53,8 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
       ? `TEAM PLAN: kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget} janitor=${plan.janitorTarget} speaker=${plan.speakerId || "-"} source=chat`
       : "TEAM PLAN: none");
   }
+  const guide = roleGuideForView(view);
+  if (guide) L.push(guide);
   L.push("LEGAL ACTIONS:");
   const votes = legalVotes(view);
   for (const lv of votes)
