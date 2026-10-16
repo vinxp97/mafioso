@@ -58,7 +58,11 @@ test("decide emits only legal actions", () => {
 test("night: dead skipped, winners ends", () => {
   const night = reduceAll(load("game1-night.jsonl").slice(0, 3), day());
   assert.equal(night.phase.phase, "Night");
-  assert.deepEqual(decide(night), [{ event: "vote", data: { meetingId: "mMaf", selection: "p3" } }]);
+  const nightActs = decide(night);
+  assert.deepEqual(nightActs, [
+    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p3 claim=Cop lawyer=p3 speaker=p1" } },
+    { event: "vote", data: { meetingId: "mMaf", selection: "p3" } },
+  ]);
   const end = reduceAll(load("game1-night.jsonl"), day());
   assert.equal(end.finished, true);
   assert.deepEqual(decide(end), []);

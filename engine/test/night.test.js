@@ -25,10 +25,12 @@ test("roleReveal sets own role; reveal of others doesn't", () => {
   assert.equal(v.role, "Doctor");
 });
 
-test("policy spec: Cop forced on N1 only; unknown role not forced", () => {
+test("policy spec: Cop, Journalist, and Sheriff act on every night", () => {
   const cop = specForRole("Cop:Humble");
   assert.equal(mustActTonight(cop, 1), true);
-  assert.equal(mustActTonight(cop, 2), false);
+  assert.equal(mustActTonight(cop, 2), true);
+  assert.equal(mustActTonight(specForRole("Journalist"), 2), true);
+  assert.equal(mustActTonight(specForRole("Sheriff"), 2), true);
   assert.equal(specForRole("Villager").alwaysAct, "no");
   assert.equal(mustActTonight(specForRole("Oracle"), 3), true);
 });
@@ -71,6 +73,20 @@ test("decide prefers nightAct at night and stops after own vote", () => {
   assert.deepEqual(a, { event: "vote", data: { meetingId: "mCop", selection: "p2" } });
   const after = reduce(v, { event: "vote", data: { meetingId: "mCop", voterId: "p1", target: "p2" } });
   assert.deepEqual(decide(after), []);
+});
+
+test("cop, journalist, and sheriff vote a living player on a later night", () => {
+  for (const role of ["Cop", "Journalist", "Sheriff"]) {
+    const v = reduceAll([
+      { event: "self", data: "p1" },
+      { event: "players", data: { p1: { id: "p1", name: "Me" }, p2: { id: "p2", name: "Alice" }, p3: { id: "p3", name: "Bob" } } },
+      { event: "roleReveal", data: { playerId: "p1", role } },
+      { event: "state", data: { id: 4, name: "Night 2" } },
+      meetingFrame("mN", role === "Sheriff" ? "Shoot" : "Investigate", ["p1", "p2", "p3", "*"]),
+    ]);
+    const acts = decide(v);
+    assert.deepEqual(acts, [{ event: "vote", data: { meetingId: "mN", selection: "p2" } }], role);
+  }
 });
 
 test("day still uses stub path", () => {
