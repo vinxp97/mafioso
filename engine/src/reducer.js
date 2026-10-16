@@ -29,6 +29,7 @@ export function reduce(view, frame) {
   const prevPhase = v.phase?.name || "";
   if (!frame || typeof frame.event !== "string") return v;
   const { event, data } = frame;
+  if (frame.t != null && Number.isFinite(Number(frame.t)) && !(Number(frame.t) < (v.clock ?? -Infinity))) v.clock = Number(frame.t);
   switch (event) {
     case "self": v.selfId = String(data); updateRole(v); break;
     case "players": v.players = clone(data) || {}; break;

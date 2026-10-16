@@ -1,3 +1,4 @@
+import { applySheriffRule } from "./sheriffGate.js";
 import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
@@ -259,7 +260,7 @@ export function rulesSeatActions(view, opts = {}) {
     const line = (decide(view, opts) || []).find((action) => isPublicSpeak(view, action) && validateAction(view, action).ok && speechCap(view, { now: opts.now }).ok);
     if (line && !actions.some((action) => action.event === "speak" && action.data.meetingId === line.data.meetingId)) actions.push(line);
   }
-  return { actions, schedule: sched, source: "rules", rejections: [] };
+  return { actions: applySheriffRule(view, actions, { now: opts.now }), schedule: sched, source: "rules", rejections: [] };
 }
 
 function formatSpeechGoal(choice) {
@@ -332,7 +333,8 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
       if (line) actions.push(line);
     }
   }
-  const named = actions.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
+  const aimed = applySheriffRule(view, actions, { now });
+  const named = aimed.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
     .filter((action) => action.event !== "speak" || String(action.data?.content || "").trim());
   return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
 }
