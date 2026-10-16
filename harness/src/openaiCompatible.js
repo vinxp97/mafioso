@@ -112,7 +112,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
     return resolvedModel;
   }
 
-  function buildBody(model, system, user, json) {
+  function buildBody(model, system, user, json, callMax) {
     const body = {
       model,
       messages: [
@@ -123,7 +123,8 @@ export function createOpenAICompatibleComplete(opts = {}) {
     };
     if (json) body.response_format = { type: "json_object" };
     if (temperature !== undefined) body.temperature = temperature;
-    if (maxTokens !== undefined) body.max_tokens = maxTokens;
+    const mt = callMax !== undefined ? callMax : maxTokens;
+    if (mt !== undefined) body.max_tokens = mt;
     if (extraBody) Object.assign(body, extraBody);
     return body;
   }
@@ -147,13 +148,16 @@ export function createOpenAICompatibleComplete(opts = {}) {
     return content;
   }
 
-  return async function complete({ system, user } = {}) {
+  // Per call: maxTokens caps output (short chat lines); json:false asks for plain text.
+  return async function complete({ system, user, maxTokens: callMax, json = true } = {}) {
     const model = await ensureModel();
+    const cap = finiteNumber(callMax);
+    if (!json) return postChat(buildBody(model, system, user, false, cap));
     try {
-      return await postChat(buildBody(model, system, user, true));
+      return await postChat(buildBody(model, system, user, true, cap));
     } catch (e) {
       if (!e?.responseFormatRejected) throw e;
-      return await postChat(buildBody(model, system, user, false));
+      return await postChat(buildBody(model, system, user, false, cap));
     }
   };
 }

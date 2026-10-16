@@ -2,6 +2,8 @@ import { sheriffShotCheck } from "./sheriffGate.js";
 import { isPublicSpeechMeeting } from "./scheduler.js";
 import { selfAlive } from "./reducer.js";
 import { MAX_SPEECH } from "./types.js";
+import { PUBLIC_MAX, earlyClaimBlock } from "./chatStyle.js";
+import { agreedPlan } from "./scumPlan.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
 
@@ -28,6 +30,9 @@ export function validateAction(view, action) {
   if (action.event === "speak" && view.meetings?.[action.data?.meetingId] && isPublicSpeechMeeting(view.meetings[action.data.meetingId])) {
     const leak = publicLeak(view, action.data?.content);
     if (leak) return no(`public leak: ${leak}`);
+    if (String(action.data?.content || "").length > PUBLIC_MAX) return no("too long for chat");
+    const claim = earlyClaimBlock(view, action.data?.content, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
+    if (claim) return no(claim);
   }
   const gun = sheriffShotCheck(view, action);
   if (!gun.ok) return no(gun.reason);

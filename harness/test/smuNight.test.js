@@ -102,3 +102,27 @@ test("the PLAN never goes to a public meeting even if the engine proposed it the
   table.views["fDR8JD4HVj"] = v;
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "PLAN kill=a lynch=b claim=Cop lawyer=c speaker=d" } }).ok, false);
 });
+
+test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", { timeout: 60000 }, async () => {
+  const { decide } = await import("mafioso-engine");
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+  const seq = {};
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { dryRun: true }); };
+  for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
+  for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
+  const mafia = seats.filter((s) => MAFIA.has(s.role));
+  for (const s of mafia) {
+    await feed(s, "state", { id: 2, name: "Night 1" });
+    for (const m of meetingsFor(s)) await feed(s, "meeting", m);
+    await feed(s, "message", { meetingId: "38S8qkzPMKC", senderId: "Hsd2JfBMtVt", content: "PLAN kill=a0BHWAcOIlw lynch=rhyFPKXcnH claim=Cop lawyer=otU9CsNlbw speaker=Hsd2JfBMtVt" });
+    await feed(s, "death", "a0BHWAcOIlw");
+    await feed(s, "state", { id: 4, name: "Night 2" });
+    for (const m of meetingsFor(s)) await feed(s, "meeting", { ...m, targets: (m.targets || []).filter((t) => t !== "a0BHWAcOIlw") });
+  }
+  const leader = table.views["9yy7vCpjSn"];
+  const acts = decide(leader);
+  const kill = acts.find((a) => a.event === "vote" && a.data.meetingId === "zbABCg9YSTU");
+  assert.ok(kill, "leader votes a kill on Night 2");
+  assert.notEqual(kill.data.selection, "a0BHWAcOIlw");
+  assert.ok(acts.some((a) => a.event === "speak" && /PLAN/.test(a.data.content) && a.data.meetingId === "38S8qkzPMKC"), "new PLAN for Night 2");
+});

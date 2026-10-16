@@ -1,3 +1,4 @@
+import { claimAllowed } from "./chatStyle.js";
 // CandidateGen for one seat. One model call proposes 3–4 different options per open
 // decision (day vote, night target, claim, speech goal). The selector picks.
 // Adapted from Xu et al., arXiv:2310.18940: the model offers diverse actions; it does not choose.
@@ -42,7 +43,8 @@ export function openDecisions(view, { speechSchedule } = {}) {
   if (speechSchedule?.speak) {
     const meeting = publicSpeechMeeting(view);
     if (meeting) {
-      decisions.push({ id: "claim", kind: "claim", meetingId: meeting.id, name: meeting.name, targets: [] });
+      // No role claim option unless this seat may claim now (Sheriff, Cop with a guilty, under pressure).
+      if (claimAllowed(view)) decisions.push({ id: "claim", kind: "claim", meetingId: meeting.id, name: meeting.name, targets: [] });
       decisions.push({ id: "speech", kind: "speech-goal", meetingId: meeting.id, name: meeting.name, targets: [] });
     }
   }
