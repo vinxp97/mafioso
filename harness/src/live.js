@@ -170,11 +170,13 @@ export function resultsFromTable(table) {
   return rows;
 }
 
-/** Action calls may wear this seat's evolved system text. Memory updates keep their own system prompt. */
+/** Action and speech calls may wear this seat's evolved system text. Memory, the scheduler, and candidate generation keep their own system prompts. */
 export function bindSeatComplete(complete, promptText) {
   if (typeof complete !== "function") return null;
   return (prompt) => complete({
-    system: prompt?.purpose === "memory" || prompt?.purpose === "scheduler" ? prompt.system : (promptText || prompt?.system),
+    system: prompt?.purpose === "memory" || prompt?.purpose === "scheduler" || prompt?.purpose === "candidates"
+      ? prompt.system
+      : (promptText || prompt?.system),
     user: prompt?.user,
     purpose: prompt?.purpose,
   });
