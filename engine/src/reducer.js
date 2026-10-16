@@ -1,6 +1,10 @@
 // Pure reducer: reduce(view, {event, data}) -> new view. Rewritten from the
 // mutable GameState class in UM-Autobot-Player/src/state.js (same event semantics).
 import { reduceClaims } from "./claims.js";
+import { emptyBeliefs } from "./beliefs.js";
+import { emptyDigest } from "./digest.js";
+import { emptyLedger } from "./factLedger.js";
+import { applySeatMemory, emptyMemory } from "./memory.js";
 import { emptyNotes, applyNotes } from "./notes.js";
 import { noteFactionPlan } from "./scumPlan.js";
 const clone = (x) => (x === undefined ? x : structuredClone(x));
@@ -9,7 +13,8 @@ const clone = (x) => (x === undefined ? x : structuredClone(x));
 export function emptyView() {
   return { selfId: null, players: {}, dead: {}, phase: null, meetings: {},
     messages: [], winners: null, leftGame: false, finished: false,
-    stateId: -1, history: {}, reveals: {}, role: null, claims: {}, notes: emptyNotes() };
+    stateId: -1, history: {}, reveals: {}, role: null, claims: {}, notes: emptyNotes(),
+    ledger: emptyLedger(), beliefs: emptyBeliefs(), digest: emptyDigest(), memory: emptyMemory() };
 }
 
 export function parsePhase(name) {
@@ -20,6 +25,7 @@ export function parsePhase(name) {
 /** Accepts a raw game event or a Dev API envelope. */
 export function reduce(view, frame) {
   const v = clone(view ?? emptyView());
+  const prevPhase = v.phase?.name || "";
   if (!frame || typeof frame.event !== "string") return v;
   const { event, data } = frame;
   switch (event) {
@@ -77,6 +83,7 @@ export function reduce(view, frame) {
   }
   applyNotes(v, frame);
   if ((event === "message" || event === "quote") && data) noteFactionPlan(v, data);
+  applySeatMemory(v, frame, { prevPhase });
   return v;
 }
 
