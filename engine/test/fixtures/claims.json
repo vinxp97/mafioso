@@ -1,0 +1,10 @@
+[
+  {"msg":{"senderId":"p2","content":"I'm cop, p3 is scum"},"expect":{"role":"Cop","kind":"claim"}},
+  {"msg":{"senderId":"p3","content":"cc doc"},"expect":{"role":"Doctor","kind":"cc"}},
+  {"msg":{"senderId":"p4","content":"claiming as the town crier"},"expect":{"role":"Town Crier","kind":"claim"}},
+  {"msg":{"senderId":"p5","content":"i am a blue"},"expect":{"role":"Villager","kind":"claim"}},
+  {"msg":{"senderId":"p2","content":"retract cop"},"expect":{"role":"Cop","kind":"retract"}},
+  {"msg":{"senderId":"p6","content":"bob is cop"},"expect":null},
+  {"msg":{"senderId":"server","content":"I'm cop"},"expect":null},
+  {"msg":{"senderId":"p7","content":"I'm copying that"},"expect":null}
+]

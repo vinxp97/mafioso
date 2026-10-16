@@ -1,0 +1,32 @@
+: keepalive
+
+event: game
+data: {"accountId":"A","seq":1,"t":1,"event":"self","data":"p1"}
+
+event: game
+data: {"accountId":"A","seq":2,"t":2,"event":"players","data":{"p1":{"id":"p1","name":"Bot1"},"p2":{"id":"p2","name":"Bot2"},"p3":{"id":"p3","name":"Bot3"}}}
+
+event: game
+data: {"accountId":"A","seq":3,"t":3,"event":"state","data":{"id":1,"name":"Day 1"}}
+
+event: game
+data: {"accountId":"A","seq":3,"t":3,"event":"state","data":{"id":1,"name":"Day 1"}}
+
+event: game
+data: {"accountId":"A","seq":4,"t":4,"event":"meeting","data":{"id":"mVil","name":"Village","speech":true,"voting":true,"canVote":true,"amMember":true,"targets":["p1","p2","p3","*"],"votes":{}}}
+
+event: game
+data: {"accountId":"B","seq":1,"t":5,"event":"self","data":"p2"}
+
+event: game
+data: {"accountId":"A","seq":5,"t":6,"event":"vote","data":{"meetingId":"mVil","voterId":"p3","target":"p2"}}
+
+event: game
+data: {"accountId":"A","seq":6,"t":7,"event":"state","data":{"id":2,"name":"Night 1"}}
+
+event: game
+data: {"accountId":"A","seq":7,"t":8,"event":"meeting","data":{"id":"mMaf","name":"Mafia","voting":true,"canVote":true,"amMember":true,"targets":["p2","p3"],"votes":{}}}
+
+event: accounts_dropped
+data: {"reason":"restart"}
+

@@ -1,0 +1,4 @@
+{"event":"death","data":"p2"}
+{"event":"state","data":{"name":"Night 1"}}
+{"event":"meeting","data":{"id":"mMaf","name":"Mafia","speech":true,"voting":true,"canVote":true,"amMember":true,"targets":["p1","p2","p3","*"],"votes":{}}}
+{"event":"winners","data":{"groups":["Village"],"players":["p1","p3"]}}

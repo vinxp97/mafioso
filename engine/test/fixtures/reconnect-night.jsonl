@@ -1,0 +1,4 @@
+{"event":"self","data":"p1"}
+{"event":"players","data":{"p1":{"id":"p1","name":"Bot1"},"p2":{"id":"p2","name":"Alice"},"p3":{"id":"p3","name":"Bob"},"p4":{"id":"p4","name":"Carol"}}}
+{"event":"history","data":{"1":{"name":"Day 1","roles":{"p1":"Cop:Humble"},"dead":{},"meetings":{}},"2":{"name":"Night 1","roles":{},"dead":{"p4":true},"meetings":{"mCop":{"id":"mCop","name":"Investigate","voting":true,"canVote":true,"amMember":true,"speech":false,"targets":["p1","p2","p3","p4","*"],"votes":{}},"mMaf":{"id":"mMaf","name":"Mafia","voting":true,"canVote":false,"amMember":false,"targets":["p2","p3"]}}}}}
+{"event":"state","data":{"id":2,"name":"Night 1"}}

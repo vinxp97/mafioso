@@ -1,0 +1,4 @@
+{ "name": "mafioso-harness", "version": "0.1.0", "private": true, "type": "module",
+  "description": "Dev-only Ultimafia Dev API client for Mafioso (dev.ultimafia.gg / 127.0.0.1 only)",
+  "dependencies": { "mafioso-engine": "file:../engine" },
+  "scripts": { "test": "node --test test/" } }

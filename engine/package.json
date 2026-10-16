@@ -1,0 +1,14 @@
+{
+  "name": "mafioso-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline Ultimafia state/rules engine for Mafioso (dev-only harness)",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  }
+}
