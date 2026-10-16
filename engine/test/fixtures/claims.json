@@ -6,5 +6,6 @@
   {"msg":{"senderId":"p2","content":"retract cop"},"expect":{"role":"Cop","kind":"retract"}},
   {"msg":{"senderId":"p6","content":"bob is cop"},"expect":null},
   {"msg":{"senderId":"server","content":"I'm cop"},"expect":null},
-  {"msg":{"senderId":"p7","content":"I'm copying that"},"expect":null}
+  {"msg":{"senderId":"p7","content":"I'm copying that"},"expect":null},
+  {"msg":{"senderId":"p8","content":"I'm the journalist"},"expect":{"role":"Journalist","kind":"claim"}}
 ]

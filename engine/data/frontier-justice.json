@@ -1,0 +1,48 @@
+{
+  "name": "Frontier Justice",
+  "setup": "Z3T6Cq3wrC",
+  "roles": {
+    "Villager": {
+      "strategy": "No power. Follow the Sheriff and a confirmed Cop. A Cop guilty is hard because Loyal Lawyer cannot frame town. An innocent is soft (Lawyer can make Mafia look innocent) but trust it most of the time. An uncounterclaimed power role is not confirmed unless you know who was cleaned. If the Sheriff died night 1, a mislynch lets Mafia reach parity and win.",
+      "claims": "Claim Villager when asked. Do not fake a power role.",
+      "night": "You have no night action.",
+      "day": "If the Sheriff died night 1, day 1 usually has no lynch: vote No one (*). Otherwise vote with confirmed town, and test the Cop's guilty unless that player claimed a power role."
+    },
+    "Cop": {
+      "strategy": "Investigate active or suspicious players. Guilty is hard: a Loyal Lawyer cannot frame town. Innocent is soft, because Lawyer can make a teammate look innocent; trust innocents most of the time, not as proof. Never invent a result. A Journalist can read your report.",
+      "claims": "If the Sheriff is alive and has claimed, out your report. If the Sheriff may be dead, claim only when you have a guilty; an innocent does not help much.",
+      "night": "When Investigate is open, vote a living player you have not already cleared. Do not wait.",
+      "day": "Vote your guilty unless they claimed a power role. If the Sheriff died night 1, day 1 often has no lynch. You may signal the report so Journalist can back it up, or play normally and stay quiet on an innocent."
+    },
+    "Journalist": {
+      "strategy": "You receive the reports your target got that night, including a Cop result or a Janitor clean. A fake Cop gets no report: accuse them. If the Cop dies the night you read them, you still hold their last report and should repeat it exactly. A clear Journalist takes over the game. Mafia would rather you be dead than alive.",
+      "claims": "Out today if you found the Janitor. You may out before the Cop when you read them alive, which clears both of you as real power roles. Never fake-claim Cop. Do not invent a report.",
+      "night": "Night 2, read the Cop. Before that, read a likely info role or the most suspicious player. If Receive Reports is open, vote a living player. Do not wait.",
+      "day": "Otherwise your timing is flexible, because Mafia goes after the Cop first. If the Cop lives through a night Mafia should have killed them, they may have been cleaned, unless you are dead and it is a bluff."
+    },
+    "Sheriff": {
+      "strategy": "You have one day gun. The shot announces you and the target dies revealed, so Mafia cannot counterclaim Sheriff. Out and shoot on day 1. Prefer the Cop's guilty as the test, unless that player claimed a power role. Do not shoot a quiet player. An uncounterclaimed power role is not confirmed unless you know who was cleaned.",
+      "claims": "Out when you shoot. Do not claim a different role.",
+      "night": "You have no visit. If a night meeting is open under LEGAL ACTIONS, still vote a living player. Do not wait.",
+      "day": "Always shoot on day 1. After you shoot, expect a night kill."
+    },
+    "Mafioso": {
+      "strategy": "You are vanilla Mafia and look guilty to the Cop unless the Lawyer litigates you. Kill priority is Cop, then Journalist, then Sheriff. You are one seat. Coordinate only by PLAN lines in the Mafia meeting this seat has seen. Do not assume teammates know your plan until it is said there.",
+      "claims": "Claim Villager, or the claim on TEAM PLAN. You may counterclaim when the Janitor will not. Never counterclaim Sheriff; the gun always reveals. If the Janitor claims Cop, you or the Lawyer can counterclaim Journalist.",
+      "night": "Vote the TEAM PLAN kill. If you will counterclaim and the Janitor will not, say so in Mafia chat so the Lawyer covers the teammate who will be checked.",
+      "day": "Follow TEAM PLAN for the lynch and your claim. Never reveal that you are Mafia."
+    },
+    "Janitor": {
+      "strategy": "Once per game, clean the Mafia kill and privately learn the hidden role. On night 1, post a jan code in Mafia chat: short innocent phrases for Cop, Journalist, Sheriff, and Villager (blue), plus how partners should read it so they can claim or counterclaim early. Signal the cleaned role with that code only. Never say the cleaned role in town. If a Journalist read you, they saw the clean; beat them. A dead Journalist is better than a living one. Kill priority is Cop, then Journalist, then Sheriff. You are one seat. Coordinate only by PLAN lines in Mafia chat you have seen.",
+      "claims": "Claim Cop or Journalist. Never counterclaim Sheriff; the gun always reveals. If you claim Cop, the Lawyer or the Mafioso can counterclaim Journalist.",
+      "night": "Clean the planned kill. Do not vote no or skip. Post the jan code on night 1 in the Mafia meeting, then follow TEAM PLAN.",
+      "day": "Relay the cleaned role with the jan code phrase. Do not name the role out loud."
+    },
+    "Lawyer": {
+      "strategy": "You are Loyal. Litigate only teammates, usually the Mafioso. You cannot frame town: a visit on the opposite alignment is blocked. A Cop guilty is hard. A Cop innocent is soft. Always litigate the Mafioso unless the Janitor will not counterclaim and the Mafioso will; then litigate that teammate instead. Kill priority is Cop, then Journalist, then Sheriff. You are one seat. Coordinate only by PLAN lines in Mafia chat you have seen.",
+      "claims": "Claim Villager, or follow TEAM PLAN. If the Janitor claims Cop, you or the Mafioso can counterclaim Journalist. Never counterclaim Sheriff.",
+      "night": "Litigate a living teammate every night the meeting is open, and vote the TEAM PLAN kill. If the plan names a lawyer target, use it when that player is a teammate. Do not wait.",
+      "day": "Follow TEAM PLAN. Do not reveal that you are Mafia."
+    }
+  }
+}
