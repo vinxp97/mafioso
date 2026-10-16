@@ -81,7 +81,13 @@ export function reduce(view, frame) {
       updateRole(v);
     }
     case "meeting": {
-      if (data?.id) v.meetings[data.id] = clone(data);
+      if (data?.id) {
+        const m = clone(data);
+        // Live servers name the faction meeting "Mafia Kill"; the engine keys on "Mafia"/"Cult".
+        const fac = String(m.name || "").match(/^(mafia|cult)(\s+(kill|meeting|chat))?$/i);
+        if (fac) { m.rawName = m.name; m.name = fac[1][0].toUpperCase() + fac[1].slice(1).toLowerCase(); }
+        v.meetings[data.id] = m;
+      }
       // The one-shot "players" frame can be missed (sent before the stream attaches, or past the
       // event cap). Meeting members and targets are seated players, so learn them here.
       for (const m of Array.isArray(data?.members) ? data.members : []) if (m?.id && !v.players[m.id]) v.players[m.id] = { id: m.id };

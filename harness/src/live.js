@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -269,14 +269,169 @@ function localSpeechOk(table, id, clock) {
   return !mine.length || t - Math.max(...mine) >= 8_000;
 }
 
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule } = {}) {
+/** Send (or propose) validated actions for one seat; dedups per state, allows a changed vote. */
+async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock }) {
+  const view = table.views[id];
+  const stamp = speechStamp(view);
+  const added = [];
+  for (let action of actions || []) {
+    if (!validateAction(view, action).ok) continue;
+    const pub = isPublicSpeak(view, action);
+    const key = pub
+      ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
+      : action.event === "vote"
+        ? `${id}|${view.stateId}|vote|${action.data.meetingId}|${JSON.stringify(action.data.selection)}`
+        : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}|${action.data.content ?? ""}`;
+    if (pub && table.speechStamp[id] === stamp) continue;
+    if (pub && !localSpeechOk(table, id, clock)) continue;
+    if (table.seen.has(key)) continue;
+    if (action.event === "vote") {
+      const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
+      if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
+      table.lastVote[vk] = JSON.stringify(action.data.selection);
+    }
+    table.seen.add(key);
+    if (pub) {
+      action = humanizeSpeak(view, action);
+      if (!String(action.data?.content || "").trim()) continue;
+      table.speechStamp[id] = stamp;
+      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
+    }
+    const proposal = {
+      accountId: id, afterSeq: entry?.seq, source, phase: view.phase?.name || "",
+      promptId: table.byId.get(id)?.promptId, ...action,
+    };
+    table.proposed.push(proposal);
+    added.push(proposal);
+    if (!dryRun && send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
+  }
+  return added;
+}
+
+/** Night actions first, then votes, then speech. Lower runs first. */
+export function seatPriority(view) {
+  if (view?.phase?.phase === "Night") return 0;
+  const openVote = Object.values(view?.meetings || {}).some((m) => m?.voting && m.canVote && m.amMember && (m.votes?.[view.selfId] == null));
+  return openVote ? 1 : 2;
+}
+
+/**
+ * Global model limiter: at most `concurrency` calls in flight, highest priority first.
+ * A queued call whose isStale() turns true (phase changed, seat died) is dropped with Error("stale").
+ */
+export function createLlmLimiter(concurrency = Infinity) {
+  const queue = []; let active = 0; let seq = 0;
+  const stats = { started: 0, dropped: 0 };
+  const pump = () => {
+    while (active < concurrency && queue.length) {
+      queue.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
+      const job = queue.shift();
+      if (job.isStale && job.isStale()) { stats.dropped++; job.reject(new Error("stale")); continue; }
+      active++; stats.started++;
+      Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; pump(); });
+    }
+  };
+  return {
+    run(fn, { priority = 2, isStale } = {}) {
+      return new Promise((resolve, reject) => { queue.push({ fn, priority, isStale, resolve, reject, seq: seq++ }); pump(); });
+    },
+    get pending() { return queue.length; },
+    get active() { return active; },
+    stats,
+  };
+}
+
+/** Wrap a seat's model with the limiter; every call is tied to the state it was asked in. */
+function limitedComplete(table, id, base, limiter, stateId, priority) {
+  if (!limiter) return base;
+  const isStale = () => table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id];
+  return (input) => limiter.run(() => base(input), { priority, isStale });
+}
+
+/** Model pass for one seat on its latest view; results only land if the state has not moved on. */
+function startUpgrade(table, id, ctx) {
+  (table.pending ||= {});
+  if (table.pending[id]) { (table.dirty ||= {})[id] = true; return; }
+  table.pending[id] = true;
+  const run = async () => {
+    do {
+      if (table.dirty) table.dirty[id] = false;
+      const view = table.views[id];
+      if (!view || !selfAlive(view) || view.finished) break;
+      const stateId = view.stateId;
+      const night = view.phase?.phase === "Night";
+      const base = bindSeatComplete(ctx.complete, table.byId.get(id)?.promptText);
+      const timed = (input) => withTimeout(base(input), LLM_TIMEOUT_MS);
+      const model = limitedComplete(table, id, timed, ctx.limiter, stateId, seatPriority(view));
+      let plan;
+      try {
+        plan = await proposeSeatActions(view, {
+          complete: model, rng: ctx.rng, now: ctx.clockOf(),
+          // One call per decision at night; speech takes one generator call (engine-only scheduling).
+          llmFallback: !night, memory: night ? false : undefined, maxRetries: 0, scheduleComplete: null,
+        });
+      } catch (err) {
+        if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
+        continue;
+      }
+      const now = table.views[id];
+      if (!now || now.stateId !== stateId || !selfAlive(now)) { ctx.onStale?.(id); continue; }
+      const sch = plan.schedule;
+      if (ctx.onSchedule && sch && sch.meetingId && !night) {
+        const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
+        if (table.lastSchedule?.[id] !== key) { (table.lastSchedule ||= {})[id] = key; ctx.onSchedule(id, sch); }
+      }
+      // Scum votes stay on the seen PLAN: the model may not move a faction kill, clean, or litigate.
+      const keep = plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a)));
+      const added = await emitActions(table, id, keep, { ...ctx, source: plan.source, clock: ctx.clockOf() });
+      if (ctx.onAdded) ctx.onAdded(added);
+    } while (table.dirty?.[id]);
+  };
+  const p = run().finally(() => { table.pending[id] = false; });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+// Night 1 Cop and Journalist have nothing to reason about yet: seeded random legal target, no model call.
+export function isNightOneInvestigator(view) {
+  return view?.phase?.phase === "Night" && view.phase.day === 1 && /^(cop|journalist)$/i.test(String(view.role || ""));
+}
+
+function seedOf(text) {
+  let h = 2166136261;
+  for (const c of String(text)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+}
+
+export function nightOneRandomPicks(view, accountId) {
+  const out = [];
+  for (const m of Object.values(view.meetings || {})) {
+    if (!m || m.voting === false || m.canVote === false || m.amMember === false) continue;
+    const pool = (m.targets || []).filter((t) => t !== "*" && t !== view.selfId && isAlive(view, t));
+    if (!pool.length) continue;
+    const rng = createSeededRng(seedOf(`${accountId}|${view.selfId}|${view.stateId}|${m.id}`));
+    out.push({ event: "vote", data: { meetingId: m.id, selection: pool[Math.floor(rng() * pool.length)] } });
+  }
+  return out;
+}
+
+function scumLocked(view, action) {
+  const m = view.meetings?.[action.data.meetingId];
+  if (!m || view.phase?.phase !== "Night") return false;
+  if (m.name === "Mafia" || m.name === "Cult") return !!agreedPlan(view);
+  return /janitor|lawyer/i.test(String(view.role || ""));
+}
+
+export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
   const view = table.views[id];
-  // Clock ticks carry no decision; deciding on each one serialises thousands of model calls.
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
   // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
   if (view.selfId && !selfAlive(view)) {
@@ -288,6 +443,23 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     const last = table.lastTick?.[id];
     if (clock == null || (last != null && clock - last < TICK_DECIDE_MS)) return [];
     (table.lastTick ||= {})[id] = clock;
+  }
+  const ctx = { dryRun, send, onError, entry };
+  if (fast && isNightOneInvestigator(view)) {
+    return emitActions(table, id, nightOneRandomPicks(view, id), { ...ctx, source: "n1-random", clock });
+  }
+  if (fast) {
+    // Rules first, right now: every open night action and vote gets a legal pick before any model call.
+    const rules = rulesSeatActions(view, { rng, now: clock });
+    const instant = rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a)));
+    const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
+    if (complete) {
+      startUpgrade(table, id, {
+        ...ctx, complete, rng, limiter, onSchedule, onAdded,
+        clockOf: () => (now != null ? now : Date.now()),
+      });
+    }
+    return added;
   }
   const promptText = table.byId.get(id)?.promptText;
   const seatComplete = complete ? bindSeatComplete(complete, promptText) : null;
@@ -301,8 +473,6 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     if (onError) onError(err, id);
     plan = rulesSeatActions(view, { rng, now: clock });
   }
-  const stamp = speechStamp(view);
-  const added = [];
   const sch = plan.schedule;
   if (onSchedule && sch && sch.meetingId && view.phase?.phase !== "Night") {
     const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
@@ -311,38 +481,12 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
       onSchedule(id, sch);
     }
   }
-  for (let action of plan.actions) {
-    if (!validateAction(view, action).ok) continue;
-    const key = isPublicSpeak(view, action)
-      ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
-      : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}`;
-    if (isPublicSpeak(view, action) && table.speechStamp[id] === stamp) continue;
-    if (isPublicSpeak(view, action) && !localSpeechOk(table, id, clock)) continue;
-    if (table.seen.has(key)) continue;
-    table.seen.add(key);
-    if (isPublicSpeak(view, action)) {
-      table.speechStamp[id] = stamp;
-      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
-    }
-    if (isPublicSpeak(view, action)) {
-      action = humanizeSpeak(view, action);
-      if (!String(action.data?.content || "").trim()) continue;
-    }
-    const proposal = {
-      accountId: id,
-      afterSeq: entry.seq,
-      source: plan.source,
-      promptId: table.byId.get(id)?.promptId,
-      ...action,
-    };
-    table.proposed.push(proposal);
-    added.push(proposal);
-    if (!dryRun && send) {
-      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
-      catch (err) { if (onError) onError(err, id); }
-    }
-  }
-  return added;
+  return emitActions(table, id, plan.actions, { ...ctx, source: plan.source, clock });
+}
+
+/** Wait for queued model upgrades (tests, end of game). */
+export async function drainUpgrades(table) {
+  while (table.upgrades?.size) await Promise.all([...table.upgrades]);
 }
 
 export async function driveAccounts(entries, opts) {
@@ -469,15 +613,22 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     });
   };
   // One serial queue per seat: a slow model call for one seat never holds up another.
+  // Local backends serve one request at a time: queue them globally with night actions first.
+  const concurrency = Number(env.MAFIOSO_LLM_CONCURRENCY) > 0 ? Number(env.MAFIOSO_LLM_CONCURRENCY) : (cfg.llm === "lmstudio" ? 1 : 4);
+  const limiter = createLlmLimiter(concurrency);
+  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`); };
+  let winnersLogged = false;
   const seats = createSeatQueues(async (entry) => {
+    if (entry.event === "winners" && !winnersLogged) { winnersLogged = true; say(`winners ${JSON.stringify(entry.data).slice(0, 400)}`); }
     const added = await onGameEntry(table, entry, {
-      complete, rng, dryRun: false,
+      complete, rng, dryRun: false, fast: true, limiter, onAdded: logSends,
       send: (p) => client.send(p),
       onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`),
       onSchedule: (who, sch) => say(`sched ${who} ${sch.speak ? "speak" : "skip"} u=${sch.urgency}/${sch.threshold} path=${sch.path} reason=${sch.reason}`),
     });
-    for (const p of added) say(`send ${p.accountId} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`);
+    logSends(added);
   }, { isStopped: (id, entry) => !!table.stopped?.[id] && entry?.event !== "winners" && entry?.event !== "finished", onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
+  say(`llm concurrency=${concurrency}`);
   const frameCounts = {}; let lastTrace = 0;
   const onFrame = async (frame) => {
     const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;
@@ -517,11 +668,12 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       },
       onFrame,
       ourIds: accounts.map((a) => a.accountId),
-      settle: () => seats.drain(),
+      settle: async () => { await seats.drain(); await drainUpgrades(table); },
       onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
     });
   }
   await seats.drain();
+  await drainUpgrades(table);
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {

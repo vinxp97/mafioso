@@ -279,7 +279,7 @@ function formatSpeechGoal(choice) {
  * CandidateGen failure, or a set with no legal vote, uses llmDecide and then rules decide.
  * Night and day votes are not dropped when the scheduler says wait.
  */
-export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score } = {}) {
+export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score, llmFallback = true } = {}) {
   if (view?.selfId && !selfAlive(view)) {
     return { actions: [], schedule: decideSpeech(view, { now }), source: "dead", rejections: ["dead seat"], speechGoal: null };
   }
@@ -305,7 +305,7 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
         rejections: selected.dropped.map((item) => `${item.target || item.kind || "option"}: ${item.reason}`),
       };
       speechGoal = formatSpeechGoal(selected);
-    } else {
+    } else if (llmFallback) {
       // A due refresh already ran before the candidate briefing. Do not ask again on the fallback.
       const refreshed = decisions.length > 0 && memory !== false && view.memory?.due === false;
       decided = await llmDecide(view, {
