@@ -207,8 +207,10 @@ function needsTarget(meeting, selfId, target) {
   return meeting.canUpdateVote !== false;
 }
 
+// Said in THIS phase: the same PLAN text on a later night must still go out.
 function said(view, content) {
-  return (view.messages || []).some((message) => message?.senderId === view.selfId && message.content === content);
+  const phase = view.phase?.name || "";
+  return (view.messages || []).some((message) => message?.senderId === view.selfId && message.content === content && (!message.phase || message.phase === phase));
 }
 
 export function lawyerSelection(meeting, plan, view = null) {
