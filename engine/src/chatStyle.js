@@ -151,7 +151,7 @@ export function earlyClaimBlock(view, content, opts = {}) {
   return claimAllowed(view, { ...opts, planSpeaker: planOk }) ? null : `early claim (${role})`;
 }
 
-const CANNED = ["ya", "idk", "sus", "who u voting", "hm", "fair", "not sure tbh", "agreed", "wait what", "eh idk", "same", "lol", "go on", "ok but why"];
+const CANNED = ["ya", "idk", "sus", "who u voting", "hm", "fair", "not sure", "agreed", "wait what", "eh idk", "same", "lol", "go on", "ok but why"];
 
 /** A cheap reaction line with no model call. Avoids this seat's recent lines. */
 export function cannedReaction(view, rng = Math.random) {
@@ -162,11 +162,46 @@ export function cannedReaction(view, rng = Math.random) {
 }
 
 const PERSONAS = [
-  { key: "terse", voice: "terse. 3-6 words. no greetings." },
-  { key: "joking", voice: "jokey, a bit chaotic, lol sometimes." },
-  { key: "aggressive", voice: "pushy, blunt, calls people out." },
-  { key: "chill", voice: "chill, lowercase, laid back, 'idk' and 'tbh'." },
+  { key: "terse", voice: "terse. 3-6 words. no greetings, no filler words.", openers: ["", "", "ok", "nah"] },
+  { key: "joking", voice: "jokey, a bit chaotic, lol sometimes.", openers: ["lol", "lmao", "ok but", "bro"] },
+  { key: "aggressive", voice: "pushy, blunt, calls people out.", openers: ["nah", "yo", "look", "cmon"] },
+  { key: "chill", voice: "chill, lowercase, laid back.", openers: ["eh", "hmm", "idk", "ngl"] },
+  { key: "nervous", voice: "a bit anxious, asks questions, hedges.", openers: ["wait", "um", "hm ok", "ok so"] },
+  { key: "analyst", voice: "plain and logical, points at votes and claims.", openers: ["so", "ok so", "fwiw", "imo"] },
 ];
+
+const FILLER = "tbh|honestly|ngl|imo|lowkey|fr|fwiw|idk|ok so|so|eh|hmm|um|wait|look|yo|nah|bro|lol|lmao|cmon";
+const LEAD_FILLER = new RegExp(`^\\s*(${FILLER})\\b[,.!]*\\s+`, "i");
+const TRAIL_TBH = /[,\s]+(tbh|ngl|honestly)[.!?]*\s*$/i;
+
+function leadFiller(text) {
+  const m = String(text || "").match(LEAD_FILLER);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/**
+ * Vary a line's opener per persona. The model loves "tbh <name>": strip a filler opener (or a trailing
+ * tbh) that this seat or the room used recently, and maybe swap in one of this persona's own openers
+ * that nobody used lately.
+ */
+export function varyOpener(view, text, rng = Math.random, meetingId = null) {
+  let out = String(text || "").trim();
+  if (!out) return out;
+  const recent = (view?.messages || []).filter((m) => m && m.senderId && m.senderId !== "server" && (!meetingId || m.meetingId === meetingId)).slice(-10);
+  const used = new Set(recent.map((m) => leadFiller(m.content)).filter(Boolean));
+  const roomTbh = recent.filter((m) => /\btbh\b/i.test(String(m.content || ""))).length;
+  const mine = recent.filter((m) => m.senderId === view?.selfId).slice(-3);
+  const mineFiller = mine.some((m) => leadFiller(m.content));
+  const lead = leadFiller(out);
+  if (lead && (used.has(lead) || mineFiller || (lead === "tbh" && roomTbh >= 1) || (lead === "tbh" && rng() < 0.6))) {
+    out = out.replace(LEAD_FILLER, "");
+    const pool = (personaOf(view).openers || []).filter((o) => !o || (!used.has(o) && o !== lead));
+    const pick = !mineFiller && pool.length ? pool[Math.floor(rng() * pool.length)] : "";
+    out = pick ? `${pick} ${out}` : out;
+  }
+  if (TRAIL_TBH.test(out) && (roomTbh >= 1 || rng() < 0.5)) out = out.replace(TRAIL_TBH, "");
+  return out.replace(/^[,\s]+/, "").trim() || String(text || "").trim();
+}
 
 function hash(text) {
   let h = 2166136261;

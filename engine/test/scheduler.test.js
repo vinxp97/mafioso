@@ -254,3 +254,19 @@ test("faction night speech and the day claim still follow this seat only", async
   assert.ok(generated.actions.some((action) => action.event === "vote" && action.data.selection === "p3"));
   assert.ok(generated.actions.some((action) => action.event === "speak" && /Bob/.test(action.data.content)), JSON.stringify(generated.actions));
 });
+
+import { varyOpener, personaOf } from "../src/chatStyle.js";
+test("openers vary: a room full of 'tbh <name>' does not get another one", () => {
+  const msgs = ["tbh melony u seem sus", "tbh melony you seem shady", "melony what are you seeing tbh"].map((content, i) => ({ senderId: `s${i}`, meetingId: "v", content }));
+  let tbh = 0;
+  for (let i = 0; i < 50; i++) {
+    const out = varyOpener({ selfId: `me${i}`, messages: msgs }, "tbh melony why so quiet", Math.random, "v");
+    if (/\btbh\b/i.test(out)) tbh++;
+    assert.match(out, /melony why so quiet/);
+  }
+  assert.equal(tbh, 0);
+  assert.equal(varyOpener({ selfId: "x", messages: msgs }, "melony that threat is sus, tbh.", Math.random, "v"), "melony that threat is sus");
+  assert.equal(varyOpener({ selfId: "x", messages: [] }, "who do you trust?", Math.random, "v"), "who do you trust?");
+  const keys = new Set(Array.from({ length: 40 }, (_, i) => personaOf({ selfId: `seat${i}` }).key));
+  assert.ok(keys.size >= 4, "several personas across seats");
+});
