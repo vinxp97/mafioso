@@ -36,6 +36,7 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
 4. **LLM decide** — builds a briefing (status + this seat's `NOTES` + fact ledger + belief board + phase digest + `TEAM PLAN` when this seat has seen one + that seat's Frontier Justice role guide + LEGAL ACTIONS + the last K lines of quoted untrusted chat). For each open decision the model proposes 3 or 4 different options in one call. The engine drops illegal ones, applies hard rules (open night action, no teammate kill or vote, town does not lynch a 0.8 town read unless the vote would tip, a seen PLAN target wins, Loyal Lawyer litigates only teammates, Janitor cleans the plan), and samples the rest with a seeded softmax. If that call fails or nothing legal remains, the seat falls back to one JSON action, then to rules. `wait` is rejected while a night ability or faction night vote is still open. Beliefs and the digest are refreshed once per phase end or hard result, on that seat only. A claim stays a claim until a hard check or reveal says otherwise. The engine drops a belief that cites a missing fact or fights a hard result. The scorer is replaceable later; there is no learned policy in this tree.
 5. **Public speech** — a per-seat scheduler decides whether this account talks in Village. Urgency is 0–4 (named, new info, vote pressure, a thought, or nothing). Own recent messages versus other living players make the seat talkative or quiet, and a cooldown / messages-per-minute cap blocks spam. If the scheduler waits, there is no speech proposal. If it says speak, the generator writes one line from the same briefing, using the chosen speech goal when the selector produced one, and `validateAction` still gates it. Votes, investigates, and faction chat are not delayed for that decision. Seats do not share a scheduler or a candidate pool.
 6. **Harness** — `runLoop` / `runLoopAsync` collect validated proposals from fixtures. Live send needs `MAFIOSO_LIVE=1` and a Developer API key; hosts outside the allowlist throw.
+7. **Arena** — `harness/scripts/arena.mjs` plays Frontier Justice offline. RuleBot seats are the fixed baseline. Mafioso seats call the same adapters (a mock adapter in tests). Metrics land in `logs/replays/*.jsonl`. A summary pools them with Wilson intervals. The post-game prompt rewrite stores a child only when an arena run on the same seeds beats the current prompt by more than the noise (`MAFIOSO_ARENA_GAMES`). The arena never calls ultimafia.gg. A live host must be on the dev allowlist and a private Testing lobby, and the runner still does not open a socket.
 
 ## Quick start (offline)
 
@@ -114,6 +115,7 @@ After the game, each prompt lineage that played is scored (win / loss / draw, pl
 | Harness Dev API stub + SSE replay | Tested offline |
 | Model backends (LM Studio, Experiential Labs, OpenCode Go) | Tested offline (fake fetch). Live keys stay in env |
 | Live multi-bot runner + prompt evolve | Tested offline (fake fetch). Live run is on the Windows PC or the VPS |
+| RuleBot, offline arena, metrics, evolve gate | Tested offline. Arena does not open a socket |
 
 ## License
 

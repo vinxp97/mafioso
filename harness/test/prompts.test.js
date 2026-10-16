@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { SYSTEM_PROMPT } from "mafioso-engine";
 import {
-  defaultSeedPrompt, ensurePromptStore, evolvePrompt, finishGame, loadSeedPrompt,
+  beatsBaseline, defaultSeedPrompt, ensurePromptStore, evolvePrompt, finishGame, loadSeedPrompt,
   outcomeForView, recordOutcomes, selectPrompts, validateEvolvedPrompt, winRate,
 } from "../src/prompts.js";
 
@@ -93,6 +93,42 @@ test("finishGame saves a child linked to the parent and skips an unsafe reply", 
   assert.equal(done.store.prompts.find((p) => p.id === "seed").scores.wins, 1);
   assert.equal(done.skipped[0].promptId, "other");
   assert.equal(done.skipped[0].reason, "unparseable evolve reply");
+});
+
+test("prompt evolve rejects a candidate inside the noise and keeps one that clears it", async () => {
+  const store = { prompts: [defaultSeedPrompt()] };
+  const results = [{ promptId: "seed", outcome: "loss", role: "Mafioso" }];
+  const complete = async () => JSON.stringify({ system: `${SYSTEM_PROMPT}\nPrefer a quiet vote.`, notes: "quieter" });
+  const close = await finishGame({
+    store, results, complete, now: 50, idFor: () => "child-close",
+    scorePrompt: async ({ label }) => label === "candidate"
+      ? { mean: 0.52, se: 0.05, games: 20, seed: 4 }
+      : { mean: 0.5, se: 0.05, games: 20, seed: 4 },
+  });
+  assert.equal(beatsBaseline({ mean: 0.5, se: 0.05 }, { mean: 0.52, se: 0.05 }).accept, false);
+  assert.equal(close.children.length, 0);
+  assert.equal(close.skipped[0].reason, "does not beat baseline");
+  assert.equal(close.store.prompts.length, 1);
+  assert.equal(close.store.history.length, 1);
+  assert.equal(close.store.history[0].accepted, false);
+  assert.equal(close.store.history[0].baseline.seed, 4);
+  assert.equal(close.store.history[0].candidate.seed, 4);
+  assert.equal(close.store.prompts[0].scores.arena.mean, 0.5);
+
+  const clear = await finishGame({
+    store, results, complete, now: 60, idFor: () => "child-clear",
+    scorePrompt: async ({ label }) => label === "candidate"
+      ? { mean: 0.8, se: 0.02, games: 20, seed: 4 }
+      : { mean: 0.4, se: 0.02, games: 20, seed: 4 },
+  });
+  assert.equal(beatsBaseline({ mean: 0.4, se: 0.02 }, { mean: 0.8, se: 0.02 }).accept, true);
+  assert.equal(clear.children.length, 1);
+  assert.equal(clear.children[0].id, "child-clear");
+  assert.equal(clear.children[0].parentId, "seed");
+  assert.equal(clear.children[0].scores.arena.mean, 0.8);
+  assert.equal(clear.store.history[0].accepted, true);
+  assert.ok(clear.store.history[0].diff > clear.store.history[0].noise);
+  assert.equal(clear.store.prompts.some((prompt) => prompt.id === "child-clear"), true);
 });
 
 test("ensurePromptStore writes the seed once and reloads it", async () => {

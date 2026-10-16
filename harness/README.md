@@ -56,3 +56,19 @@ Gaps: the SSE path is the documented Dev API stream and is covered with a fake b
 Seed: `data/prompts/seed.json` (the engine `SYSTEM_PROMPT`). Runtime: `data/prompts/runtime/prompts.json`, gitignored.
 
 Each record is `{id, text, createdAt, parentId, scores:{wins,losses,draws,byRole}, gamesPlayed, notes}`. `selectPrompts` draws with epsilon-greedy over win rate (unplayed prompts use 0.5). `finishGame` records outcomes from `winners.players` (self in the list wins; empty or null winners is a draw) and asks `complete` for one child per distinct prompt. The child is stored only when `validateEvolvedPrompt` still finds the never-admit-AI line and `"vote"|"unvote"|"speak"|"wait"`. A reply that admits being an AI, or that drops the JSON contract, is skipped and the parent stays.
+
+Pass `scorePrompt` to `finishGame` to score the parent and the child on the same seeds. The child is stored only when `beatsBaseline` says its mean beats the parent by more than `max(margin, 1.96 * sqrt(se² + se²))`. Each comparison is appended to `store.history` (`baseline`, `candidate`, `diff`, `noise`, `accepted`). An accepted child also stores `scores.arena`. `MAFIOSO_ARENA_GAMES` on the live runner turns this gate on; `0` keeps the previous save-if-safe behavior.
+
+## Arena (`src/arena.js`, `scripts/arena.mjs`)
+
+Offline Frontier Justice. Nine seats: Villager ×3, Cop, Journalist, Sheriff, Mafioso, Janitor, Lawyer. `mafiosoSeats` of them use `proposeSeatActions` through the injected `complete` (tests use `createMockComplete`). The rest are RuleBot. Each seat has its own view. Mafia chat is delivered only to Mafia members. The runner does not call `fetch`.
+
+`runArena({ mode: "live", baseUrl })` checks the dev allowlist, requires a private Testing lobby, and then refuses to open a socket. `https://ultimafia.gg` and any other non-dev host throw `HostNotAllowedError` before that.
+
+```bash
+cd harness
+node scripts/arena.mjs --games 4 --seed 1 --mafioso 3 --summary
+node scripts/arena.mjs --summary --file ../../logs/replays/arena-1.jsonl
+```
+
+One JSON object per game is written to `logs/replays/arena-<seed>.jsonl` (gitignored). `--summary` prints `summarizeMetrics` (Wilson intervals) for that file, or for the run it just played.
