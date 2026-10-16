@@ -76,17 +76,26 @@ export function counterclaimReason(view) {
   return null;
 }
 
-/** Journalist strategy cases: found the Janitor, or can clear the real Cop. */
+/** Journalist cases that help the Cop: a Cop claimer who got no report (fake Cop), or the Janitor. */
 export function journalistInfo(view) {
   const checks = memoryOf(view).checks || {};
   for (const [id, c] of Object.entries(checks)) {
-    const text = `${c?.result || ""} ${c?.detail || ""}`;
-    if (/janitor/i.test(text)) return { kind: "janitor", target: id };
+    if (/janitor|clean/i.test(`${c?.result || ""} ${c?.detail || ""}`)) return { kind: "janitor", target: id };
   }
   for (const [id, c] of Object.entries(checks)) {
     const text = `${c?.result || ""} ${c?.detail || ""}`;
     const claimedCop = /cop/i.test(String(view?.claims?.[id]?.role || ""));
-    if (claimedCop && /\bcop\b/i.test(text)) return { kind: "cop", target: id };
+    if (claimedCop && /\b(no report|no reports|nothing|did not receive|didn'?t receive|received no)\b/i.test(text)) return { kind: "fakecop", target: id };
+  }
+  return null;
+}
+
+/** A living, outed Sheriff (any seat that publicly claimed Sheriff and is alive). */
+export function sheriffOutAlive(view) {
+  for (const m of todayLines(view).concat(view?.messages || [])) {
+    if (!m?.senderId || m.senderId === "server" || view.dead?.[m.senderId]) continue;
+    if (claimedRoleIn(m.content) === "sheriff" || /\bsheriff\b/i.test(String(view?.claims?.[m.senderId]?.role || ""))) return m.senderId;
+    if (/\b(i'?m|im|i am)\s+(the\s+)?sheriff\b/i.test(String(m.content || ""))) return m.senderId;
   }
   return null;
 }
@@ -102,30 +111,33 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
   if (planSpeaker) return true;
+  if (/^cop$/i.test(role)) return !!(sheriffOutAlive(view) || hasGuiltyCheck(view) || counterclaimReason(view));
+  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view);
   if (counterclaimReason(view)) return true;
-  if (pressureOn(view) >= 2) return true;
-  if (/^cop$/i.test(role)) return hasGuiltyCheck(view);
-  if (/journalist/i.test(role)) return !!journalistInfo(view);
-  return false;
+  return pressureOn(view) >= 2;
+}
+
+function allResults(view) {
+  const nm = (id) => lc(nameOfId(view, id) || "");
+  return Object.entries(memoryOf(view).checks || {}).filter(([id]) => nm(id))
+    .map(([id, c]) => `${nm(id)} ${/mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`) ? "guilty" : "inno"}`).join(", ");
 }
 
 /** The rules-decided claim line for Cop / Journalist (null when they should stay quiet). */
 export function roleClaimLine(view) {
-  if (view?.phase?.phase !== "Day") return null;
+  if (view?.phase?.phase !== "Day" || !claimAllowed(view)) return null;
   const role = String(view.role || "");
   const nm = (id) => lc(nameOfId(view, id) || "");
   const cc = counterclaimReason(view);
+  const lead = cc ? `${nm(cc.by)} is lying, ` : "";
   if (/^cop$/i.test(role)) {
-    const g = guiltyTarget(view);
-    if (cc) return g ? `${nm(cc.by)} is lying, im the real cop. ${nm(g)} is guilty` : `${nm(cc.by)} is lying, im the real cop`;
-    if (g) return `im cop. ${nm(g)} is guilty`;
-    return null;
+    const res = allResults(view);
+    return `${lead}im ${cc ? "the real " : ""}cop${res ? `. ${res}` : ", no results yet"}`.slice(0, 80);
   }
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
-    if (cc) return info ? `${nm(cc.by)} is lying, im journalist. ${nm(info.target)} is ${info.kind === "janitor" ? "janitor" : "the real cop"}` : `${nm(cc.by)} is lying, im the journalist`;
-    if (info) return info.kind === "janitor" ? `im journalist. ${nm(info.target)} is janitor` : `im journalist. ${nm(info.target)} is the real cop`;
-    return null;
+    const what = info ? (info.kind === "janitor" ? `${nm(info.target)} is janitor` : `${nm(info.target)} got no report, fake cop`) : "";
+    return `${lead}im journalist${what ? `. ${what}` : ""}`.slice(0, 80);
   }
   return null;
 }
