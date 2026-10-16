@@ -22,7 +22,8 @@ function namedId(view, name) {
 
 function resultAlign(result) {
   if (/^(Village|Town)$/i.test(result)) return "Village";
-  if (/^Mafia$/i.test(result)) return "Mafia";
+  if (/^Mafia$/i.test(result) || /^guilty$/i.test(result)) return "Mafia";
+  if (/^innocent$/i.test(result)) return "Village";
   if (/^Cult$/i.test(result)) return "Cult";
   return alignmentOf(result);
 }
@@ -65,7 +66,17 @@ export function memoryOf(view) {
 export function parseServerInfo(view, data) {
   const sender = data?.senderId;
   if (sender && sender !== "server" && sender !== "anonymous") return null;
-  const text = String(data?.content || "").trim();
+  let text = String(data?.content || "").trim();
+  // Live server wording: Cop "Your investigation shows that X is Guilty"; Journalist report lines.
+  text = text.replace(/^your investigation shows that\s+/i, "").replace(/^you learn that your\s+(.+?)'s alignment is\s+/i, "$1 is ");
+  const noRep = text.match(/^you learn that (.+?) received no reports\.?$/i);
+  const allRep = text.match(/^you received all reports that (.+?) received:\s*(.+?)\.?$/i);
+  if (noRep || allRep) {
+    const pid = namedId(view, (noRep || allRep)[1]);
+    if (!pid || pid === view.selfId) return null;
+    const detail = noRep ? "no reports" : `reports: ${allRep[2]}`;
+    return { playerId: pid, detail, align: "", role: /janitor/i.test(detail) ? "Janitor" : null, text };
+  }
   const sided = text.match(SIDED);
   const roleLine = sided ? null : text.match(ROLE_LINE);
   if (!sided && !roleLine) return null;
