@@ -19,7 +19,7 @@ const PRIVATE = new Set(["Mafia", "Cult"]);
 export function isPublicSpeechMeeting(meeting) {
   if (!meeting?.speech || !meeting.amMember) return false;
   const name = String(meeting.name || "");
-  if (PRIVATE.has(name) || /whisper/i.test(name)) return false;
+  if (PRIVATE.has(name) || meeting.faction || /^(mafia|cult)\b/i.test(name) || /whisper/i.test(name)) return false;
   return true;
 }
 
