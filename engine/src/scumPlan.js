@@ -256,7 +256,8 @@ function nightScum(view, faction) {
     out.push({ event: "vote", data: { meetingId: kill.id, selection: plan.killTarget } });
   }
   const action = factionActionMeeting(view, faction);
-  const killDone = kill && !unvoted(kill, view.selfId);
+  // Every mafia seat ends the meeting once its kill vote is in (or going out in this batch).
+  const killDone = kill && (!unvoted(kill, view.selfId) || out.some((a) => a.event === "vote" && a.data.meetingId === kill.id));
   if (action?.voting && action.canVote !== false && killDone && unvoted(action, view.selfId)) {
     const yes = (action.targets || []).find((t) => /^yes$/i.test(String(t)));
     if (yes) out.push({ event: "vote", data: { meetingId: action.id, selection: yes } });
