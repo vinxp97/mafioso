@@ -5,7 +5,7 @@
 import { runLiveCli } from "../src/live.js";
 
 try {
-  const code = await runLiveCli();
+  const code = await runLiveCli({ signals: process });
   process.exit(code ?? 0);
 } catch (err) {
   console.error(err?.message || err);
