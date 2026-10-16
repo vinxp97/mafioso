@@ -3,7 +3,7 @@ Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep).
 
 - **Hosts:** only `https://dev.ultimafia.gg` and `http://127.0.0.1:3000` (from engine `DEV_HOSTS`). Anything else, including prod, throws `HostNotAllowedError`.
 - **No built-in network:** `new DevApiClient({baseUrl, fetch})` requires an injected `fetch`.
-- **Methods:** `getToken`, `me`, `hostGame` (forces `lobby:"Testing"`, `private:true`, refuses ranked/competitive), `createAccounts`, `leaveAccount`, `control`, `events`, `send({accountId,event,data,view})` (runs `validateAction` before HTTP when `view` is given).
+- **Methods:** `getToken`, `me`, `hostGame` (forces `lobby:"Testing"`, `private:true`, `spectating:true`, refuses ranked/competitive), `leaveGame`, `createAccounts`, `leaveAccount`, `control`, `events`, `send({accountId,event,data,view})` (runs `validateAction` before HTTP when `view` is given).
 - **Stream:** `parseStreamFrame`, `parseSse`, `replayStream` (per-account views, seq dedup), `runLoop` (reduce→decide→validate, collects proposals, never sends).
 - **Live creds:** `liveCredentials()` reads `DEV_API_CLIENT_ID`/`DEV_API_CLIENT_SECRET` only when `MAFIOSO_LIVE=1`. Never commit or log them.
 
@@ -43,7 +43,9 @@ const { proposed } = await runLoopAsync(entries, { complete });
 
 `MAFIOSO_LLM=lmstudio|experiential|opencode` picks the factory (`createBackendComplete`). Default `lmstudio`. `BOT_COUNT` defaults to 9 (integer 1..50).
 
-`runLiveCli` with `MAFIOSO_LIVE` unset or not `1` logs a dry-run line and returns. It does not call fetch. With `MAFIOSO_LIVE=1` it reads `DEV_API_CLIENT_ID` / `DEV_API_CLIENT_SECRET`, refuses hosts outside `DEV_HOSTS`, then `getToken` → `hostGame` (private Testing only; `DEV_SETUP_ID` required) or joins `GAME_ID` → `createAccounts({count: BOT_COUNT})` → SSE `GET /api/dev/stream` (or `MAFIOSO_TRANSPORT=poll`). One table maps `accountId` → view. Each account is reduced, decided, and `validateAction`'d on its own. `send` runs only for actions that pass. Repeated `seq` values are ignored. Token age past 55 minutes refreshes before the next stream connect. Dropped streams back off and reconnect. Logs are passed through `redact` for the credential and key env values.
+`runLiveCli` with `MAFIOSO_LIVE` unset or not `1` logs a dry-run line and returns. It does not call fetch. With `MAFIOSO_LIVE=1` it reads `DEV_API_CLIENT_ID` / `DEV_API_CLIENT_SECRET`, refuses hosts outside `DEV_HOSTS`, then `getToken` → `hostGame` (private Testing only; `DEV_SETUP_ID` required; `spectating: true`) → `leaveGame` (400/404/409 means the host was already unseated) or joins `GAME_ID` → `createAccounts({count: BOT_COUNT})` → SSE `GET /api/dev/stream` (or `MAFIOSO_TRANSPORT=poll`). One table maps `accountId` → view. Each account is reduced, decided, and `validateAction`'d on its own. Views are not merged. `send` runs only for actions that pass. A speak and a vote in the same meeting can both send. Repeated `seq` values are ignored. Token age past 55 minutes refreshes before the next stream connect. Dropped streams back off and reconnect. Logs are passed through `redact` for the credential and key env values.
+
+`BOT_COUNT` is the number of seats to fill. Frontier Justice is 9. The host leaves so those accounts match the setup.
 
 VPS base URL: `http://127.0.0.1:3000`. Windows Compose reaches LM Studio at `http://host.docker.internal:1234/v1`. Optional Cloudflare Access headers (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) are added only to game fetches.
 

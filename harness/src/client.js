@@ -71,6 +71,12 @@ export class DevApiClient {
   }
 
   leaveAccount(accountId) { return this.api("POST", `/dev/accounts/${encodeURIComponent(accountId)}/leave`); }
+
+  /** Host user leaves the seat. Bearer can call POST /api/game/leave. */
+  leaveGame(gameId) {
+    if (!gameId) throw new Error("leaveGame: gameId required");
+    return this.api("POST", "/game/leave", { gameId });
+  }
   control(gameId, command, args) { return this.api("POST", `/dev/games/${encodeURIComponent(gameId)}/control`, { command, args }); }
   events(accountId, since = 0) { return this.api("GET", `/dev/accounts/${encodeURIComponent(accountId)}/events?since=${since}`); }
 
