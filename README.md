@@ -23,7 +23,7 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
                          ┌────────────────────────────┤
                          ▼                            ▼
                    llmDecide(view)              decide(view)   # rules
-                   (LM Studio / fake)           nightAct, claims, factions
+                   (model backend / fake)       nightAct, claims, factions
                          │                            │
                          └──────── validateAction ────┘
                                       │
@@ -45,34 +45,45 @@ cd ../harness && npm install && npm test
 
 Node ≥ 18. No API keys required for tests (fake model + fixture SSE).
 
-## LM Studio (local Qwen)
+## Model backend
 
-`createLmStudioComplete` (`harness/src/lmstudio.js`) talks to LM Studio’s OpenAI-compatible Chat Completions API and returns the `complete({system, user})` function `llmDecide` / `runLoopAsync` already accept. Every reply is still parsed and passed through `validateAction`. Illegal actions and bad JSON fall back to rules `decide`.
+Pick one factory. Each returns `complete({system, user})` for `llmDecide` / `runLoopAsync`. Every reply is still parsed and passed through `validateAction`. Illegal actions and bad JSON fall back to rules `decide`.
 
-Default base URL is `http://127.0.0.1:1234/v1` (the `/v1` root, not the completions path). Run the bot on the **same machine as LM Studio** so that process can open `127.0.0.1:1234`. A remote VPS does not see your PC’s localhost unless you tunnel it on purpose.
+They share `createOpenAICompatibleComplete` (`harness/src/openaiCompatible.js`): `POST {baseUrl}/chat/completions` with system + user messages, `stream: false`, and `response_format: { type: "json_object" }`. If the server rejects `response_format`, it retries once without that field. `temperature` / `max_tokens` are sent only when you pass finite numbers. This client is not the game API and does not use `DEV_HOSTS`.
 
-### On the PC running LM Studio
+| Backend | Factory | Base URL | Key | Model |
+| --- | --- | --- | --- | --- |
+| LM Studio (local Qwen) | `createLmStudioComplete` | `http://127.0.0.1:1234/v1` | `LM_API_KEY` (default `lm-studio`, any non-empty string) | `LM_STUDIO_MODEL` (empty = first id from `GET /v1/models`) |
+| [Experiential Labs](https://platform.experientiallabs.ai/docs/openai-compatibility) | `createExperientialComplete` | `https://api.experientiallabs.ai/v1` | `EXPLABS_API_KEY` (`xpl_...`) | `EXPLABS_MODEL` (example `qwen3.8-27b`) |
+| [OpenCode Go](https://opencode.ai/docs/go/) | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`) |
 
-1. In LM Studio, load a Qwen instruct GGUF and start the local server (Developer → Start server). Leave the port at `1234` and confirm the model shows up as loaded.
-2. From this repo (no secrets to commit; see `.env.example`):
-
-```bash
-export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1   # optional; trailing slash is stripped
-export LM_STUDIO_MODEL=                                # optional; empty = GET /v1/models, first id
-export LM_API_KEY=lm-studio                            # optional; any non-empty string
-cd harness && node scripts/lmstudio-smoke.mjs          # live ping; not part of npm test
-```
-
-3. Use it on a stream replay (or your own entries). `fetch` defaults to global `fetch`; tests inject a fake.
+Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`. Placeholders only in `.env.example`. Do not commit keys.
 
 ```js
-import { createLmStudioComplete, runLoopAsync } from "./harness/src/index.js";
+import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, runLoopAsync } from "./harness/src/index.js";
 
-const complete = createLmStudioComplete(); // reads LM_STUDIO_* and LM_API_KEY
+// Local Qwen. Run this process on the same machine as LM Studio.
+const complete = createLmStudioComplete();
+
+// Hosted Qwen on Experiential Labs. Leave temperature unset unless that model accepts it.
+// const complete = createExperientialComplete();
+
+// OpenCode Go. Sends Authorization plus a stable x-opencode-session for this client.
+// const complete = createOpenCodeGoComplete();
+
 const { proposed } = await runLoopAsync(entries, { complete });
 ```
 
-The POST body is non-streaming chat completions: system + user messages, `response_format: { type: "json_object" }`, plus `temperature` / `max_tokens` when you pass them. If the server rejects `response_format` (error body mentions it), the client retries **once** without that field. `Authorization: Bearer ${apiKey}` is sent when the key is non-empty (`lm-studio` by default). Pass `apiKey: ""` to omit the header.
+LM Studio only: `127.0.0.1:1234` is that PC’s loopback. A remote VPS does not see it unless you tunnel it. Smoke (live, not part of `npm test`):
+
+```bash
+export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+export LM_STUDIO_MODEL=          # empty = first loaded model
+export LM_API_KEY=lm-studio
+cd harness && node scripts/lmstudio-smoke.mjs
+```
+
+OpenCode Go also sends `user-agent: mafioso/0.1`. Set `OPENCODE_SESSION` to pin the session id, or leave it unset and the factory generates one id and reuses it for every call on that client.
 
 ## Live play (not default)
 
@@ -85,7 +96,7 @@ Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually 
 | Engine (wire, reduce, legal, night, claims, factions) | Tested offline |
 | LLM decide + rules fallback | Tested with fake model |
 | Harness Dev API stub + SSE replay | Tested offline |
-| LM Studio adapter | Tested offline (fake fetch). Live use needs LM Studio on the same machine |
+| Model backends (LM Studio, Experiential Labs, OpenCode Go) | Tested offline (fake fetch). Live keys stay in env |
 | Live stream loop / token refresh / send | Not started (needs approval + key) |
 
 ## License
