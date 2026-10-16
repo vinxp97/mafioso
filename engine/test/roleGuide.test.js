@@ -94,6 +94,19 @@ test("each Frontier Justice seat gets its own card; other roles get none", () =>
   assert.equal(myFaction(seat("Journalist")), "Village");
 });
 
+test("mafia kill priority is Cop, then Sheriff, then Journalist", () => {
+  const order = /Kill priority is Cop, then Sheriff, then Journalist/;
+  const oldOrder = /Cop, then Journalist, then Sheriff/;
+  for (const role of ["Mafioso", "Janitor", "Lawyer"]) {
+    const head = headOf(buildBriefing(seat(role)));
+    assert.match(head, order, role);
+    assert.equal(oldOrder.test(head), false, role);
+  }
+  for (const role of ["Villager", "Cop", "Journalist", "Sheriff"]) {
+    assert.equal(order.test(roleGuideText(role)), false, role);
+  }
+});
+
 test("llmDecide sends the Cop card in the user briefing, not the shared system prompt", async () => {
   const calls = [];
   const complete = async (prompt) => {
