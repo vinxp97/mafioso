@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -273,6 +273,75 @@ function localSpeechOk(table, id, clock) {
 export const VOTE_GAP_MS = 3000;
 export const VOTE_BACKOFF_MS = 6000;
 
+// ---- Day village vote: discuss first, then a staggered BeliefBoard vote. ----
+export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000, staggerMinMs: 2000, staggerMaxMs: 20000, scumExtraMs: 10000 };
+
+export function isDayVillageVote(view, meetingId) {
+  const m = view?.meetings?.[meetingId];
+  return view?.phase?.phase === "Day" && !!m && m.voting && (m.name === "Village" || (m.speech && !m.faction && !/shoot|gun|kick/i.test(`${m.name} ${m.actionName || ""}`)));
+}
+
+function publicLinesThisDay(view, meetingId) {
+  return (view.messages || []).filter((x) => x.meetingId === meetingId && x.senderId && x.senderId !== "server");
+}
+
+/** The Sheriff (known to the harness) has outed or passed, is dead, or his window has run out. */
+export function sheriffWindowDone(table, view, meetingId, now) {
+  const sheriff = Object.values(table.roster || {}).find((r) => /sheriff/i.test(String(r.role || "")));
+  if (!sheriff) return true;
+  if (view.dead?.[sheriff.id]) return true;
+  if (publicLinesThisDay(view, meetingId).some((x) => x.senderId === sheriff.id)) return true;
+  const start = Number(view.phaseStartedAt);
+  return Number.isFinite(start) && now - start >= DAY_VOTE.sheriffWindowMs;
+}
+
+export function dayVoteReady(table, view, meetingId, now) {
+  const frac = dayFraction(view, { now });
+  if (frac != null && frac >= DAY_VOTE.fraction) return true;
+  const tm = view.timer?.stateId === view.stateId ? view.timer : null;
+  if (tm?.last != null && tm.first != null && tm.last < tm.first && tm.last <= DAY_VOTE.remainingMs) return true;
+  const others = publicLinesThisDay(view, meetingId).filter((x) => x.senderId !== view.selfId).length;
+  return others >= DAY_VOTE.otherLines && sheriffWindowDone(table, view, meetingId, now);
+}
+
+/** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
+export function beliefDayPick(view, meeting, rng = Math.random) {
+  const board = rulesBeliefBoard(view).entries;
+  const mem = memoryOf(view);
+  const mates = allies(view);
+  const pool = (meeting.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !mates.has(t) && view.players?.[t]);
+  const score = (id) => {
+    const b = board[id];
+    const al = b ? beliefAlign(b.role) : null;
+    let sc = 0;
+    if (al === "Mafia" || al === "Cult") sc += 10 * (b.probability || 0.5);
+    else if (al === "Village") sc -= 6 * (b.probability || 0.5);
+    if (mem.suspects?.has?.(id)) sc += 2;
+    if (mem.cleared?.has?.(id)) sc -= 4;
+    return sc + rng() * 0.5;
+  };
+  const ranked = pool.map((id) => [id, score(id)]).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  if (!ranked.length) return null;
+  const r = rng();
+  return ranked[r < 0.6 ? 0 : r < 0.85 ? Math.min(1, ranked.length - 1) : Math.min(2, ranked.length - 1)];
+}
+
+/** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
+function shapeDayVotes(table, id, view, actions, now, { source }) {
+  const out = [];
+  for (const a of actions) {
+    if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
+    if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
+    const scum = !!scumFaction(view);
+    if (!scum && source === "rules") {
+      const pick = beliefDayPick(view, view.meetings[a.data.meetingId]);
+      if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+    }
+    out.push(a);
+  }
+  return out;
+}
+
 function voteDelay(table, id, view, action) {
   const now = Date.now();
   let wait = 0;
@@ -281,6 +350,12 @@ function voteDelay(table, id, view, action) {
   if (kill && kill.id === action.data.meetingId && factionLeader(view) !== view.selfId && !table.copied?.[`${id}|${view.stateId}`]) {
     (table.copied ||= {})[`${id}|${view.stateId}`] = true;
     wait = 1000 + Math.floor(Math.random() * 4000);
+  }
+  // Day village vote: first vote of the day is staggered 2-20s; scum wait longer so they never lead.
+  if (table.fastMode && isDayVillageVote(view, action.data.meetingId) && !table.dayStaggered?.[`${id}|${view.stateId}`]) {
+    (table.dayStaggered ||= {})[`${id}|${view.stateId}`] = true;
+    wait = Math.max(wait, DAY_VOTE.staggerMinMs + Math.floor(Math.random() * (DAY_VOTE.staggerMaxMs - DAY_VOTE.staggerMinMs))
+      + (scumFaction(view) ? DAY_VOTE.scumExtraMs : 0));
   }
   const last = table.lastVoteAt?.[id];
   if (last != null) wait = Math.max(wait, last + VOTE_GAP_MS - now);
@@ -467,7 +542,7 @@ function startUpgrade(table, id, ctx) {
         if (table.lastSchedule?.[id] !== key) { (table.lastSchedule ||= {})[id] = key; ctx.onSchedule(id, sch); }
       }
       // Scum votes stay on the seen PLAN: the model may not move a faction kill, clean, or litigate.
-      const keep = plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a)));
+      const keep = shapeDayVotes(table, id, now, plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a))), ctx.clockOf(), { source: plan.source });
       const added = await emitActions(table, id, keep, { ...ctx, source: plan.source, clock: ctx.clockOf() });
       if (ctx.onAdded) ctx.onAdded(added);
     } while (table.dirty?.[id]);
@@ -537,9 +612,10 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     return emitActions(table, id, nightOneRandomPicks(view, id), { ...ctx, source: "n1-random", clock });
   }
   if (fast) {
+    table.fastMode = true;
     // Rules first, right now: every open night action and vote gets a legal pick before any model call.
     const rules = rulesSeatActions(view, { rng, now: clock });
-    const instant = rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a)));
+    const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? Date.now(), { source: "rules" });
     const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
     if (complete) {
       startUpgrade(table, id, {

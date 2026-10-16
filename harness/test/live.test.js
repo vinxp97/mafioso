@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { SYSTEM_PROMPT, validateAction } from "mafioso-engine";
 import { DevApiClient, HostNotAllowedError } from "../src/client.js";
-import {
+import { DAY_VOTE,
   backoffMs, createBackendComplete, driveAccounts, iterateSse, liveConfigFromEnv,
   normalizeAccounts, openTestingGame, pollOnce, redact, runLiveCli, runStreamLoop,
   streamUrl, tokenExpired, TOKEN_REFRESH_MS, withCfAccess,
@@ -189,9 +189,12 @@ test("CF header stays off the model call; lmstudio targets host.docker.internal"
 test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child prompt", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mafioso-live-"));
   const lines = [];
+  // The day vote waits for discussion: put both seats in the last minute and shrink the stagger.
+  Object.assign(DAY_VOTE, { staggerMinMs: 5, staggerMaxMs: 20, scumExtraMs: 0 });
+  const late = (accountId, seq) => [{ accountId, seq, event: "time", data: { time: 300000 } }, { accountId, seq: seq + 1, t: 1_700_000_010_000, event: "time", data: { time: 30000 } }];
   const sse = [
-    ...day("A", "p1", 1),
-    ...day("B", "p2", 10),
+    ...day("A", "p1", 1), ...late("A", 5),
+    ...day("B", "p2", 10), ...late("B", 14),
     { accountId: "A", seq: 8, event: "winners", data: { groups: ["Village"], players: ["p1"] } },
     { accountId: "B", seq: 18, event: "winners", data: { players: ["p1"] } },
   ].map((e) => `event: game\ndata: ${JSON.stringify(e)}\n\n`).join("");
@@ -251,7 +254,7 @@ test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child pr
   assert.deepEqual(f.calls[accountCall].body, { gameId: "g-live", count: 2 });
   assert.equal(hosts[0].init.headers["cf-access-client-secret"], "cf-secret-value");
   const sends = f.calls.filter((c) => c.url.includes("/send"));
-  assert.ok(sends.length >= 1);
+  assert.ok(sends.length >= 1, lines.filter((l) => /send|sched|error/.test(l)).join("\n"));
   assert.ok(sends.every((c) => c.url.startsWith("http://127.0.0.1:3000/api/dev/accounts/")));
   assert.ok(f.calls.every((c) => !c.url.includes("ultimafia.com")));
   const chats = f.calls.filter((c) => c.url.includes("host.docker.internal:1234"));
