@@ -1,9 +1,10 @@
 // Night-ability policy. Adapted from UM-Autobot-Player/src/night-act.js:
 // same spec/mustAct/meeting filters and pick modes, but pure (map + rng injected,
-// no fs/notes/LLM), and every output passes validateAction.
+// no fs/LLM), and every output passes validateAction.
 import { createRequire } from "node:module";
 import { validateAction } from "./legal.js";
 import { isAlive } from "./reducer.js";
+import { memoryOf } from "./notes.js";
 
 const DEFAULT_MAP = createRequire(import.meta.url)("../data/night-actions.json");
 const KILL_MEETING = /^(mafia|cult)$/i;
@@ -33,6 +34,28 @@ export function nightAbilityMeetings(view) {
   return Object.values(view.meetings).filter((m) => m?.amMember && m.voting && m.canVote
     && !isKillMeeting(m)
     && (m.targets || []).some((t) => t !== "*" && !BOOLEAN_TARGET.test(String(t))));
+}
+
+function rankNightTargets(ids, memory) {
+  const unseen = ids.filter((id) => !memory.cleared.has(id) && !memory.checks[id]);
+  const pool = unseen.length ? unseen : ids.filter((id) => !memory.cleared.has(id));
+  const use = pool.length ? pool : ids;
+  const suspects = use.filter((id) => memory.suspects.has(id));
+  return suspects.length ? suspects : use;
+}
+
+/** True when this role's policy says to act and a non-faction meeting still has a living target. */
+export function mustActMeeting(view) {
+  if (view.phase?.phase !== "Night" || !view.selfId) return false;
+  const spec = specForRole(view.role);
+  if (!mustActTonight(spec, view.phase.day)) return false;
+  return Object.values(view.meetings || {}).some((meeting) => {
+    if (!meeting?.amMember || !meeting.voting || !meeting.canVote) return false;
+    if (/^(mafia|cult)$/i.test(meeting.name || "")) return false;
+    const mine = meeting.votes?.[view.selfId];
+    const open = mine == null || (Array.isArray(mine) && !mine.length);
+    return open && livingTargets(view, meeting).length > 0;
+  });
 }
 
 export const livingTargets = (view, m) => (m?.targets || []).filter((t) =>
@@ -81,7 +104,13 @@ export function proposeNightAction(view, opts = {}) {
     const mode = night > 1 ? spec.laterPick : spec.n1Pick;
     if (mode === "asked") pick = pickAsked(view, ids);
     if (mode === "read") pick = pickByRead(view, ids);
-    if (!pick) pick = ids[Math.floor((opts.rng ?? Math.random)() * ids.length) % ids.length];
+    const memory = memoryOf(view);
+    const ranked = rankNightTargets(ids, memory);
+    if (pick && ranked.length && !ranked.includes(pick) && (memory.cleared.has(pick) || memory.checks[pick])) pick = null;
+    if (!pick) {
+      const bag = ranked.length ? ranked : ids;
+      pick = bag[Math.floor((opts.rng ?? Math.random)() * bag.length) % bag.length];
+    }
   } else if (!forced && m.targets?.includes("*")) pick = "*";
   if (!pick) return null;
   const action = { event: "vote", data: { meetingId: m.id, selection: pick } };
