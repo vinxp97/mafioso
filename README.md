@@ -32,8 +32,8 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
 
 1. **Wire + reduce** — Dev API envelopes (or Autobot-style frames) update a pure `View`: players, meetings, votes, messages, role reveals, claims.
 2. **Legal actions** — `legalVotes` / `validateAction` know what this account may vote or say right now.
-3. **Rules decide** — day lynch and night picks prefer known enemies / non-allies; never allies on kills. Night roles use `data/night-actions.json`.
-4. **LLM decide** — builds a briefing (status + LEGAL ACTIONS + quoted untrusted chat), calls an injected `complete({system,user})`, parses one JSON action, validates, retries once on rejection, else falls back to rules.
+3. **Rules decide** — day lynch and night picks prefer suspects, then other non-allies, and skip cleared players while another target exists. Night roles in `data/night-actions.json` must vote when their meeting is open. Mafia coordination is read from that seat's faction chat, not from other bots.
+4. **LLM decide** — builds a briefing (status + this seat's `NOTES` + `TEAM PLAN` when this seat has seen one + LEGAL ACTIONS + quoted untrusted chat), calls an injected `complete({system,user})`, parses one JSON action, validates, retries once on rejection, else falls back to rules. `wait` is rejected while a night ability or faction night vote is still open.
 5. **Harness** — `runLoop` / `runLoopAsync` collect validated proposals from fixtures. Live send needs `MAFIOSO_LIVE=1` and a Developer API key; hosts outside the allowlist throw.
 
 ## Quick start (offline)
@@ -99,6 +99,8 @@ The VPS service uses host networking. `127.0.0.1` inside a normal bridge contain
 On Windows: start Docker Desktop, start LM Studio, load Qwen, start the local server on port 1234. Copy `.env.example` to `.env` and set `MAFIOSO_LIVE=1`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID` to join a game you already opened). Do not commit `.env`.
 
 `dev.ultimafia.gg` sits behind Cloudflare Access. A PC that only gets an Access wall or error 1010 needs `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in `.env`. Those headers are sent only to the game host, not to LM Studio.
+
+`hostGame` sets `spectating: true`, then `openTestingGame` calls `leaveGame` so the developer does not take a seat. `BOT_COUNT` is the setup size. Frontier Justice is 9. Each account keeps its own view, notes, and decisions. Bots do not share memory. Mafia seats agree only by speaking in the Mafia meeting.
 
 After the game, each prompt lineage that played is scored (win / loss / draw, plus per-role counts) and Qwen is asked for a child system prompt. The child is saved only if it still contains the never-admit-AI line and the JSON action contract. The next launch draws `BOT_COUNT` prompts with epsilon-greedy (default epsilon 0.2) so the nine bots can sit on different lineages. History is `harness/data/prompts/runtime/prompts.json` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
 

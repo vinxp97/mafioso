@@ -6,7 +6,7 @@ export const ALIGNMENT = {
   Villager: "Village", Cop: "Village", Doctor: "Village", Oracle: "Village", Caroler: "Village",
   "Town Crier": "Village", Sheriff: "Village", Tracker: "Village", Watcher: "Village",
   Detective: "Village", Bodyguard: "Village", Blacksmith: "Village",
-  Mafioso: "Mafia", Godfather: "Mafia", Janitor: "Mafia", Hooker: "Mafia", Lawyer: "Mafia",
+  Mafioso: "Mafia", Godfather: "Mafia", Janitor: "Mafia", Hooker: "Mafia", Lawyer: "Mafia", "Loyal Lawyer": "Mafia",
   Cultist: "Cult", "Cult Leader": "Cult",
   Fool: "Independent", "Serial Killer": "Independent", Survivor: "Independent",
 };

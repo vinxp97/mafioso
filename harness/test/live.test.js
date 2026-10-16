@@ -67,8 +67,11 @@ test("openTestingGame forces a private Testing lobby and can join an existing id
   assert.equal(f.calls[0].url, "http://127.0.0.1:3000/api/game/host");
   assert.equal(f.calls[0].body.private, true);
   assert.equal(f.calls[0].body.lobby, "Testing");
+  assert.equal(f.calls[0].body.spectating, true);
   assert.equal(f.calls[0].body.setup, "setup-1");
-  assert.deepEqual(f.calls[1].body, { gameId: "game-9", count: 2 });
+  assert.equal(f.calls[1].url, "http://127.0.0.1:3000/api/game/leave");
+  assert.deepEqual(f.calls[1].body, { gameId: "game-9" });
+  assert.deepEqual(f.calls[2].body, { gameId: "game-9", count: 2 });
   let hosted = false;
   const joined = await openTestingGame({
     hostGame() { hosted = true; },
