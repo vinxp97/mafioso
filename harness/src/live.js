@@ -911,24 +911,71 @@ export async function* iterateSse(source) {
   }
 }
 
+/** Restart-resilience limits: how many failed reconnects, and how long, before giving up on the game. */
+export const RESTART = { maxTries: 3, windowMs: 60_000 };
+
+/**
+ * Ask the server whether our game still exists. "alive" | "lost" | "unknown".
+ * Lost means the server answered but no longer knows our seats (404 on their event buffers,
+ * or GET /dev/accounts lists none of them / lists them in another game). Network errors are "unknown".
+ */
+export async function probeGame(client, { gameId, accountIds }) {
+  let rows = null;
+  try {
+    const list = await client.api("GET", "/dev/accounts");
+    rows = Array.isArray(list) ? list : Array.isArray(list?.accounts) ? list.accounts : null;
+  } catch (e) {
+    if (!/-> 40[34]\b/.test(String(e?.message || ""))) return "unknown";
+  }
+  if (rows) {
+    const ours = rows.filter((a) => accountIds.includes(a.id || a.accountId));
+    if (!ours.length) return "lost";
+    if (gameId && ours.every((a) => a.gameId != null && a.gameId !== gameId)) return "lost";
+    return "alive";
+  }
+  // No account list: fall back to one seat's event buffer.
+  try { await client.events(accountIds[0], 0); return "alive"; } catch (e) {
+    return /-> (404|410)\b/.test(String(e?.message || "")) ? "lost" : "unknown";
+  }
+}
+
 /**
  * Reconnect until shouldStop or the stream handler asks to stop.
  * fetchStream throws or returns an async iterable / ReadableStream of SSE bytes.
+ * With `restart` ({ checkGame, maxTries, windowMs, now }), a disconnect or an accounts_dropped frame
+ * for our seats starts an outage: reconnect with backoff and resume through backfill (seq-deduped);
+ * abort if the game is gone or the outage exceeds maxTries failures / windowMs.
+ * Returns { status: "finished" } or { status: "aborted", reason: "server_restart", detail }.
  */
-export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle, backfill, onInfo }) {
+export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle, backfill, onInfo, restart = null }) {
   const staleSeen = new Set();
+  const lim = restart ? { ...RESTART, now: Date.now, ...restart } : null;
   let attempt = 0;
+  let failures = 0; let outageStart = null; let inOutage = false;
+  const finished = { status: "finished" };
+  const abort = (detail) => {
+    if (onInfo) onInfo(`restart: giving up (${detail}) after ${failures} failed reconnects`);
+    return { status: "aborted", reason: "server_restart", detail };
+  };
+  const check = async () => (lim?.checkGame ? (await lim.checkGame().catch(() => "unknown")) : "unknown");
   while (!shouldStop()) {
     try {
       const body = await fetchStream();
       attempt = 0;
+      if (lim && inOutage) {
+        // Reconnected after a drop: a restarted server accepts the stream but may have forgotten the game.
+        const st = await check();
+        if (st === "lost") return abort("game no longer known after reconnect");
+        if (onInfo) onInfo(`restart: reconnected (game ${st}); resuming from buffered events`);
+        inOutage = false; // failures/outage clock reset only once the live stream delivers a frame
+      }
       // The stream has no replay. Game qAl36MVss filled and started while the bots were being seated,
       // so self/roleReveal/state went out before we subscribed; every seat idled into Vote Kick.
       // The stream is already subscribed here, so pull each seat's buffered events first; the
       // per-seat seq guard drops the duplicates the stream then repeats.
       if (backfill) {
         for (const entry of (await backfill()) || []) {
-          if (await onFrame({ type: "game", entry })) return;
+          if (await onFrame({ type: "game", entry })) return finished;
         }
       }
       for await (const frame of iterateSse(body)) {
@@ -943,20 +990,34 @@ export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => f
           if (!staleSeen.has(ids)) { staleSeen.add(ids); if (onInfo) onInfo(`stale accounts_dropped (not ours, ignored): ${ids.slice(0, 200)}`); }
           continue;
         }
+        if (lim && failures && frame.type === "game") { failures = 0; outageStart = null; }
         const stop = await onFrame(frame);
-        if (stop || shouldStop()) return;
+        if (stop || shouldStop()) return finished;
       }
       if (settle) await settle();
-      if (shouldStop()) return;
+      if (shouldStop()) return finished;
+      if (lim) throw new Error("stream ended");
     } catch (e) {
       if (onError) onError(e);
       if (shouldStop()) throw e;
-      if (attempt >= maxAttempts) throw e;
+      if (!lim && attempt >= maxAttempts) throw e;
+      if (lim) {
+        failures++; inOutage = true; outageStart ??= lim.now();
+        const st = await check();
+        // accounts_dropped storms also happen while the game lives on (stale boots, brief blips):
+        // only a lost game counts as a restart; otherwise reconnect and resume.
+        if (st === "lost") return abort(`game lost (${String(e?.message || e).slice(0, 80)})`);
+        if (failures > lim.maxTries) return abort(`${failures - 1} reconnects failed`);
+        if (lim.now() - outageStart >= lim.windowMs) return abort(`outage over ${lim.windowMs}ms`);
+      }
     }
-    if (attempt >= maxAttempts) return;
-    await sleep(backoff(attempt));
+    if (!lim && attempt >= maxAttempts) return finished;
+    let wait = backoff(attempt);
+    if (lim) wait = Math.max(0, Math.min(wait, lim.windowMs - (lim.now() - (outageStart ?? lim.now()))));
+    await sleep(wait);
     attempt++;
   }
+  return finished;
 }
 
 function defaultSleep(ms) {
@@ -1046,6 +1107,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;
     return gameFinished(table, accounts.map((a) => a.accountId));
   };
+  let outcome = { status: "finished" };
   if (cfg.transport === "poll") {
     const since = new Map();
     let spins = 0;
@@ -1063,7 +1125,9 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   } else {
     const pathname = nonempty(env.DEV_STREAM_PATH) || "/api/dev/stream";
     const url = streamUrl(cfg.baseUrl, pathname);
-    await runStreamLoop({
+    const ourIds = accounts.map((a) => a.accountId);
+    outcome = await runStreamLoop({
+      restart: { checkGame: () => probeGame(client, { gameId: opened.gameId, accountIds: ourIds }), now },
       sleep, backoff: (n) => backoffMs(n, { rng }),
       shouldStop: () => gameFinished(table, accounts.map((a) => a.accountId)),
       fetchStream: async () => {
@@ -1087,8 +1151,16 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
     });
   }
+  if (outcome?.status === "aborted") {
+    // Stop every seat so no queued model call or delayed vote fires into a dead game.
+    for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
+    await seats.drain().catch(() => {});
+    say(`game_end status=aborted reason=${outcome.reason} game=${opened.gameId}`);
+    return 0;
+  }
   await seats.drain();
   await drainUpgrades(table);
+  say(`game_end status=finished game=${opened.gameId}`);
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {
