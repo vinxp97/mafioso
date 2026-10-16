@@ -285,8 +285,10 @@ export function isDayVillageVote(view, meetingId) {
   return view?.phase?.phase === "Day" && !!m && m.voting && (m.name === "Village" || (m.speech && !m.faction && !/shoot|gun|kick/i.test(`${m.name} ${m.actionName || ""}`)));
 }
 
+// Real discussion only: one- and two-word filler ("ya", "idk") does not count.
 function publicLinesThisDay(view, meetingId) {
-  return (view.messages || []).filter((x) => x.meetingId === meetingId && x.senderId && x.senderId !== "server");
+  return (view.messages || []).filter((x) => x.meetingId === meetingId && x.senderId && x.senderId !== "server"
+    && String(x.content || "").trim().split(/\s+/).length >= 3);
 }
 
 /** The Sheriff (known to the harness) has outed or passed, is dead, or his window has run out. */
@@ -300,12 +302,19 @@ export function sheriffWindowDone(table, view, meetingId, now) {
 }
 
 export function dayVoteReady(table, view, meetingId, now) {
+  const why = dayVoteReason(table, view, meetingId, now);
+  if (why && table.onDayGate) table.onDayGate(view.selfId, why, now);
+  return !!why;
+}
+
+function dayVoteReason(table, view, meetingId, now) {
   const frac = dayFraction(view, { now });
-  if (frac != null && frac >= DAY_VOTE.fraction) return true;
+  if (frac != null && frac >= DAY_VOTE.fraction) return `fraction ${frac.toFixed(2)}`;
   const tm = view.timer?.stateId === view.stateId ? view.timer : null;
-  if (tm?.last != null && tm.first != null && tm.last < tm.first && tm.last <= DAY_VOTE.remainingMs) return true;
+  if (tm?.last != null && tm.first != null && tm.last < tm.first && tm.last <= DAY_VOTE.remainingMs) return `remaining ${tm.last}`;
   const others = publicLinesThisDay(view, meetingId).filter((x) => x.senderId !== view.selfId).length;
-  return others >= DAY_VOTE.otherLines && sheriffWindowDone(table, view, meetingId, now);
+  if (others >= DAY_VOTE.otherLines && sheriffWindowDone(table, view, meetingId, now)) return `discussion ${others}`;
+  return null;
 }
 
 /** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
@@ -540,7 +549,8 @@ function startUpgrade(table, id, ctx) {
         const pm = publicSpeechMeeting(view);
         const t = ctx.clockOf();
         const last = Math.max(0, ...(table.spokeAt?.[id] || []));
-        if (pm && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && Math.random() < CHAT_LIMITS.fillerChance) {
+        const lively = (view.messages || []).filter((m) => m.meetingId === pm?.id && m.senderId && m.senderId !== view.selfId && Number(m.t) >= t - 30000).length >= 2;
+        if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && Math.random() < CHAT_LIMITS.fillerChance) {
           const line = cannedReaction(view);
           if (line) {
             const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: line } }], { ...ctx, source: "canned", clock: t });
