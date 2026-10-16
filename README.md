@@ -47,20 +47,32 @@ Node ≥ 18. No API keys required for tests (fake model + fixture SSE).
 
 ## LM Studio (local Qwen)
 
-LM Studio serves OpenAI Chat Completions at `http://127.0.0.1:1234/v1` by default.
+`createLmStudioComplete` (`harness/src/lmstudio.js`) talks to LM Studio’s OpenAI-compatible Chat Completions API and returns the `complete({system, user})` function `llmDecide` / `runLoopAsync` already accept. Every reply is still parsed and passed through `validateAction`. Illegal actions and bad JSON fall back to rules `decide`.
 
-1. Load your Qwen GGUF in LM Studio and start the local server.
-2. Point the harness at it (see `.env.example`):
+Default base URL is `http://127.0.0.1:1234/v1` (the `/v1` root, not the completions path). Run the bot on the **same machine as LM Studio** so that process can open `127.0.0.1:1234`. A remote VPS does not see your PC’s localhost unless you tunnel it on purpose.
+
+### On the PC running LM Studio
+
+1. In LM Studio, load a Qwen instruct GGUF and start the local server (Developer → Start server). Leave the port at `1234` and confirm the model shows up as loaded.
+2. From this repo (no secrets to commit; see `.env.example`):
 
 ```bash
-export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
-export LM_STUDIO_MODEL=          # empty = first model from GET /v1/models
-export LM_API_KEY=lm-studio      # LM Studio accepts any non-empty key
+export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1   # optional; trailing slash is stripped
+export LM_STUDIO_MODEL=                                # optional; empty = GET /v1/models, first id
+export LM_API_KEY=lm-studio                            # optional; any non-empty string
+cd harness && node scripts/lmstudio-smoke.mjs          # live ping; not part of npm test
 ```
 
-3. Pass the adapter’s `complete` into `runLoopAsync` (or the CLI once it lands). Every model reply still goes through `validateAction`.
+3. Use it on a stream replay (or your own entries). `fetch` defaults to global `fetch`; tests inject a fake.
 
-The bot process must reach that host (same machine as LM Studio, or a tunnel). The box / VPS cannot see your PC’s localhost unless you expose it on purpose.
+```js
+import { createLmStudioComplete, runLoopAsync } from "./harness/src/index.js";
+
+const complete = createLmStudioComplete(); // reads LM_STUDIO_* and LM_API_KEY
+const { proposed } = await runLoopAsync(entries, { complete });
+```
+
+The POST body is non-streaming chat completions: system + user messages, `response_format: { type: "json_object" }`, plus `temperature` / `max_tokens` when you pass them. If the server rejects `response_format` (error body mentions it), the client retries **once** without that field. `Authorization: Bearer ${apiKey}` is sent when the key is non-empty (`lm-studio` by default). Pass `apiKey: ""` to omit the header.
 
 ## Live play (not default)
 
@@ -73,7 +85,7 @@ Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually 
 | Engine (wire, reduce, legal, night, claims, factions) | Tested offline |
 | LLM decide + rules fallback | Tested with fake model |
 | Harness Dev API stub + SSE replay | Tested offline |
-| LM Studio adapter | In progress |
+| LM Studio adapter | Tested offline (fake fetch). Live use needs LM Studio on the same machine |
 | Live stream loop / token refresh / send | Not started (needs approval + key) |
 
 ## License
