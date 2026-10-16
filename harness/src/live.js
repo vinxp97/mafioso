@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -318,6 +318,27 @@ function dayVoteReason(table, view, meetingId, now) {
   return null;
 }
 
+export const CONSOLIDATE = { minVotes: 2, townBelief: 0.8 };
+
+/** The current vote leader to follow, or null (no 2+ leader, a tie, self, or strong contrary evidence). */
+export function townFollow(view, meeting) {
+  const tally = {};
+  for (const [voter, t] of Object.entries(meeting?.votes || {})) {
+    if (voter === view.selfId) continue;
+    const sel = Array.isArray(t) ? t[0] : t;
+    if (sel && sel !== "*") tally[sel] = (tally[sel] || 0) + 1;
+  }
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || ranked[0][1] < CONSOLIDATE.minVotes) return null;
+  if (ranked[1] && ranked[1][1] === ranked[0][1]) return null;
+  const lead = ranked[0][0];
+  if (lead === view.selfId || view.dead?.[lead] || !(meeting.targets || []).includes(lead)) return null;
+  if (memoryOf(view).cleared?.has?.(lead)) return null;
+  const b = rulesBeliefBoard(view).entries[lead];
+  if (b && beliefAlign(b.role) === "Village" && (b.probability || 0) >= CONSOLIDATE.townBelief) return null;
+  return lead;
+}
+
 /** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
 export function beliefDayPick(view, meeting, rng = Math.random) {
   const board = rulesBeliefBoard(view).entries;
@@ -337,7 +358,7 @@ export function beliefDayPick(view, meeting, rng = Math.random) {
   const ranked = pool.map((id) => [id, score(id)]).sort((a, b) => b[1] - a[1]).map(([id]) => id);
   if (!ranked.length) return null;
   const r = rng();
-  return ranked[r < 0.6 ? 0 : r < 0.85 ? Math.min(1, ranked.length - 1) : Math.min(2, ranked.length - 1)];
+  return ranked[r < 0.85 ? 0 : Math.min(1, ranked.length - 1)];
 }
 
 /** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
@@ -347,9 +368,14 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
     if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
     if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
     const scum = !!scumFaction(view);
-    if (!scum && source === "rules") {
-      const pick = beliefDayPick(view, view.meetings[a.data.meetingId]);
-      if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+    if (!scum) {
+      // Town consolidates late: follow a 2+ vote leader unless this seat believes that player is town.
+      const follow = townFollow(view, view.meetings[a.data.meetingId]);
+      if (follow) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
+      if (source === "rules") {
+        const pick = beliefDayPick(view, view.meetings[a.data.meetingId]);
+        if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+      }
     }
     out.push(a);
   }
@@ -361,9 +387,12 @@ function voteDelay(table, id, view, action) {
   let wait = 0;
   const kill = factionKillMeeting(view);
   // Only the first voter decides; teammates copy after a human-like 1-5s pause.
-  if (kill && kill.id === action.data.meetingId && factionLeader(view) !== view.selfId && !table.copied?.[`${id}|${view.stateId}`]) {
+  if (kill && kill.id === action.data.meetingId && !table.copied?.[`${id}|${view.stateId}`]) {
     (table.copied ||= {})[`${id}|${view.stateId}`] = true;
-    wait = 1000 + Math.floor(Math.random() * 4000);
+    // Leader votes after the night's chatter; teammates copy 1-5s after that.
+    wait = factionLeader(view) === view.selfId
+      ? (table.fastMode ? SCUM_CHAT.killAfterMs + Math.floor(Math.random() * SCUM_CHAT.killJitterMs) : 0)
+      : 1000 + Math.floor(Math.random() * 4000);
   }
   // Day village vote: first vote of the day is staggered 2-20s; scum wait longer so they never lead.
   if (table.fastMode && isDayVillageVote(view, action.data.meetingId) && !table.dayStaggered?.[`${id}|${view.stateId}`]) {
@@ -470,6 +499,10 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       action = humanizeSpeak(view, action);
       if (!String(action.data?.content || "").trim()) continue;
       if (publicLeak(view, action.data.content)) { table.leaksBlocked = (table.leaksBlocked || 0) + 1; continue; }
+      // One role claim per seat per game: no duplicate "I'm Sheriff." lines.
+      const claimed = claimedRoleIn(action.data.content);
+      if (claimed && table.claimedRole?.[id]) continue;
+      if (claimed) (table.claimedRole ||= {})[id] = claimed;
       table.speechStamp[id] = stamp;
       ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
     }
@@ -545,6 +578,18 @@ function startUpgrade(table, id, ctx) {
       const base = bindSeatComplete(ctx.complete, table.byId.get(id)?.promptText);
       const timed = (input) => withTimeout(base(input), LLM_TIMEOUT_MS);
       const model = limitedComplete(table, id, timed, ctx.limiter, stateId, seatPriority(view));
+      // Town barely thinks at night: rules picks only, the model budget goes to day speech.
+      if (night && !scumFaction(view)) break;
+      // Cop / Journalist claims come from rules (report-driven), ahead of any model line.
+      if (!night && !table.claimedRole?.[id]) {
+        const claim = roleClaimLine(view);
+        const pm = publicSpeechMeeting(view);
+        if (claim && pm) {
+          const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: claim } }], { ...ctx, source: "claim-rule", clock: ctx.clockOf() });
+          if (ctx.onAdded) ctx.onAdded(added);
+          if (added.length) continue;
+        }
+      }
       // Filler: a cheap canned reaction instead of queueing behind a busy GPU, never when addressed.
       if (!night && ctx.limiter?.pending >= 2) {
         const pm = publicSpeechMeeting(view);
@@ -613,14 +658,14 @@ export function nightOneRandomPicks(view, accountId) {
 }
 
 // ---- Mafia night chatter: 1-2 short private lines per night in the faction chat, no model call. ----
-export const SCUM_CHAT = { minDelayMs: 2000, maxDelayMs: 8000, gapMs: 4000 };
+export const SCUM_CHAT = { minDelayMs: 300, maxDelayMs: 1500, gapMs: 2000, killAfterMs: 4500, killJitterMs: 2000 };
 
 function factionChat(view) {
   return Object.values(view?.meetings || {}).find((m) => m?.amMember && m.speech && (m.name === "Mafia" || m.name === "Cult")) || null;
 }
 
-export function scumChatterLines(view, rng = Math.random) {
-  const plan = seenPlan(view);
+export function scumChatterLines(view, rng = Math.random, count = null) {
+  const plan = seenPlan(view) || (factionLeader(view) === view.selfId ? draftPlan(view) : null);
   const nm = (pid) => (pid && view.players?.[pid]?.name) || null;
   const kill = nm(plan?.killTarget), lynch = nm(plan?.lynchTarget), claim = String(plan?.claimRole || "villager").toLowerCase();
   const pool = [
@@ -632,8 +677,8 @@ export function scumChatterLines(view, rng = Math.random) {
   const said = new Set((view.messages || []).filter((m) => m.phase === view.phase?.name).map((m) => String(m.content || "").toLowerCase()));
   for (let i = pool.length - 1; i >= 0; i--) if (said.has(pool[i])) pool.splice(i, 1);
   const out = [];
-  while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-  return out.slice(0, 1 + (rng() < 0.5 ? 1 : 0));
+  while (out.length < (count ?? 2) && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  return out.slice(0, count ?? (1 + (rng() < 0.5 ? 1 : 0)));
 }
 
 function scheduleScumChatter(table, id, view, ctx) {
@@ -642,16 +687,22 @@ function scheduleScumChatter(table, id, view, ctx) {
   if (!chat) return;
   const key = `${id}|${view.stateId}`;
   if ((table.scumChat ||= {})[key]) return;
-  // Wait until a PLAN is visible so the lines can agree with it.
-  if (!seenPlan(view)) return;
+  // Night opens: talk first (leader's PLAN is already out), the kill votes follow after a short delay.
   table.scumChat[key] = true;
   const stateId = view.stateId;
-  let at = SCUM_CHAT.minDelayMs + Math.floor(Math.random() * (SCUM_CHAT.maxDelayMs - SCUM_CHAT.minDelayMs));
-  for (const line of scumChatterLines(view)) {
+  const team = [view.selfId, ...Object.keys(view.teammates || {})].filter(Boolean).sort();
+  const rank = Math.max(0, team.indexOf(view.selfId));
+  let at = SCUM_CHAT.minDelayMs + rank * Math.floor(SCUM_CHAT.gapMs / 2) + Math.floor(Math.random() * (SCUM_CHAT.maxDelayMs - SCUM_CHAT.minDelayMs));
+  for (const _slot of [0]) {
     const wait = at; at += SCUM_CHAT.gapMs + Math.floor(Math.random() * 4000);
     const p = new Promise((r) => setTimeout(r, wait)).then(async () => {
       const v = table.views[id];
       if (!v || v.stateId !== stateId || !selfAlive(v) || !v.meetings?.[chat.id]) return;
+      // Pick at send time, never a line a teammate already used tonight.
+      const used = ((table.scumSaid ||= {})[`${chat.id}|${v.phase?.name}`] ||= new Set());
+      const line = scumChatterLines(v, Math.random, 9).find((l) => !used.has(l));
+      if (!line) return;
+      used.add(line);
       const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: chat.id, content: line } }], { ...ctx, source: "scum-chat", clock: Date.now() });
       if (ctx.onAdded) ctx.onAdded(added);
     });

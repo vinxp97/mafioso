@@ -62,7 +62,7 @@ test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one 
   assert.equal(P.filter((p) => p.data.meetingId === "B2k03Izd6").length, 0, "nobody votes Vote Kick");
   for (const p of P) if (p.event === "vote") assert.ok(pid[p.accountId], "only our seats");
   const copies = kills.filter((k) => /delay/.test(k.source));
-  assert.equal(copies.length, 2, "two teammates copy the first vote after a delay");
+  assert.equal(copies.length, 3, "the leader votes after the night chatter, teammates copy after a delay");
 });
 
 test("vote kick is never legal for a bot", () => {

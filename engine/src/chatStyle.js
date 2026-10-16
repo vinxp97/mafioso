@@ -54,16 +54,80 @@ function hasGuiltyCheck(view) {
   return Object.values(checks).some((c) => /mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`));
 }
 
-/** May this seat claim a role in public now? Sheriff yes; Cop with a guilty; anyone under real pressure. */
+const lc = (x) => String(x || "").toLowerCase();
+const nameOfId = (view, id) => view?.players?.[id]?.name || null;
+function mentionsId(view, text, id) {
+  const n = nameOfId(view, id);
+  return !!n && new RegExp(`(^|[^a-z0-9_])${String(n).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9_]|$)`).test(lc(text));
+}
+function todayLines(view) {
+  return (view?.messages || []).filter((m) => m && m.senderId && m.senderId !== "server" && (!m.phase || m.phase === view.phase?.name));
+}
+
+/** Another player claimed my role, or called me guilty: counterclaim with real results. */
+export function counterclaimReason(view) {
+  const mine = lc(view?.role);
+  for (const m of todayLines(view)) {
+    if (m.senderId === view.selfId) continue;
+    const r = claimedRoleIn(m.content) || lc(view?.claims?.[m.senderId]?.role);
+    if (mine && r && r === mine) return { kind: "role", by: m.senderId };
+    if (mentionsId(view, m.content, view.selfId) && /\b(guilty|mafia|scum)\b/i.test(String(m.content || "")) && !/\bnot\s+(guilty|mafia)/i.test(String(m.content || ""))) return { kind: "guilty", by: m.senderId };
+  }
+  return null;
+}
+
+/** Journalist strategy cases: found the Janitor, or can clear the real Cop. */
+export function journalistInfo(view) {
+  const checks = memoryOf(view).checks || {};
+  for (const [id, c] of Object.entries(checks)) {
+    const text = `${c?.result || ""} ${c?.detail || ""}`;
+    if (/janitor/i.test(text)) return { kind: "janitor", target: id };
+  }
+  for (const [id, c] of Object.entries(checks)) {
+    const text = `${c?.result || ""} ${c?.detail || ""}`;
+    const claimedCop = /cop/i.test(String(view?.claims?.[id]?.role || ""));
+    if (claimedCop && /\bcop\b/i.test(text)) return { kind: "cop", target: id };
+  }
+  return null;
+}
+
+function guiltyTarget(view) {
+  for (const [id, c] of Object.entries(memoryOf(view).checks || {})) if (/mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`) && !view.dead?.[id]) return id;
+  return null;
+}
+
+/** May this seat claim a role in public now? Rules, not the model, decide for Cop and Journalist. */
 export function claimAllowed(view, { planSpeaker = false } = {}) {
   if (view?.phase?.phase !== "Day") return true;
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
-  if (/^cop$/i.test(role) && hasGuiltyCheck(view)) return true;
   if (planSpeaker) return true;
+  if (counterclaimReason(view)) return true;
   if (pressureOn(view) >= 2) return true;
-  if ((view.phase.day || 0) >= 2 && /journalist|cop/i.test(role) && Object.keys(memoryOf(view).checks || {}).length) return true;
+  if (/^cop$/i.test(role)) return hasGuiltyCheck(view);
+  if (/journalist/i.test(role)) return !!journalistInfo(view);
   return false;
+}
+
+/** The rules-decided claim line for Cop / Journalist (null when they should stay quiet). */
+export function roleClaimLine(view) {
+  if (view?.phase?.phase !== "Day") return null;
+  const role = String(view.role || "");
+  const nm = (id) => lc(nameOfId(view, id) || "");
+  const cc = counterclaimReason(view);
+  if (/^cop$/i.test(role)) {
+    const g = guiltyTarget(view);
+    if (cc) return g ? `${nm(cc.by)} is lying, im the real cop. ${nm(g)} is guilty` : `${nm(cc.by)} is lying, im the real cop`;
+    if (g) return `im cop. ${nm(g)} is guilty`;
+    return null;
+  }
+  if (/journalist/i.test(role)) {
+    const info = journalistInfo(view);
+    if (cc) return info ? `${nm(cc.by)} is lying, im journalist. ${nm(info.target)} is ${info.kind === "janitor" ? "janitor" : "the real cop"}` : `${nm(cc.by)} is lying, im the journalist`;
+    if (info) return info.kind === "janitor" ? `im journalist. ${nm(info.target)} is janitor` : `im journalist. ${nm(info.target)} is the real cop`;
+    return null;
+  }
+  return null;
 }
 
 /** Reason to block this public line as an early claim, or null. */
@@ -158,4 +222,27 @@ export function cleanChatReply(raw, view, addressed) {
     text = chatShorten(`${String(addressed.name).toLowerCase()} ${text}`);
   }
   return text;
+}
+
+const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+
+/** Token-set similarity (Jaccard) of two lines, 0..1. Identical short lines are 1. */
+export function lineSimilarity(a, b) {
+  const x = new Set(norm(a)), y = new Set(norm(b));
+  if (!x.size || !y.size) return 0;
+  let inter = 0;
+  for (const w of x) if (y.has(w)) inter++;
+  return inter / (x.size + y.size - inter);
+}
+
+export const VARIETY = { window: 10, maxSimilarity: 0.6 };
+
+/** Reason a public line repeats recent chat (any seat, last ~10 lines), or null. */
+export function repeatBlock(view, meetingId, content) {
+  const recent = (view?.messages || []).filter((m) => m.meetingId === meetingId && m.senderId && m.senderId !== "server").slice(-VARIETY.window);
+  for (const m of recent) {
+    const sim = lineSimilarity(content, m.content);
+    if (sim >= VARIETY.maxSimilarity) return `too similar to a recent line (${sim.toFixed(2)})`;
+  }
+  return null;
 }

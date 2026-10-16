@@ -228,10 +228,13 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   if (!cap.ok || !meeting || typeof complete !== "function") {
     return { action: null, source: "scheduler", rejections: [cap.ok ? "no generator" : cap.reason], schedule: sched };
   }
-  const may = claimAllowed(view, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
+  // Cop and Journalist claims are rules-only (roleClaimLine); the model never claims for them.
+  const may = !/^(cop|journalist)$/i.test(String(view.role || "")) && claimAllowed(view, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
   const chat = buildChatPrompt(view, meeting, { goal, may });
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)})` : chat.user;
+  // One extra try when the only problem was repeating recent chat.
+  let bonus = 0;
+  for (let attempt = 0; attempt <= maxRetries + bonus; attempt++) {
+    const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)}. say something different.)` : chat.user;
     let out;
     try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: 40, json: false, reasoningEffort: "none" }); } catch { rejections.push("model error"); continue; }
     const content = cleanChatReply(out, view, chat.addressed);
@@ -239,7 +242,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });
     action.data.content = chatShorten(action.data.content);
     const checked = validateAction(view, action);
-    if (!checked.ok) { rejections.push(checked.reason); continue; }
+    if (!checked.ok) { rejections.push(checked.reason); if (!bonus && /too similar/.test(checked.reason)) bonus = 1; continue; }
     const again = speechCap(view, { now });
     if (!again.ok) { rejections.push(again.reason); return { action: null, source: "scheduler", rejections, schedule: sched }; }
     return { action, source: "llm", rejections, schedule: sched };
