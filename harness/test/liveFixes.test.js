@@ -145,3 +145,65 @@ test("silent Day 1: several seats speak with a mock LLM, the Sheriff outs, nobod
     assert.ok(mine.filter((x) => x >= mine[0] && x - mine[0] < 60_000).length <= 3, `${id} broke the 3/min cap`);
   }
 });
+
+test("public speech never leaks player ids: names swap in, unknown ids drop", async () => {
+  const { humanizePlayerIds } = await import("mafioso-engine");
+  const v = reduce(emptyView(), { event: "players", data: { zekOPxX6S: { id: "zekOPxX6S" }, wONLAMmupM7: { id: "wONLAMmupM7", name: "Bob" }, c3AuF5: { id: "c3AuF5", name: "Ann" } } });
+  assert.equal(humanizePlayerIds(v, "Quiet so far: zekOPxX6S, wONLAMmupM7, c3AuF5."), "Quiet so far: Bob, Ann.");
+
+  const table = createBotTable([{ accountId: "A" }]);
+  const client = { api: async () => [{ id: "A", playerId: "p1", name: "Me" }, { id: "B", playerId: "p2", name: "Alice" }] };
+  await seedSelfIds(client, table, ["A", "B"], { sleep: async () => {} });
+  assert.equal(table.views.A.players.p2.name, "Alice");
+
+  const complete = async ({ purpose, user }) => (purpose === "speech" || user.includes("SCHEDULER: approved")
+    ? '{"action":"speak","meeting":"Village","text":"p2 and Qx7pLm2Za are quiet"}'
+    : '{"action":"wait"}');
+  const t = 1_000_000;
+  for (const e of [
+    { event: "roleReveal", data: { playerId: "p1", role: "Villager" } },
+    { event: "state", data: { id: 3, name: "Day 1" } },
+    { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "*"], votes: {} } },
+    { event: "message", data: { senderId: "p2", meetingId: "mVil", content: "hi Me", time: t } },
+  ]) var added = await onGameEntry(table, { accountId: "A", t, ...e }, { complete, dryRun: true, rng: () => 0, now: t });
+  const line = added.find((a) => a.event === "speak");
+  assert.ok(line, "a public line was proposed");
+  assert.ok(!/\bp2\b|Qx7pLm2Za/.test(line.data.content), line.data.content);
+  assert.match(line.data.content, /Alice/);
+});
+
+test("a dead seat is silent: validateAction rejects, scheduler and generator skip, queue stops", async () => {
+  const { validateAction, decideSpeech, proposeSeatActions, generatePublicSpeech, selfAlive } = await import("mafioso-engine");
+  const day = [
+    { event: "self", data: "p1" },
+    { event: "players", data: { p1: { id: "p1", name: "Me" }, p2: { id: "p2", name: "Alice" }, p3: { id: "p3", name: "Bob" } } },
+    { event: "roleReveal", data: { playerId: "p1", role: "Villager" } },
+    { event: "state", data: { id: 3, name: "Day 2" } },
+    { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "*"], votes: {} } },
+  ];
+  for (const killer of [{ event: "death", data: "p1" }, { event: "playerLeave", data: "p1" }, { event: "kicked", data: {} }]) {
+    let v = emptyView();
+    for (const e of [...day, killer]) v = reduce(v, e);
+    assert.equal(selfAlive(v), false, killer.event);
+    assert.equal(validateAction(v, { event: "speak", data: { meetingId: "mVil", content: "hi" } }).reason, "dead seat");
+    assert.equal(validateAction(v, { event: "vote", data: { meetingId: "mVil", selection: "p2" } }).reason, "dead seat");
+    assert.equal(decideSpeech(v, { now: 1 }).speak, false);
+    let calls = 0;
+    const complete = async () => { calls++; return '{"action":"speak","meeting":"Village","text":"still here"}'; };
+    assert.deepEqual((await proposeSeatActions(v, { complete, now: 1 })).actions, []);
+    assert.equal((await generatePublicSpeech(v, { complete, schedule: { speak: true }, now: 1 })).action, null);
+    assert.equal(calls, 0);
+  }
+
+  const table = createBotTable([{ accountId: "A" }]);
+  let calls = 0;
+  const complete = async () => { calls++; return '{"action":"speak","meeting":"Village","text":"still here"}'; };
+  const handled = [];
+  const q = createSeatQueues(async (e) => { handled.push(e.event); await onGameEntry(table, e, { complete, dryRun: true, now: 1 }); }, { isStopped: (id, e) => !!table.stopped?.[id] && e.event !== "winners" });
+  let seq = 0;
+  for (const e of [...day, { event: "death", data: "p1" }, { event: "message", data: { senderId: "p2", meetingId: "mVil", content: "Me?" } }, { event: "winners", data: { groups: ["Village"], players: [] } }]) q.push({ accountId: "A", seq: ++seq, t: 1, ...e });
+  await q.drain();
+  assert.ok(table.stopped.A);
+  assert.ok(!handled.includes("message"), "queue skips work after death");
+  assert.ok(handled.includes("winners") && table.views.A.finished);
+});
