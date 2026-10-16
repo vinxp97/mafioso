@@ -163,9 +163,18 @@ export function lawyerSelection(meeting, plan) {
   return null;
 }
 
+/** The Mafia kill this seat can see: majority of the faction meeting's votes. */
+export function factionKillVote(view) {
+  const faction = scumFaction(view);
+  const chat = faction ? factionMeeting(view, faction) : null;
+  const counts = {};
+  for (const t of Object.values(chat?.votes || {})) for (const id of Array.isArray(t) ? t : [t]) if (id && id !== NO_ONE) counts[id] = (counts[id] || 0) + 1;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+}
+
 export function janitorSelection(meeting, plan) {
   const targets = meeting?.targets || [];
-  const kill = plan.janitorTarget || plan.killTarget;
+  const kill = plan?.janitorTarget || plan?.killTarget;
   if (kill && targets.includes(kill)) return kill;
   const yes = targets.find((target) => /^yes$/i.test(String(target)));
   return yes || null;
@@ -177,7 +186,12 @@ function roleMeetings(view, chat) {
 
 function nightScum(view, faction) {
   const agreed = agreedPlan(view);
-  const plan = agreed || draftPlan(view);
+  let plan = agreed || draftPlan(view);
+  // FJ: the Janitor always cleans. Seen PLAN first, then the faction's kill vote, then its own draft.
+  if (view.role === "Janitor") {
+    const voted = factionKillVote(view);
+    if (!agreed && voted) plan = { ...(plan || {}), killTarget: voted, lawyerTarget: plan?.lawyerTarget || voted, janitorTarget: voted, source: plan?.source || "vote" };
+  }
   if (!plan) return null;
   const chat = factionMeeting(view, faction);
   const out = [];
