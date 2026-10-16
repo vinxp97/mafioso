@@ -68,6 +68,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
   if (!configuredModel && !discoverModels) throw new Error(`${label} model is not set`);
   const apiKey = nonempty(opts.apiKey);
   const extraHeaders = opts.headers;
+  const extraBody = opts.extraBody && typeof opts.extraBody === "object" ? opts.extraBody : null;
   const temperature = finiteNumber(opts.temperature);
   const maxTokens = finiteNumber(opts.maxTokens);
   const doFetch = opts.fetch !== undefined ? opts.fetch : globalThis.fetch?.bind(globalThis);
@@ -123,6 +124,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
     if (json) body.response_format = { type: "json_object" };
     if (temperature !== undefined) body.temperature = temperature;
     if (maxTokens !== undefined) body.max_tokens = maxTokens;
+    if (extraBody) Object.assign(body, extraBody);
     return body;
   }
 
