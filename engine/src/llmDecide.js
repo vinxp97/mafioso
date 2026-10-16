@@ -233,7 +233,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)})` : chat.user;
     let out;
-    try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: 40, json: false }); } catch { rejections.push("model error"); continue; }
+    try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: 40, json: false, reasoningEffort: "none" }); } catch { rejections.push("model error"); continue; }
     const content = cleanChatReply(out, view, chat.addressed);
     if (!content) { rejections.push("empty line"); continue; }
     const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });

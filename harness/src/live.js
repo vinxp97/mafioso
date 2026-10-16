@@ -247,6 +247,7 @@ export function bindSeatComplete(complete, promptText) {
     purpose: prompt?.purpose,
     ...(prompt?.maxTokens != null ? { maxTokens: prompt.maxTokens } : {}),
     ...(prompt?.json === false ? { json: false } : {}),
+    ...(prompt?.reasoningEffort ? { reasoningEffort: prompt.reasoningEffort } : {}),
   });
 }
 
@@ -612,7 +613,7 @@ export function nightOneRandomPicks(view, accountId) {
 }
 
 // ---- Mafia night chatter: 1-2 short private lines per night in the faction chat, no model call. ----
-export const SCUM_CHAT = { minDelayMs: 4000, maxDelayMs: 15000, gapMs: 6000 };
+export const SCUM_CHAT = { minDelayMs: 2000, maxDelayMs: 8000, gapMs: 4000 };
 
 function factionChat(view) {
   return Object.values(view?.meetings || {}).find((m) => m?.amMember && m.speech && (m.name === "Mafia" || m.name === "Cult")) || null;
@@ -678,6 +679,11 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     }
   }
   if (/voting too quickly/i.test(JSON.stringify(entry?.data ?? ""))) noteVoteThrottle(table, id, { send: dryRun ? null : send, onError });
+  if (entry?.event === "meeting" && entry.data?.id && table.onMeeting) {
+    const m = table.views[id]?.meetings?.[entry.data.id];
+    const k = `${id}|${entry.data.id}`;
+    if (m && !(table.meetLogged ||= new Set()).has(k)) { table.meetLogged.add(k); table.onMeeting(id, m); }
+  }
   const view = table.views[id];
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
   // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
@@ -868,6 +874,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`); };
   let winnersLogged = false;
   table.onDeferred = (p) => logSends([p]);
+  table.onMeeting = (who, m) => say(`meeting ${who} [${table.views[who]?.phase?.name || ""}] ${m.id} name=${JSON.stringify(m.rawName || m.name)} role=${m.factionRole || "-"} vote=${!!m.voting} canVote=${m.canVote !== false} targets=${(m.targets || []).length}`);
   const seats = createSeatQueues(async (entry) => {
     // Winners only for our game: our seat, matching gameId when the envelope has one, after the game started.
     const wv = table.views[entry.accountId];
