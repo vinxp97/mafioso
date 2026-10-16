@@ -22,8 +22,8 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
                                                       │
                          ┌────────────────────────────┤
                          ▼                            ▼
-                   llmDecide(view)              decide(view)   # rules
-                   (model backend / fake)       nightAct, claims, factions
+                   scheduler (this seat)        decide(view)   # votes, night, faction
+                   speak? → generator           nightAct, claims, factions
                          │                            │
                          └──────── validateAction ────┘
                                       │
@@ -34,7 +34,8 @@ prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
 2. **Legal actions** — `legalVotes` / `validateAction` know what this account may vote or say right now.
 3. **Rules decide** — day lynch and night picks prefer suspects, then other non-allies, and skip cleared players while another target exists. Night roles in `data/night-actions.json` must vote when their meeting is open. Mafia coordination is read from that seat's faction chat, not from other bots.
 4. **LLM decide** — builds a briefing (status + this seat's `NOTES` + fact ledger + belief board + phase digest + `TEAM PLAN` when this seat has seen one + that seat's Frontier Justice role guide + LEGAL ACTIONS + the last K lines of quoted untrusted chat), calls an injected `complete({system,user})`, parses one JSON action, validates, retries once on rejection, else falls back to rules. `wait` is rejected while a night ability or faction night vote is still open. Beliefs and the digest are refreshed once per phase end or hard result, on that seat only. A claim stays a claim until a hard check or reveal says otherwise. The engine drops a belief that cites a missing fact or fights a hard result.
-5. **Harness** — `runLoop` / `runLoopAsync` collect validated proposals from fixtures. Live send needs `MAFIOSO_LIVE=1` and a Developer API key; hosts outside the allowlist throw.
+5. **Public speech** — a per-seat scheduler decides whether this account talks in Village. Urgency is 0–4 (named, new info, vote pressure, a thought, or nothing). Own recent messages versus other living players make the seat talkative or quiet, and a cooldown / messages-per-minute cap blocks spam. If the scheduler waits, there is no speech proposal. If it says speak, the generator writes one line from the same briefing and `validateAction` still gates it. Votes, investigates, and faction chat are not delayed for that decision. Seats do not share a scheduler.
+6. **Harness** — `runLoop` / `runLoopAsync` collect validated proposals from fixtures. Live send needs `MAFIOSO_LIVE=1` and a Developer API key; hosts outside the allowlist throw.
 
 ## Quick start (offline)
 

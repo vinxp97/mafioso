@@ -10,7 +10,7 @@ Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep).
 Run: `npm install && npm test`.
 
 ## LLM mode
-`runLoopAsync(entries, {complete})` — uses engine `llmDecide` (validated, rules fallback) when `complete` is given; otherwise same as `runLoop`. Only consults the model when an unvoted legal vote exists. Never sends.
+`runLoopAsync(entries, {complete})` — uses engine `proposeSeatActions` (validated, rules fallback) when `complete` is given; otherwise same as `runLoop`. Public Village lines wait on that seat's scheduler. Votes and night actions do not. Never sends.
 
 ## Model backends
 
