@@ -69,17 +69,38 @@ test("openTestingGame forces a private Testing lobby and can join an existing id
   assert.equal(f.calls[0].body.lobby, "Testing");
   assert.equal(f.calls[0].body.spectating, true);
   assert.equal(f.calls[0].body.setup, "setup-1");
-  assert.equal(f.calls[1].url, "http://127.0.0.1:3000/api/game/leave");
-  assert.deepEqual(f.calls[1].body, { gameId: "game-9" });
-  assert.deepEqual(f.calls[2].body, { gameId: "game-9", count: 2 });
+  assert.equal(f.calls[1].url, "http://127.0.0.1:3000/api/dev/accounts");
+  assert.deepEqual(f.calls[1].body, { gameId: "game-9", count: 2 });
+  assert.equal(f.calls[2].url, "http://127.0.0.1:3000/api/game/leave");
+  assert.deepEqual(f.calls[2].body, { gameId: "game-9" });
   let hosted = false;
+  let left = false;
   const joined = await openTestingGame({
     hostGame() { hosted = true; },
+    leaveGame() { left = true; },
     createAccounts: async ({ count }) => Array.from({ length: count }, (_, i) => `bot-${i}`),
   }, { gameId: "already", botCount: 2 });
   assert.equal(hosted, false);
+  assert.equal(left, false);
   assert.equal(joined.gameId, "already");
   assert.deepEqual(normalizeAccounts(["x"]), [{ accountId: "x" }]);
+
+  const order = [];
+  const seated = await openTestingGame({
+    hostGame: async () => { order.push("host"); return "fj"; },
+    createAccounts: async ({ count }) => { order.push(`accounts:${count}`); return Array.from({ length: count }, (_, i) => `b${i}`); },
+    leaveGame: async () => { order.push("leave"); },
+  }, { setupId: "frontier-justice", botCount: 9 });
+  assert.equal(seated.accounts.length, 9);
+  assert.deepEqual(order, ["host", "accounts:9", "leave"]);
+
+  const failed = [];
+  await assert.rejects(() => openTestingGame({
+    hostGame: async () => { failed.push("host"); return "fj"; },
+    createAccounts: async () => { failed.push("accounts"); throw new Error("POST /dev/accounts -> 400"); },
+    leaveGame: async () => { failed.push("leave"); },
+  }, { setupId: "frontier-justice", botCount: 9 }), /400/);
+  assert.deepEqual(failed, ["host", "accounts"]);
 });
 
 test("driveAccounts sends only validated actions and keeps each bot's prompt", async () => {
@@ -178,6 +199,7 @@ test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child pr
     if (url.endsWith("/dev/token")) return { body: { token: "tok", tokenType: "Bearer", expiresIn: 3600 } };
     if (url.endsWith("/game/host")) return { body: "g-live" };
     if (url.endsWith("/dev/accounts") && init.method === "POST") return { body: [{ id: "A" }, { id: "B" }] };
+    if (url.endsWith("/game/leave")) return { body: { ok: true } };
     if (url.endsWith("/dev/stream")) return { stream: [sse] };
     if (url.includes("/send")) return { body: { ok: true } };
     if (url.includes("/chat/completions")) {
@@ -222,6 +244,11 @@ test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child pr
   assert.equal(hosts.length, 1);
   assert.equal(hosts[0].body.private, true);
   assert.equal(hosts[0].body.lobby, "Testing");
+  const accountCall = f.calls.findIndex((c) => c.url.endsWith("/dev/accounts") && c.init.method === "POST");
+  const leaveCall = f.calls.findIndex((c) => c.url.endsWith("/game/leave"));
+  assert.ok(accountCall > f.calls.indexOf(hosts[0]));
+  assert.ok(leaveCall > accountCall);
+  assert.deepEqual(f.calls[accountCall].body, { gameId: "g-live", count: 2 });
   assert.equal(hosts[0].init.headers["cf-access-client-secret"], "cf-secret-value");
   const sends = f.calls.filter((c) => c.url.includes("/send"));
   assert.ok(sends.length >= 1);
