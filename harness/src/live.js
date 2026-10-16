@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -270,6 +270,74 @@ function localSpeechOk(table, id, clock) {
 }
 
 /** Send (or propose) validated actions for one seat; dedups per state, allows a changed vote. */
+export const VOTE_GAP_MS = 3000;
+export const VOTE_BACKOFF_MS = 6000;
+
+function voteDelay(table, id, view, action) {
+  const now = Date.now();
+  let wait = 0;
+  const kill = factionKillMeeting(view);
+  // Only the first voter decides; teammates copy after a human-like 1-5s pause.
+  if (kill && kill.id === action.data.meetingId && factionLeader(view) !== view.selfId && !table.copied?.[`${id}|${view.stateId}`]) {
+    (table.copied ||= {})[`${id}|${view.stateId}`] = true;
+    wait = 1000 + Math.floor(Math.random() * 4000);
+  }
+  const last = table.lastVoteAt?.[id];
+  if (last != null) wait = Math.max(wait, last + VOTE_GAP_MS - now);
+  const back = table.voteBackoff?.[id];
+  if (back != null) wait = Math.max(wait, back - now);
+  return Math.max(0, wait);
+}
+
+function deferVote(table, id, action, wait, { source, entry, send, onError }) {
+  const stateId = table.views[id]?.stateId;
+  // Reserve the slot now so later votes from this seat queue behind this one.
+  (table.lastVoteAt ||= {})[id] = Date.now() + wait;
+  const p = new Promise((resolve) => setTimeout(resolve, wait)).then(async () => {
+    const view = table.views[id];
+    if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
+    if (!validateAction(view, action).ok) return;
+    const back = table.voteBackoff?.[id];
+    if (back != null && back > Date.now()) { deferVote(table, id, action, back - Date.now(), { source, entry, send, onError }); return; }
+    table.lastVoteAt[id] = Date.now();
+    (table.lastVoteAction ||= {})[id] = action;
+    const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+delay`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
+    table.proposed.push(proposal);
+    table.onDeferred?.(proposal);
+    if (send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+/** Server said "voting too quickly": hold this seat's votes and resend the last one later. */
+export function noteVoteThrottle(table, id, { send, onError } = {}) {
+  (table.voteBackoff ||= {})[id] = Date.now() + VOTE_BACKOFF_MS;
+  const last = table.lastVoteAction?.[id];
+  if (last && send) deferVote(table, id, last, VOTE_BACKOFF_MS, { source: "throttle", entry: null, send, onError });
+}
+
+/** Harness knows every seat's role: give each scum seat its own teammates (game knowledge in FJ). */
+export function noteSeatRole(table, id, view) {
+  if (!view?.selfId || !view.role) return [];
+  (table.roster ||= {})[view.selfId] = { id: view.selfId, accountId: id, role: view.role, name: view.players?.[view.selfId]?.name || null };
+  const out = [];
+  const align = (r) => ALIGNMENT[r] || null;
+  for (const me of Object.values(table.roster)) {
+    const f = align(me.role);
+    if (f !== "Mafia" && f !== "Cult") continue;
+    const mates = Object.values(table.roster).filter((o) => o.id !== me.id && align(o.role) === f).map(({ id: pid, name, role }) => ({ id: pid, name, role }));
+    const key = JSON.stringify(mates);
+    if ((table.matesKey ||= {})[me.accountId] === key) continue;
+    table.matesKey[me.accountId] = key;
+    out.push({ accountId: me.accountId, data: mates });
+  }
+  return out;
+}
+
 async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock }) {
   const view = table.views[id];
   const stamp = speechStamp(view);
@@ -277,6 +345,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
   for (let action of actions || []) {
     if (!validateAction(view, action).ok) continue;
     const pub = isPublicSpeak(view, action);
+    // PLAN lines only ever go to this seat's own private faction chat.
+    if (action.event === "speak" && /\bPLAN\b/.test(String(action.data?.content || ""))) {
+      const m = view.meetings?.[action.data.meetingId];
+      if (pub || !m || !(m.name === "Mafia" || m.name === "Cult")) continue;
+    }
     const key = pub
       ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
       : action.event === "vote"
@@ -288,12 +361,21 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     if (action.event === "vote") {
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
       if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
+      // One initial vote, then at most one model upgrade to a different valid target. No churn.
+      const n = (table.voteCount ||= {})[vk] || 0;
+      if (n >= 2 || (n === 1 && source === "rules")) continue;
+      // Copy/teammate votes and the server's vote rate limit: send later, re-checked at send time.
+      const wait = voteDelay(table, id, view, action);
+      if (wait > 0) { table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection); deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError }); continue; }
+      table.voteCount[vk] = n + 1;
       table.lastVote[vk] = JSON.stringify(action.data.selection);
+      (table.lastVoteAt ||= {})[id] = Date.now();
     }
     table.seen.add(key);
     if (pub) {
       action = humanizeSpeak(view, action);
       if (!String(action.data?.content || "").trim()) continue;
+      if (publicLeak(view, action.data.content)) { table.leaksBlocked = (table.leaksBlocked || 0) + 1; continue; }
       table.speechStamp[id] = stamp;
       ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
     }
@@ -431,6 +513,12 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
+  if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
+    for (const inj of noteSeatRole(table, id, table.views[id])) {
+      if (table.views[inj.accountId]) table.views[inj.accountId] = engineReduce(table.views[inj.accountId], { event: "teammates", data: inj.data });
+    }
+  }
+  if (/voting too quickly/i.test(JSON.stringify(entry?.data ?? ""))) noteVoteThrottle(table, id, { send: dryRun ? null : send, onError });
   const view = table.views[id];
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
   // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
@@ -618,8 +706,14 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const limiter = createLlmLimiter(concurrency);
   const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`); };
   let winnersLogged = false;
+  table.onDeferred = (p) => logSends([p]);
   const seats = createSeatQueues(async (entry) => {
-    if (entry.event === "winners" && !winnersLogged) { winnersLogged = true; say(`winners ${JSON.stringify(entry.data).slice(0, 400)}`); }
+    // Winners only for our game: our seat, matching gameId when the envelope has one, after the game started.
+    const wv = table.views[entry.accountId];
+    if (entry.event === "winners" && !winnersLogged && table.byId.has(entry.accountId)
+      && (entry.gameId == null || entry.gameId === opened.gameId) && wv?.phase && wv.phase.phase !== "Pregame") {
+      winnersLogged = true; say(`winners game=${opened.gameId} ${JSON.stringify(entry.data).slice(0, 400)}`);
+    }
     const added = await onGameEntry(table, entry, {
       complete, rng, dryRun: false, fast: true, limiter, onAdded: logSends,
       send: (p) => client.send(p),

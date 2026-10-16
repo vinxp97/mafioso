@@ -35,8 +35,8 @@ export function allies(view) {
   if (!f || f === "Village" || f === "Independent") return out;
   for (const [id, app] of Object.entries(view.reveals || {}))
     if (id !== view.selfId && alignmentOf(app) === f) out.add(id);
-  for (const m of Object.values(view.meetings))
-    if (m.amMember && m.name === FACTION_MEETINGS[f]) for (const id of memberIds(m)) if (id !== view.selfId) out.add(id);
+  // Teammates come from reveals and the harness-injected roster, never from meeting membership.
+  for (const id of Object.keys(view.teammates || {})) if (id !== view.selfId) out.add(id);
   return out;
 }
 

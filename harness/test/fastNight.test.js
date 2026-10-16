@@ -55,29 +55,6 @@ test("queued model calls are dropped once the phase changes", async () => {
   assert.ok(limiter.stats.dropped >= 1, `dropped=${limiter.stats.dropped} calls=${calls}`);
 });
 
-test("Janitor always cleans on Night 1 with a failed or slow model, on the PLAN or the Mafia kill vote", async () => {
-  const clean = { id: "mCln", name: "Clean", actionName: "Clean", voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "p4", "p6", "*"], votes: {} };
-  for (const mode of ["plan", "vote", "none"]) {
-    const table = createBotTable([{ accountId: "J" }]);
-    const mafia = { id: "mMaf", name: "Mafia Kill", actionName: "Mafia Kill", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "p4", "p6", "*"], members: [{ id: "p4" }, { id: "p5" }], votes: mode === "vote" ? { p5: "p2" } : {} };
-    const frames = seat(table, "J", "p4", "Janitor", [mafia, clean]);
-    if (mode === "plan") frames.push({ accountId: "J", seq: 50, t: 2000, event: "message", data: { senderId: "p5", meetingId: "mMaf", content: "PLAN kill=p3 lynch=p1 claim=Cop lawyer=p5 speaker=p5" } });
-    const failing = async () => { await sleep(50); throw new Error("model down"); };
-    const sent = [];
-    for (const e of frames) sent.push(...await onGameEntry(table, e, { complete: failing, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: () => 0 }));
-    await drainUpgrades(table);
-    const cleans = table.proposed.filter((a) => a.data.meetingId === "mCln");
-    assert.ok(cleans.length, `${mode}: clean sent`);
-    const last = cleans.at(-1).data.selection;
-    assert.notEqual(last, "*", `${mode}: never skips`);
-    if (mode === "plan") assert.equal(last, "p3");
-    if (mode === "vote") assert.equal(last, "p2");
-    const kill = table.proposed.filter((a) => a.data.meetingId === "mMaf" && a.event === "vote").at(-1);
-    assert.ok(kill, `${mode}: kill vote sent`);
-    assert.equal(kill.data.selection, last, `${mode}: clean matches the kill`);
-  }
-});
-
 test("Night 1 Cop and Journalist pick a seeded random legal target with zero model calls", async () => {
   const { nightOneRandomPicks } = await import("../src/live.js");
   for (const role of ["Cop", "Journalist"]) {

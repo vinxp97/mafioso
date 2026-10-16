@@ -54,6 +54,18 @@ export function reduce(view, frame) {
     case "playerLeave": if (v.players[data]) v.players[data].left = true; break;
     case "left": case "gameLeft": v.leftGame = true; break;
     case "kicked": v.kicked = true; break;
+    // Harness-injected: this seat's own faction teammates, known to it in FJ from game start.
+    case "teammates": {
+      v.teammates = {};
+      for (const t of Array.isArray(data) ? data : []) {
+        if (!t?.id || t.id === v.selfId) continue;
+        v.teammates[t.id] = { id: t.id, name: t.name || null, role: t.role || null };
+        if (t.role) (v.reveals ||= {})[t.id] = t.role;
+        if (!v.players[t.id]) v.players[t.id] = { id: t.id, name: t.name || t.id };
+        else if (t.name && !v.players[t.id].name) v.players[t.id].name = t.name;
+      }
+      break;
+    }
     case "state": {
       const p = parsePhase(data?.name);
       const sid = data?.id ?? v.stateId;
@@ -84,14 +96,23 @@ export function reduce(view, frame) {
       if (data?.id) {
         const m = clone(data);
         // Live servers name the faction meeting "Mafia Kill"; the engine keys on "Mafia"/"Cult".
-        const fac = String(m.name || "").match(/^(mafia|cult)(\s+(kill|meeting|chat))?$/i);
-        if (fac) { m.rawName = m.name; m.name = fac[1][0].toUpperCase() + fac[1].slice(1).toLowerCase(); }
+        // Live FJ splits the faction into "Mafia" chat ("Mafia Meeting"), "Mafia Kill" (vote) and
+        // "Mafia Action" (End Meeting? Yes/No, must act). Tag them; the chat keeps the bare name.
+        const fac = String(m.name || "").match(/^(mafia|cult)(?:\s+(kill|meeting|chat|action))?$/i);
+        if (fac) {
+          const f = fac[1][0].toUpperCase() + fac[1].slice(1).toLowerCase();
+          const kind = (fac[2] || "").toLowerCase();
+          m.rawName = m.name; m.faction = f;
+          m.factionRole = kind === "kill" ? "kill" : kind === "action" ? "action" : "chat";
+          if (m.factionRole === "chat") m.name = f;
+        }
         v.meetings[data.id] = m;
       }
       // The one-shot "players" frame can be missed (sent before the stream attaches, or past the
       // event cap). Meeting members and targets are seated players, so learn them here.
       for (const m of Array.isArray(data?.members) ? data.members : []) if (m?.id && !v.players[m.id]) v.players[m.id] = { id: m.id };
-      for (const t of Array.isArray(data?.targets) ? data.targets : []) if (typeof t === "string" && t !== "*" && !v.players[t]) v.players[t] = { id: t };
+      // Only id-shaped targets; boolean/button options (Yes, No, Kick) are not players.
+      for (const t of Array.isArray(data?.targets) ? data.targets : []) if (typeof t === "string" && t !== "*" && !/^(yes|no|kick)$/i.test(t) && !v.players[t]) v.players[t] = { id: t };
       break;
     }
     case "leftMeeting": delete v.meetings[data]; break;
