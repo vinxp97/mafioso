@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -279,7 +279,7 @@ export const VOTE_GAP_MS = 3000;
 export const VOTE_BACKOFF_MS = 6000;
 
 // ---- Day village vote: discuss first, then a staggered BeliefBoard vote. ----
-export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000, staggerMinMs: 2000, staggerMaxMs: 20000, scumExtraMs: 10000 };
+export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000, staggerMinMs: 2000, staggerMaxMs: 15000, scumExtraMs: 0 };
 
 export function isDayVillageVote(view, meetingId) {
   const m = view?.meetings?.[meetingId];
@@ -415,23 +415,43 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
   return out;
 }
 
+export const COPY_VOTE = { minMs: 2000, maxMs: 15000, spacingMs: 2000 };
+/** Random copy-vote wait in [2s, 15s], at least 2s from teammates already scheduled for this slot. Never above 15s. */
+export function copyDelay(table, slot, rng = Math.random) {
+  const taken = ((table.copySlots ||= {})[slot] ||= []);
+  let wait = COPY_VOTE.minMs + Math.floor(rng() * (COPY_VOTE.maxMs - COPY_VOTE.minMs + 1));
+  for (let i = 0; i < 20 && taken.some((t) => Math.abs(t - wait) < COPY_VOTE.spacingMs); i++) {
+    wait = COPY_VOTE.minMs + Math.floor(rng() * (COPY_VOTE.maxMs - COPY_VOTE.minMs + 1));
+  }
+  if (taken.some((t) => Math.abs(t - wait) < COPY_VOTE.spacingMs)) {
+    const start = Math.floor(rng() * (COPY_VOTE.maxMs - COPY_VOTE.minMs));
+    for (let k = 0; k <= COPY_VOTE.maxMs - COPY_VOTE.minMs; k += 250) {
+      const c = COPY_VOTE.minMs + ((start + k) % (COPY_VOTE.maxMs - COPY_VOTE.minMs + 1));
+      if (!taken.some((t) => Math.abs(t - c) < COPY_VOTE.spacingMs)) { wait = c; break; }
+    }
+  }
+  wait = Math.min(COPY_VOTE.maxMs, Math.max(COPY_VOTE.minMs, wait));
+  taken.push(wait);
+  return wait;
+}
+
 function voteDelay(table, id, view, action) {
   const now = Date.now();
   let wait = 0;
   const kill = factionKillMeeting(view);
-  // Only the first voter decides; teammates copy after a human-like 1-5s pause.
+  // Only the first voter decides; teammates copy after a human-like 2-15s pause, >=2s apart.
   if (kill && kill.id === action.data.meetingId && !table.copied?.[`${id}|${view.stateId}`]) {
     (table.copied ||= {})[`${id}|${view.stateId}`] = true;
-    // Leader votes after the night's chatter; teammates copy 1-5s after that.
+    // Leader votes after the night's chatter; teammates copy 2-15s later.
     wait = factionLeader(view) === view.selfId
       ? (table.fastMode ? SCUM_CHAT.killAfterMs + Math.floor(Math.random() * SCUM_CHAT.killJitterMs) : 0)
-      : 1000 + Math.floor(Math.random() * 4000);
+      : copyDelay(table, `kill|${view.stateId}`);
   }
-  // Day village vote: first vote of the day is staggered 2-20s; scum wait longer so they never lead.
+  // Day village vote: first vote of the day is staggered 2-15s.
   if (table.fastMode && isDayVillageVote(view, action.data.meetingId) && !table.dayStaggered?.[`${id}|${view.stateId}`]) {
     (table.dayStaggered ||= {})[`${id}|${view.stateId}`] = true;
-    wait = Math.max(wait, DAY_VOTE.staggerMinMs + Math.floor(Math.random() * (DAY_VOTE.staggerMaxMs - DAY_VOTE.staggerMinMs))
-      + (scumFaction(view) ? DAY_VOTE.scumExtraMs : 0));
+    // Random 2-15s, jittered >=2s apart across seats, never above 15s.
+    wait = Math.min(COPY_VOTE.maxMs, Math.max(wait, copyDelay(table, `day|${view.stateId}`)));
   }
   const last = table.lastVoteAt?.[id];
   if (last != null) wait = Math.max(wait, last + VOTE_GAP_MS - now);
@@ -505,11 +525,8 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       continue;
     }
     const pub = isPublicSpeak(view, action);
-    // PLAN lines only ever go to this seat's own private faction chat.
-    if (action.event === "speak" && /\bPLAN\b/.test(String(action.data?.content || ""))) {
-      const m = view.meetings?.[action.data.meetingId];
-      if (pub || !m || !(m.name === "Mafia" || m.name === "Cult")) continue;
-    }
+    // Machine coordination text never goes to ANY chat (validateAction also bans it; belt and braces).
+    if (action.event === "speak" && machineLeak(view, action.data?.content)) continue;
     const key = pub
       ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
       : action.event === "vote"

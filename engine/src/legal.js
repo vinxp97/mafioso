@@ -26,7 +26,12 @@ export function validateAction(view, action) {
     const kt = km?.targets || [];
     if (km && (/vote\s*kick/i.test(String(km.name || "")) || (kt.length === 1 && /^kick$/i.test(String(kt[0]))))) return no("never vote kick");
   }
-  // PLAN syntax, prompt text and raw ids never go to a public chat.
+  // Hard ban on EVERY meeting (public, Mafia, Lawyer, anything): no PLAN syntax, key=value or raw ids.
+  if (action.event === "speak") {
+    const machine = machineLeak(view, action.data?.content);
+    if (machine) return no(`machine text: ${machine}`);
+  }
+  // Prompt text and the rest of the public checks only apply to public chat.
   if (action.event === "speak" && view.meetings?.[action.data?.meetingId] && isPublicSpeechMeeting(view.meetings[action.data.meetingId])) {
     const leak = publicLeak(view, action.data?.content);
     if (leak) return no(`public leak: ${leak}`);
@@ -62,6 +67,16 @@ export function validateAction(view, action) {
     }
     default: return no("unsupported event");
   }
+}
+
+const MACHINE_RE = /\bPLAN\b|\b[A-Za-z_]{2,}=\S/;
+/** Coordination syntax or a raw player id: never allowed in any chat. */
+export function machineLeak(view, content) {
+  const text = String(content || "");
+  const m = text.match(MACHINE_RE);
+  if (m) return `contains "${m[0]}"`;
+  for (const id of Object.keys(view?.players || {})) if (id.length >= 4 && text.includes(id)) return "contains a player id";
+  return null;
 }
 
 const LEAK_RE = /\bPLAN\b|\b(kill|lynch|condemn|claim|lawyer|speaker)=|\bsystem\b|\bprompt\b/i;

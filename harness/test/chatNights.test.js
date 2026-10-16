@@ -40,8 +40,9 @@ test("N1 -> D1 -> N2: PLAN, kill votes, Mafia Action Yes and faction chatter fir
     assert.equal(new Set(kills.map((k) => k.accountId)).size, mafiaSeats.length, `night ${n}: all mafia vote the kill`);
     assert.equal(new Set(kills.map((k) => k.data.selection)).size, 1, `night ${n}: one kill target`);
     for (const s of mafiaSeats) assert.ok(P.some((p) => p.accountId === s.acc && p.data.meetingId === `MafAct01xyz-n${n}` && p.data.selection === "Yes"), `night ${n}: ${s.role} sends Mafia Action Yes`);
-    const plans = P.filter((p) => p.event === "speak" && /PLAN/.test(p.data.content));
-    assert.equal(plans.length, 1, `night ${n}: one PLAN`);
+    const plans = P.filter((p) => p.event === "speak" && p.source !== "scum-chat" && /^kill \S+ tonight/.test(p.data.content));
+    assert.equal(plans.length, 1, `night ${n}: one casual plan line`);
+    for (const p of P) if (p.event === "speak") assert.doesNotMatch(p.data.content, /PLAN|\w=\S/, "no machine text in any chat");
     const chatter = P.filter((p) => p.source === "scum-chat");
     for (const s of mafiaSeats) {
       const mine = chatter.filter((c) => c.accountId === s.acc);

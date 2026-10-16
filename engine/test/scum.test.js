@@ -49,7 +49,7 @@ test("a seat that has not seen the plan does not inherit another seat's kill", (
 test("night without a plan announces one kill and votes it", () => {
   const acts = decide(seat("p1", "Mafioso"));
   assert.deepEqual(acts, [
-    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p4 claim=Cop lawyer=p1 speaker=p1" } },
+    { event: "speak", data: { meetingId: "mMaf", content: "kill bob tonight, ill fake cop tmrw and push cat, lawyer go on me" } },
     { event: "vote", data: { meetingId: "mMaf", selection: "p3" } },
   ]);
 });

@@ -85,7 +85,8 @@ test("mafia follows Cop over Sheriff over Journalist when those claims are visib
   const kill = act.actions.find((action) => action.event === "vote" && action.data.meetingId === "maf");
   assert.equal(kill.data.selection, "p2");
   const plan = act.actions.find((action) => action.event === "speak");
-  assert.match(plan.data.content, /PLAN kill=p2\b/);
+  assert.match(plan.data.content, /^kill \S+ tonight/);
+  assert.doesNotMatch(plan.data.content, /PLAN|=|\bp2\b/);
 });
 
 test("town votes the most suspected player, or no lynch when nobody is suspected", () => {

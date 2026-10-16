@@ -228,11 +228,11 @@ export function ruleBotActions(view, { seed = 1, rng, now } = {}) {
   const mafia = findMeeting(view, /^(mafia|cult)$/i);
   const kill = mafia && picks.get(mafia.id);
   for (const action of actions) {
-    if (action.event !== "speak" || !kill || !String(action.data.content || "").startsWith("PLAN ")) continue;
-    const plan = parsePlanLine(action.data.content);
-    if (!plan) continue;
+    if (action.event !== "speak" || !kill || action.data.meetingId !== mafia.id) continue;
+    const plan = parsePlanLine(action.data.content, view, view.selfId);
+    if (!plan || plan.killTarget === kill) continue;
     const previous = action.data.content;
-    action.data.content = formatPlanSpeech({ ...plan, killTarget: kill });
+    action.data.content = formatPlanSpeech({ ...plan, killTarget: kill }, view) || previous;
     if (!validateAction(view, action).ok) action.data.content = previous;
   }
 
