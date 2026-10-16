@@ -100,7 +100,7 @@ On Windows: start Docker Desktop, start LM Studio, load Qwen, start the local se
 
 `dev.ultimafia.gg` sits behind Cloudflare Access. A PC that only gets an Access wall or error 1010 needs `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in `.env`. Those headers are sent only to the game host, not to LM Studio.
 
-`hostGame` sets `spectating: true`, then `openTestingGame` calls `leaveGame` so the developer does not take a seat. `BOT_COUNT` is the setup size. Frontier Justice is 9. Each account keeps its own view, notes, and decisions. Bots do not share memory. Mafia seats agree only by speaking in the Mafia meeting.
+`hostGame` sets `spectating: true`. `openTestingGame` calls `createAccounts(BOT_COUNT)` first, then `leaveGame`, so the developer does not take a seat. Leaving before the bots are seated empties the lobby and `POST /dev/accounts` returns 400. `BOT_COUNT` is the setup size. Frontier Justice is 9. Each account keeps its own view, notes, and decisions. Bots do not share memory. Mafia seats agree only by speaking in the Mafia meeting.
 
 After the game, each prompt lineage that played is scored (win / loss / draw, plus per-role counts) and Qwen is asked for a child system prompt. The child is saved only if it still contains the never-admit-AI line and the JSON action contract. The next launch draws `BOT_COUNT` prompts with epsilon-greedy (default epsilon 0.2) so the nine bots can sit on different lineages. History is `harness/data/prompts/runtime/prompts.json` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
 
