@@ -170,6 +170,15 @@ export function resultsFromTable(table) {
   return rows;
 }
 
+/** Action calls may wear this seat's evolved system text. Memory updates keep their own system prompt. */
+export function bindSeatComplete(complete, promptText) {
+  if (typeof complete !== "function") return null;
+  return (prompt) => complete({
+    system: prompt?.purpose === "memory" ? prompt.system : (promptText || prompt?.system),
+    user: prompt?.user,
+  });
+}
+
 /**
  * Reduce one envelope and, if this account still owes a vote, decide.
  * Sends only when dryRun is false. send() is expected to validate again.
@@ -186,9 +195,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   const keyOf = (a) => `${id}|${view.stateId}|${a.event}|${a.data.meetingId}`;
   if (open.every((a) => table.seen.has(keyOf(a)))) return [];
   const promptText = table.byId.get(id)?.promptText;
-  const bound = complete
-    ? (promptText ? ({ user }) => complete({ system: promptText, user }) : complete)
-    : null;
+  const bound = complete ? bindSeatComplete(complete, promptText) : null;
   const decided = bound
     ? await llmDecide(view, { complete: bound, rng })
     : { actions: open, source: "rules" };

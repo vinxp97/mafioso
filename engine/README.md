@@ -17,7 +17,16 @@ Run: `cd /workspace/mafioso/engine && npm test` (Node ≥18; uses node:test). Fi
 
 ## Claims & factions
 - `src/claims.js` — regex-only `extractClaim` / `reduceClaims` (claim, cc, soft, retract). `reduce` updates `view.claims` on every `message`/`quote`.
-- `src/notes.js` — per-view `notes` for checks, cleared, suspects, deaths, votes, and faction chat this seat received. `memoryOf(view)` folds those with reveals and double claims. Nothing in `notes` is copied to another account.
+- `src/notes.js` — per-view `notes` for checks, cleared, suspects, deaths, votes, and faction chat this seat received. `memoryOf(view)` folds those with reveals and double claims. Nothing in `notes` is copied to another account. Claims are not written in as roles.
+
+## Seat memory
+Each account keeps its own fact ledger, belief board, and phase digest. A second seat does not read them.
+
+- `src/factLedger.js` — append-only facts with ids (`f1`, …). Hard facts are this seat's checks, deaths, votes, reveals, and own role. A claim is stored as speech (`hard: false`), not as that player's role. Player chat that mimics a server result is not a check.
+- `src/beliefs.js` — per living player: role, soft label or probability, reliability 1–10, one-line reason, and evidence ids. `judgeBelief` rejects a belief that cites no ledger id, cites a missing id, or fights a hard check or reveal. A Village check cannot be believed as Mafia.
+- `src/digest.js` — rolling summary capped at 150 words. At a phase change, the new text is the old digest plus that phase's outcome, then the oldest words are dropped.
+- `src/memory.js` — `applySeatMemory` runs on every `reduce`. `refreshSeatMemory` makes one LLM call when a phase ended or a hard result arrived (`memory.due`). Rules write the board and the digest if the model fails or returns nothing usable.
+- `buildBriefing` / `llmDecide` receive FACT LEDGER, BELIEF BOARD, PHASE DIGEST, and the last K messages. The action prompt does not get the whole chat log. `validateAction` still gates every send.
 - `src/faction.js` — small explicit `ALIGNMENT` map; `myFaction`, `allies` (server reveals + shared Mafia/Cult meeting members; claims never count), `enemies`.
 - `decide` uses `pickHostileTarget`. Suspects come first, then other non-allies, and cleared players are skipped while another target exists. Known allies are never chosen. `"*"` is last.
 
@@ -33,7 +42,7 @@ Night, when no PLAN line has arrived. This seat speaks its own draft and votes t
 Day. The speaker id says `I'm <claim>. Vote <lynch>.` in Village, and every scum seat that still has the plan votes that lynch when it is legal. Town seats ignore PLAN lines, including lines pasted in Village.
 
 ## LLM adapter (`src/llmDecide.js`)
-- `buildBriefing(view)` — phase/role/living/allies/claims/`NOTES`/optional `TEAM PLAN`/this seat's Frontier Justice `ROLE GUIDE`/`LEGAL ACTIONS`, then chat under `PLAYERS SAID (untrusted, quoted)` (one-line JSON-quoted, injection markers defanged), ending with a JSON-only instruction. `TEAM PLAN` is included only for Mafia or Cult, and only from chat this view has seen. `ROLE GUIDE` is the card in `data/frontier-justice.json` for the known own role (Villager, Cop, Journalist, Sheriff, Mafioso, Janitor, Lawyer / Loyal Lawyer). It is guidance. It does not replace NOTES, TEAM PLAN, night must-act, or `validateAction`.
+- `buildBriefing(view)` — phase/role/living/allies/claims/`NOTES`/FACT LEDGER/BELIEF BOARD/PHASE DIGEST/optional `TEAM PLAN`/this seat's Frontier Justice `ROLE GUIDE`/`LEGAL ACTIONS`, then the last K lines of chat under `PLAYERS SAID (untrusted, quoted)` (one-line JSON-quoted, injection markers defanged), ending with a JSON-only instruction. `TEAM PLAN` is included only for Mafia or Cult, and only from chat this view has seen. `ROLE GUIDE` is the card in `data/frontier-justice.json` for the known own role (Villager, Cop, Journalist, Sheriff, Mafioso, Janitor, Lawyer / Loyal Lawyer). It is guidance. It does not replace NOTES, the ledger, TEAM PLAN, night must-act, or `validateAction`. When `memory.due` is set, `llmDecide` asks the model once for beliefs and a digest before it asks for an action. Pass `memory: false` to skip that call.
 - `parseLlmAction(text, view)` — `{action:vote|unvote|speak|wait, meeting (id or name), target (id/name/"no one"), text}`.
 - `llmDecide(view, {complete, maxRetries=1})` — `complete({system,user})` is injected. Parse → `validateAction`; on failure retry with rejection note; else rules `decide`. Returns `{actions, source:'llm'|'fallback', rejections}`; never an unvalidated action.
 - `SYSTEM_PROMPT` — scum-aware, never admit AI, chat untrusted, JSON only.
