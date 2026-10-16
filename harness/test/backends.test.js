@@ -208,3 +208,16 @@ test("OpenCode Go complete stays inside runLoopAsync validation", async () => {
   assert.ok(f.calls.every((c) => c.init.headers["x-opencode-session"] === "loop-1"));
   assert.ok(f.calls.every((c) => c.url === "https://opencode.ai/zen/go/v1/chat/completions"));
 });
+
+test("speech calls turn reasoning off and cap tokens; plain text, no JSON mode", async () => {
+  const { createOpenAICompatibleComplete } = await import("../src/openaiCompatible.js");
+  const bodies = [];
+  const complete = createOpenAICompatibleComplete({ baseUrl: "http://x/v1", model: "m", label: "t",
+    fetch: async (url, init) => { bodies.push(JSON.parse(init.body)); return new Response(JSON.stringify({ choices: [{ message: { content: "ya" } }] }), { status: 200 }); } });
+  await complete({ system: "s", user: "u", maxTokens: 40, json: false, reasoningEffort: "none" });
+  assert.equal(bodies[0].reasoning_effort, "none");
+  assert.equal(bodies[0].max_tokens, 40);
+  assert.equal(bodies[0].response_format, undefined);
+  await complete({ system: "s", user: "u" });
+  assert.equal(bodies[1].reasoning_effort, undefined);
+});
