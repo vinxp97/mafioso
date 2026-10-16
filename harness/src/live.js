@@ -116,6 +116,7 @@ export function normalizeAccounts(data) {
   });
 }
 
+/** Drop the developer seat after bots are seated. 400/404/409 means already unseated. */
 export async function leaveHostIfSeated(client, gameId) {
   try {
     await client.leaveGame(gameId);
@@ -127,15 +128,18 @@ export async function leaveHostIfSeated(client, gameId) {
 
 export async function openTestingGame(client, { gameId = "", setupId = "", botCount, lobbyName = "mafioso-bots" }) {
   let id = gameId;
+  let hostedHere = false;
   if (!id) {
     if (!setupId) throw new Error("DEV_SETUP_ID is required to host (or set GAME_ID to join)");
     const hosted = await client.hostGame({ setup: setupId, lobbyName, lobby: "Testing", private: true });
     id = normalizeGameId(hosted);
-    await leaveHostIfSeated(client, id);
+    hostedHere = true;
   }
+  // Seat bots before the host leaves. leaveGame first empties the lobby and POST /dev/accounts returns 400.
   const created = await client.createAccounts({ gameId: id, count: botCount });
   const accounts = normalizeAccounts(created);
   if (accounts.length !== botCount) throw new Error(`createAccounts returned ${accounts.length}, expected ${botCount}`);
+  if (hostedHere) await leaveHostIfSeated(client, id);
   return { gameId: id, accounts };
 }
 
