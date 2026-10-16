@@ -1,5 +1,6 @@
 // Per-bot memory. Updated only from events this seat received.
 // Nothing here is shared with another account.
+// Checks, deaths, and votes are facts. Claims stay claims; the fact ledger gives them evidence ids.
 import { alignmentOf, allies } from "./faction.js";
 
 export function emptyNotes() {
@@ -60,17 +61,25 @@ export function memoryOf(view) {
   };
 }
 
-function rememberCheck(view, data) {
+/** Server investigation line, or null. A player saying the same words is not a check. */
+export function parseServerInfo(view, data) {
   const sender = data?.senderId;
-  if (sender && sender !== "server" && sender !== "anonymous") return;
+  if (sender && sender !== "server" && sender !== "anonymous") return null;
   const text = String(data?.content || "").trim();
   const sided = text.match(SIDED);
   const roleLine = sided ? null : text.match(ROLE_LINE);
-  if (!sided && !roleLine) return;
-  const id = namedId(view, (sided || roleLine)[1]);
-  if (!id || id === view.selfId) return;
+  if (!sided && !roleLine) return null;
+  const playerId = namedId(view, (sided || roleLine)[1]);
+  if (!playerId || playerId === view.selfId) return null;
   const detail = (sided || roleLine)[2].trim();
   const align = resultAlign(detail);
+  return { playerId, detail, align: align || "", role: alignmentOf(detail) ? detail : null, text };
+}
+
+function rememberCheck(view, data) {
+  const info = parseServerInfo(view, data);
+  if (!info) return;
+  const { playerId: id, detail, align } = info;
   view.notes.checks[id] = { result: align || detail, detail, phase: view.phase?.name || "" };
   const cleared = new Set(view.notes.cleared);
   const suspects = new Set(view.notes.suspects);
