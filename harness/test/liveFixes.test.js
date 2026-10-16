@@ -101,10 +101,11 @@ test("silent Day 1: several seats speak with a mock LLM, the Sheriff outs, nobod
   const all = Object.fromEntries(seats.map((id) => [id, { id, name: `Bot${id.slice(1)}` }]));
   const accounts = seats.map((id) => ({ accountId: `A${id}` }));
   const table = createBotTable(accounts);
+  let n = 0;
   const complete = async ({ user, purpose }) => {
     if (purpose === "speech" || user.includes("SCHEDULER: approved")) {
       const sheriff = user.includes("Out yourself as Sheriff");
-      return JSON.stringify({ action: "speak", meeting: "Village", text: sheriff ? "I'm Sheriff. Shooting at end of day if no claims." : "Morning. Anyone have a claim?" });
+      return JSON.stringify({ action: "speak", meeting: "Village", text: sheriff ? "I'm Sheriff. Shooting at end of day if no claims." : ["morning, who has thoughts", "quiet start huh", "anyone got a read", "bea feels odd to me", "lets get some talk going", "who is lurking today", "cat what do you think", "dan you there"][(n++) % 8] });
     }
     if (purpose === "scheduler") return '{"urgency":2,"speak":true,"reason":"ok"}';
     return "not json";
@@ -206,4 +207,56 @@ test("a dead seat is silent: validateAction rejects, scheduler and generator ski
   assert.ok(table.stopped.A);
   assert.ok(!handled.includes("message"), "queue skips work after death");
   assert.ok(handled.includes("winners") && table.views.A.finished);
+});
+
+import { runStreamLoop as rsl, createBotTable as cbt, onGameEntry as oge } from "../src/live.js";
+test("qAl36MVss: backfill replays buffered start events before the stream; stale accounts_dropped is ignored", async () => {
+  const table = cbt([{ accountId: "A1" }]);
+  const sse = [
+    `event: accounts_dropped\ndata: ${JSON.stringify({ accounts: [{ id: "xX", gameId: "l0bS-lGKX", status: "dropped" }] })}\n\n`,
+    `event: game\ndata: ${JSON.stringify({ accountId: "A1", seq: 3, event: "state", data: { id: 1, name: "Night 1" } })}\n\n`,
+    `event: game\ndata: ${JSON.stringify({ accountId: "A1", seq: 4, event: "time", data: { time: 1 } })}\n\n`,
+  ].join("");
+  const errors = [], infos = [], seen = [];
+  await rsl({
+    fetchStream: async () => (async function* () { yield sse; })(),
+    backfill: async () => [
+      { accountId: "A1", seq: 1, event: "self", data: "p1" },
+      { accountId: "A1", seq: 2, event: "roleReveal", data: { playerId: "p1", role: "Cop" } },
+      { accountId: "A1", seq: 3, event: "state", data: { id: 1, name: "Night 1" } },
+    ],
+    onFrame: async (f) => { if (f.type === "game") { seen.push(f.entry.seq); await oge(table, f.entry, { dryRun: true }); } return false; },
+    ourIds: ["A1"], maxAttempts: 0, sleep: async () => {},
+    shouldStop: () => seen.length >= 5,
+    onError: (e) => errors.push(e.message), onInfo: (m) => infos.push(m),
+  }).catch(() => {});
+  assert.deepEqual(seen.slice(0, 5), [1, 2, 3, 3, 4]);
+  assert.equal(table.views.A1.selfId, "p1");
+  assert.equal(table.views.A1.role, "Cop");
+  assert.equal(table.views.A1.phase.name, "Night 1");
+  assert.equal(errors.filter((e) => /accounts_dropped/.test(e)).length, 0);
+  assert.equal(infos.filter((m) => /stale accounts_dropped/.test(m)).length, 1);
+});
+
+import { publicChatLogLine } from "../src/live.js";
+test("public chat is logged once (sanitized, up to 500 chars); faction chat and server lines never", async () => {
+  const table = cbt([{ accountId: "A" }, { accountId: "B" }]);
+  const lines = [];
+  for (const acc of ["A", "B"]) {
+    let s = 0;
+    const f = (event, data) => oge(table, { accountId: acc, seq: ++s, event, data }, { dryRun: true, onChat: (l) => lines.push(l) });
+    await f("self", acc === "A" ? "p1" : "p2");
+    await f("players", { p1: { id: "p1", name: "Ann" }, p2: { id: "p2", name: "Bob" }, p3: { id: "p3", name: "Cat" } });
+    await f("state", { id: 1, name: "Day 1" });
+    await f("meeting", { id: "vil", name: "Village", speech: true, voting: true, amMember: true, targets: ["p1"], votes: {} });
+    await f("meeting", { id: "maf", name: "Mafia", speech: true, voting: false, amMember: true });
+    await f("message", { meetingId: "vil", senderId: "p3", content: "im cop, bob is guilty " + "x".repeat(600), time: 5 });
+    await f("message", { meetingId: "maf", senderId: "p3", content: "PLAN kill=p1", time: 6 });
+    await f("message", { meetingId: "vil", senderId: "server", content: "Ann was killed", time: 7 });
+    await f("message", { meetingId: "whoknows", senderId: "p3", content: "secret?", time: 8 });
+  }
+  assert.equal(lines.length, 1, lines.join("\n"));
+  assert.match(lines[0], /^chat \[Day 1\] Village Cat: "im cop, bob is guilty x+/);
+  assert.ok(lines[0].length > 400 && lines[0].length < 560);
+  assert.equal(publicChatLogLine(table, "A", { event: "vote", data: {} }), null);
 });

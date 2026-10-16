@@ -45,7 +45,7 @@ test("8 lines from others are not enough until the Sheriff has had his window", 
   const sheriff = seats.find((s) => s.role === "Sheriff");
   const talkers = seats.filter((s) => s !== sheriff);
   let t = T0 + 1000;
-  for (let i = 0; i < 9; i++) for (const s of seats) await feed(s, "message", { meetingId: "vil", senderId: talkers[i % talkers.length].pid, content: `line ${i}` }, (t += 100));
+  for (let i = 0; i < 9; i++) for (const s of seats) await feed(s, "message", { meetingId: "vil", senderId: talkers[i % talkers.length].pid, content: `i think line ${i} matters` }, (t += 100));
   for (const s of seats) await feed(s, "time", { time: 280000 }, T0 + 20000);
   await drainUpgrades(table);
   assert.equal(dayVotes(table).length, 0, "Sheriff has not spoken and his window is open");

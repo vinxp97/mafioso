@@ -5,7 +5,7 @@ import { NO_ONE } from "./types.js";
 import { memoryOf } from "./notes.js";
 import { beliefAlign } from "./beliefs.js";
 
-export const SHERIFF_RULES = Object.freeze({ minOtherMessages: 6, minElapsedMs: 120_000, lateFraction: 0.85, lateElapsedMs: 360_000 });
+export const SHERIFF_RULES = Object.freeze({ minOtherMessages: 6, minElapsedMs: 120_000, lateFraction: 0.85, lateElapsedMs: 180_000, lateRemainingMs: 60_000, lateVoteShare: 0.5 });
 const POWER_ROLES = new Set(["Cop", "Journalist", "Sheriff", "Doctor"]);
 
 export function isGunMeeting(meeting) {
@@ -93,16 +93,50 @@ export function sheriffLateTarget(view) {
   return Object.keys(view?.players || {}).find((id) => living(view, id) && !POWER_ROLES.has(claimedRole(view, id))) || null;
 }
 
-function isLate(view, now) {
+/**
+ * Late in the day: any readable signal counts. Game 1fo007iEq: the day timer was unreadable and the
+ * day ended before the old 6-minute fallback, so the Sheriff never shot.
+ */
+export function isLate(view, now) {
   const f = dayFraction(view, { now });
-  if (f != null) return f >= SHERIFF_RULES.lateFraction;
+  if (f != null && f >= SHERIFF_RULES.lateFraction) return true;
+  const tm = view?.timer?.stateId === view?.stateId ? view.timer : null;
+  if (tm?.first != null && tm?.last != null && tm.last < tm.first && tm.last <= SHERIFF_RULES.lateRemainingMs) return true;
+  // The server opens Vote Kick only when everyone else has voted: the day is about to end.
+  if (Object.values(view?.meetings || {}).some((m) => /vote\s*kick/i.test(String(m?.name || "")))) return true;
+  // More than half the living village has voted: the lynch is coming.
+  const vil = Object.values(view?.meetings || {}).find((m) => m?.voting && m.name === "Village");
+  if (vil) {
+    const alive = Object.keys(view?.players || {}).filter((id) => view.players[id] && !view.players[id].left && !view?.dead?.[id]).length;
+    const voted = Object.entries(vil.votes || {}).filter(([, t]) => t != null && !(Array.isArray(t) && !t.length)).length;
+    if (alive > 0 && voted / alive > SHERIFF_RULES.lateVoteShare) return true;
+  }
+  if (f != null) return false; // a readable day timer decides; elapsed time is only the fallback
   const start = Number(view?.phaseStartedAt);
   const clock = Number(now ?? view?.clock);
   return Number.isFinite(start) && Number.isFinite(clock) && clock - start >= SHERIFF_RULES.lateElapsedMs;
 }
 
+const GUILTY_RE = /\b(guilty|mafia|scum|mafioso|janitor|lawyer|red)\b/i;
+const SHERIFF_CLAIM_RE = /\b(?:i'?m|i am|im)\s+(?:the\s+|a\s+|real\s+)*sheriff\b/i;
+
+/** Someone who called this Sheriff guilty or counterclaimed Sheriff: shoot them, no timing gate. */
+export function sheriffThreat(view) {
+  if (!/sheriff/i.test(String(view?.role || ""))) return null;
+  for (const m of phaseLines(view).slice().reverse()) {
+    const from = m.senderId;
+    if (!from || from === view.selfId || !living(view, from)) continue;
+    const text = String(m.content || "");
+    if (SHERIFF_CLAIM_RE.test(text) || claimedRole(view, from) === "Sheriff") return { target: from, why: "counterclaimed Sheriff" };
+    if (mentions(view, text, view.selfId) && GUILTY_RE.test(text) && !/\b(not|isn'?t|no)\s+(guilty|mafia|scum)\b/i.test(text)) return { target: from, why: "called the Sheriff guilty" };
+  }
+  return null;
+}
+
 /** Whether this Sheriff may shoot now, and at whom. */
 export function sheriffShotReady(view, { now } = {}) {
+  const threat = sheriffThreat(view);
+  if (threat) return { ok: true, target: threat.target, why: threat.why };
   const lines = phaseLines(view);
   const outed = lines.some((m) => m.senderId === view?.selfId && /sheriff/i.test(String(m.content || "")));
   if (!outed) return { ok: false, reason: "sheriff has not outed" };
@@ -146,6 +180,13 @@ export function applySheriffRule(view, actions, { now } = {}) {
     if (!ready.ok) continue;
     const legal = (m.targets || []).includes(ready.target);
     out.push(legal ? { ...a, data: { ...a.data, selection: ready.target } } : a);
+  }
+  // decide() returns one vote per call, so the gun can starve behind the Village vote. Add it here.
+  const gun = Object.values(view?.meetings || {}).find((m) => isGunMeeting(m) && m.voting && m.canVote !== false);
+  const mine = gun?.votes?.[view.selfId];
+  if (gun && (mine == null || (Array.isArray(mine) && !mine.length)) && !out.some((a) => a?.data?.meetingId === gun.id)) {
+    const ready = sheriffShotReady(view, { now });
+    if (ready.ok && (gun.targets || []).includes(ready.target)) out.push({ event: "vote", data: { meetingId: gun.id, selection: ready.target } });
   }
   return out;
 }

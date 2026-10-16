@@ -60,7 +60,7 @@ test("night: dead skipped, winners ends", () => {
   assert.equal(night.phase.phase, "Night");
   const nightActs = decide(night);
   assert.deepEqual(nightActs, [
-    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p3 claim=Cop lawyer=p1 speaker=p1" } },
+    { event: "speak", data: { meetingId: "mMaf", content: "kill bot3 tonight, ill fake cop tmrw, lawyer go on me" } },
     { event: "vote", data: { meetingId: "mMaf", selection: "p3" } },
   ]);
   const end = reduceAll(load("game1-night.jsonl"), day());

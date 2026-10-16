@@ -4,7 +4,6 @@ import { allies, FACTION_MEETINGS, myFaction } from "./faction.js";
 import { memoryOf } from "./notes.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
 
-const PLAN_RE = /\bPLAN\s+kill=(\S+)\s+lynch=(\S+)\s+claim=(\S+)\s+lawyer=(\S+)\s+speaker=(\S+)/i;
 
 export function scumFaction(view) {
   const faction = myFaction(view);
@@ -21,7 +20,7 @@ function alive(view, id) {
   return !!player && !player.left && !view.dead?.[id];
 }
 
-/** Faction chat: where PLAN lines go. Never a public meeting. */
+/** Faction chat: where the casual plan line goes. Never a public meeting. */
 function factionMeeting(view, faction) {
   const name = FACTION_MEETINGS[faction] || faction;
   return Object.values(view.meetings || {}).find((m) => m?.amMember && m.name === name && (m.factionRole == null || m.factionRole === "chat")) || null;
@@ -67,23 +66,92 @@ function blank(token) {
   return token == null || token === "-" || token === "none" ? null : String(token);
 }
 
-export function parsePlanLine(text) {
-  const match = String(text || "").match(PLAN_RE);
-  if (!match) return null;
-  const killTarget = blank(match[1]);
-  if (!killTarget || killTarget === NO_ONE) return null;
-  return {
-    killTarget,
-    lynchTarget: blank(match[2]),
-    claimRole: blank(match[3]) || "Cop",
-    lawyerTarget: blank(match[4]),
-    speakerId: blank(match[5]),
-  };
+const ROLE_WORDS = "cop|journalist|journ|sheriff|villager|vanilla|vt|doctor|doc|medic|blue|cleric|caroler|baker|deputy|vigilante|vig|cult|nurse|mason";
+const STOP = new Set(["tonight", "tmrw", "tomorrow", "it", "them", "him", "her", "me", "you", "we", "the", "a", "on", "first", "now", "him/her", "again"]);
+
+function norm(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+
+/** Tolerant name -> id: exact id, exact name, digits stripped, or a unique 3+ letter prefix. */
+export function resolvePlayer(view, token) {
+  const raw = String(token || "").replace(/^@/, "");
+  const t = norm(raw);
+  if (!t || STOP.has(t)) return null;
+  const players = Object.values(view?.players || {}).filter(Boolean);
+  const byId = players.find((p) => p.id === raw);
+  if (byId) return byId.id;
+  const exact = players.filter((p) => norm(p.name) === t);
+  if (exact.length === 1) return exact[0].id;
+  const bare = players.filter((p) => norm(p.name).replace(/\d+$/, "") === t.replace(/\d+$/, ""));
+  if (bare.length === 1) return bare[0].id;
+  if (t.length >= 2) {
+    const pre = players.filter((p) => norm(p.name).startsWith(t));
+    if (pre.length === 1) return pre[0].id;
+  }
+  return null;
 }
 
-export function formatPlanSpeech(plan) {
-  const line = `PLAN kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget || "-"} speaker=${plan.speakerId || "-"}`;
-  return line.slice(0, MAX_SPEECH);
+const LEGACY_RE = /\bPLAN\s+kill=(\S+)\s+lynch=(\S+)\s+claim=(\S+)\s+lawyer=(\S+)\s+speaker=(\S+)/i;
+const W = "@?([A-Za-z0-9_-]{2,})";
+const KILL_RES = [
+  new RegExp(`\\b(?:kill|nk|hit|shoot|whack|take out|target|go)\\s+${W}`, "i"),
+  new RegExp(`\\b${W}\\s+(?:tonight|tn|for the kill|as the kill|it is)\\b`, "i"),
+  new RegExp(`\\bkill\\s+(?:is|on)\\s+${W}`, "i"),
+];
+const LYNCH_RES = [
+  new RegExp(`\\b(?:push|lynch|wagon|condemn|vote|bus)\\s+(?:on\\s+)?${W}`, "i"),
+  new RegExp(`\\b${W}\\s+(?:is (?:an )?easy wagon|tmrw|tomorrow)\\b`, "i"),
+];
+const CLAIM_RE = new RegExp(`\\b(?:i'?ll|ill|i will|i)\\s+(?:fake\\s*claim|fake|claim|fc)\\s+(${ROLE_WORDS})\\b|\\b(?:fake\\s*claim|fakeclaim|fc)\\s+(${ROLE_WORDS})\\b`, "i");
+const LAWYER_RE = new RegExp(`\\blawyer\\s+(?:go\\s+on|goes\\s+on|on|protect|cover|defend)?\\s*${W}`, "i");
+
+function firstPlayer(view, text, res, skip = []) {
+  for (const re of res) {
+    const m = text.match(re);
+    if (!m) continue;
+    const id = resolvePlayer(view, m[1]);
+    if (id && !skip.includes(id)) return id;
+  }
+  return null;
+}
+
+/**
+ * Read a teammate's plan from faction chat. Casual phrasing ("kill bom tonight, ill fake cop tmrw,
+ * lawyer go on podip") is resolved to ids with the view's player names. The old PLAN key=value form is
+ * still read for old logs, but bots never write it.
+ */
+export function parsePlanLine(text, view = null, senderId = null) {
+  const s = String(text || "");
+  const legacy = s.match(LEGACY_RE);
+  if (legacy) {
+    const killTarget = blank(legacy[1]);
+    if (!killTarget || killTarget === NO_ONE) return null;
+    return { killTarget, lynchTarget: blank(legacy[2]), claimRole: blank(legacy[3]) || "Cop", lawyerTarget: blank(legacy[4]), speakerId: blank(legacy[5]) };
+  }
+  if (!view) return null;
+  const killTarget = firstPlayer(view, s, KILL_RES);
+  if (!killTarget || killTarget === senderId) return null;
+  const lynchTarget = firstPlayer(view, s.replace(new RegExp(`.*?\\b(push|lynch|wagon|condemn|vote|bus)\\b`, "i"), "$1"), LYNCH_RES, [killTarget]);
+  const cm = s.match(CLAIM_RE);
+  const roleWord = cm ? (cm[1] || cm[2]).toLowerCase() : null;
+  const claimRole = roleWord ? ({ journ: "Journalist", vt: "Villager", vanilla: "Villager", doc: "Doctor", vig: "Vigilante" }[roleWord] || roleWord[0].toUpperCase() + roleWord.slice(1)) : "Cop";
+  const lm = s.match(LAWYER_RE);
+  const lawyerTarget = lm ? (/^me$/i.test(lm[1]) ? senderId : resolvePlayer(view, lm[1])) : null;
+  const iClaim = cm && /\b(i'?ll|ill|i will|i)\s/i.test(cm[0]);
+  return { killTarget, lynchTarget: lynchTarget || null, claimRole, lawyerTarget, speakerId: iClaim ? senderId : (senderId || null) };
+}
+
+/** Casual faction-chat line with player NAMES only. Clauses whose name is unknown are dropped. */
+export function formatPlanSpeech(plan, view = null) {
+  const nm = (id) => { const n = id && view?.players?.[id]?.name; return n ? String(n).toLowerCase() : null; };
+  const kill = nm(plan.killTarget);
+  if (!kill) return null;
+  const parts = [`kill ${kill} tonight`];
+  const claim = String(plan.claimRole || "Cop").toLowerCase();
+  const lynch = plan.lynchTarget && plan.lynchTarget !== plan.killTarget ? nm(plan.lynchTarget) : null;
+  parts.push(lynch ? `ill fake ${claim} tmrw and push ${lynch}` : `ill fake ${claim} tmrw`);
+  const law = plan.lawyerTarget && plan.lawyerTarget === plan.speakerId ? "me" : nm(plan.lawyerTarget);
+  if (law) parts.push(`lawyer go on ${law}`);
+  return parts.join(", ").slice(0, MAX_SPEECH);
 }
 
 export function claimLine(plan) {
@@ -92,9 +160,11 @@ export function claimLine(plan) {
 
 /** Record the first PLAN line this bot sees in its own faction meeting. */
 export function noteFactionPlan(view, message) {
-  if (!view?.notes || view.notes.plan || !message?.meetingId) return;
-  const parsed = parsePlanLine(message.content);
+  if (!view?.notes || !message?.meetingId) return;
+  if (view.notes.plan && view.notes.plan.night === planNight(view)) return;
+  const parsed = parsePlanLine(message.content, view, message.senderId);
   if (!parsed) return;
+  if (message.senderId && message.senderId !== view.selfId && !allies(view).has(message.senderId)) return;
   const faction = scumFaction(view);
   if (!faction) return;
   const meeting = view.meetings?.[message.meetingId];
@@ -108,19 +178,30 @@ export function noteFactionPlan(view, message) {
     janitorTarget: parsed.killTarget,
     speakerId: parsed.speakerId || message.senderId || null,
     source: "chat",
+    night: planNight(view),
   };
 }
 
 /** Plan already visible to this bot. Drafts are not stored here. */
+// A PLAN is made on Night N and holds through Day N only. Night N+1 needs a new one.
+function planNight(view) {
+  const day = Number(view?.phase?.day);
+  return Number.isFinite(day) && day > 0 ? day : null;
+}
+
 export function agreedPlan(view) {
   const faction = scumFaction(view);
   if (!faction) return null;
-  if (view.notes?.plan?.source === "chat" && view.notes.plan.killTarget) return view.notes.plan;
+  const night = planNight(view);
+  const p = view.notes?.plan;
+  if (p?.source === "chat" && p.killTarget && (p.night == null || p.night === night)) return p;
   const name = FACTION_MEETINGS[faction] || faction;
   for (const message of view.messages || []) {
+    if (night != null && message?.phase && message.phase !== `Night ${night}`) continue;
     const meeting = message?.meetingId ? view.meetings?.[message.meetingId] : null;
     if (!meeting?.amMember || meeting.name !== name) continue;
-    const parsed = parsePlanLine(message.content);
+    if (message.senderId && message.senderId !== view.selfId && !allies(view).has(message.senderId)) continue;
+    const parsed = parsePlanLine(message.content, view, message.senderId);
     if (!parsed) continue;
     return {
       ...parsed,
@@ -196,8 +277,10 @@ function needsTarget(meeting, selfId, target) {
   return meeting.canUpdateVote !== false;
 }
 
+// Said in THIS phase: the same PLAN text on a later night must still go out.
 function said(view, content) {
-  return (view.messages || []).some((message) => message?.senderId === view.selfId && message.content === content);
+  const phase = view.phase?.name || "";
+  return (view.messages || []).some((message) => message?.senderId === view.selfId && message.content === content && (!message.phase || message.phase === phase));
 }
 
 export function lawyerSelection(meeting, plan, view = null) {
@@ -248,8 +331,8 @@ function nightScum(view, faction) {
   const out = [];
   // One PLAN per faction, from the leader, in the faction chat only.
   if (!agreed && !copied && leader && chat?.speech && (chat.name === "Mafia" || chat.name === "Cult")) {
-    const content = formatPlanSpeech(plan);
-    if (!said(view, content)) out.push({ event: "speak", data: { meetingId: chat.id, content } });
+    const content = formatPlanSpeech(plan, view);
+    if (content && !said(view, content)) out.push({ event: "speak", data: { meetingId: chat.id, content } });
   }
   const mayDecide = agreed || copied || leader;
   if (mayDecide && kill?.voting && kill.canVote !== false && (kill.targets || []).includes(plan.killTarget) && needsTarget(kill, view.selfId, plan.killTarget)) {

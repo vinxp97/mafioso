@@ -6,8 +6,8 @@ import { extractJsonObject } from "./jsonText.js";
 import { sanitizeChat } from "./sanitize.js";
 
 export const SPEECH_LIMITS = Object.freeze({
-  maxPerMinute: 3,
-  cooldownMs: 8_000,
+  maxPerMinute: 6,
+  cooldownMs: 3_500,
   windowMs: 60_000,
   maxPerPhase: 4,
   recentMessages: 12,

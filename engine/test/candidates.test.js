@@ -371,9 +371,9 @@ test("one candidate call supplies the speech goal and chat stays sanitized", asy
   assert.equal(purposes.filter((purpose) => purpose === "candidates").length, 1);
   assert.equal(purposes.filter((purpose) => purpose === "speech").length, 1);
   assert.equal(result.schedule.speak, true);
-  assert.match(speechUser, /SPEECH GOAL:/);
+  assert.match(speechUser, /aim:/);
   assert.match(speechUser, /deny the push and point at Bob|ask Alice for a role|vote no one/);
-  assert.match(speechUser, /SCHEDULER: approved/);
+  assert.match(speechUser, /answer Alice directly/);
   const line = result.actions.find((action) => action.event === "speak");
   assert.equal(validateAction(named, line).ok, true);
   assert.equal(voteOf(result).data.selection === "p9", false);
