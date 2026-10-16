@@ -49,10 +49,11 @@ test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one 
   const target = kills[0].data.selection;
   assert.ok(!mafiaIds.has(target), `kill ${target} is not a teammate`);
   for (const k of kills) assert.equal(k.data.selection, target, "kill votes match");
-  const plans = P.filter((p) => p.event === "speak" && /PLAN/.test(p.data.content));
-  assert.equal(plans.length, 1, "one PLAN for the faction");
-  assert.equal(plans[0].data.meetingId, "38S8qkzPMKC", "PLAN only in the Mafia chat");
-  assert.match(plans[0].data.content, new RegExp(`kill=${target}`));
+  const plans = P.filter((p) => p.event === "speak" && p.source !== "scum-chat" && /^kill \S+ tonight/.test(p.data.content));
+  assert.equal(plans.length, 1, "one casual plan line for the faction");
+  assert.equal(plans[0].data.meetingId, "38S8qkzPMKC", "plan only in the Mafia chat");
+  assert.ok(!plans[0].data.content.includes(target), "names, not ids");
+  for (const p of P) if (p.event === "speak") assert.doesNotMatch(p.data.content, /PLAN|\w=\S/, "no machine text in any chat");
   for (const s of seats.filter((x) => MAFIA.has(x.role))) assert.ok(P.some((p) => p.accountId === s.acc && p.data.meetingId === "MafAct01xyz" && p.data.selection === "Yes"), `${s.role} ends the meeting`);
   const lit = P.filter((p) => p.data.meetingId === "gb0jRjDsD1x");
   assert.equal(lit.length, 1, "Litigate sent once, no churn");
@@ -124,5 +125,5 @@ test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill
   const kill = acts.find((a) => a.event === "vote" && a.data.meetingId === "zbABCg9YSTU");
   assert.ok(kill, "leader votes a kill on Night 2");
   assert.notEqual(kill.data.selection, "a0BHWAcOIlw");
-  assert.ok(acts.some((a) => a.event === "speak" && /PLAN/.test(a.data.content) && a.data.meetingId === "38S8qkzPMKC"), "new PLAN for Night 2");
+  assert.ok(acts.some((a) => a.event === "speak" && /^kill \S+ tonight/.test(a.data.content) && !/PLAN|=/.test(a.data.content) && a.data.meetingId === "38S8qkzPMKC"), "new casual plan for Night 2");
 });

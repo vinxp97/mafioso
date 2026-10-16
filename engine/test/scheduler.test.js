@@ -124,7 +124,7 @@ test("generator uses the seat briefing and validateAction still gates the line",
     complete: async () => JSON.stringify({ action: "speak", meeting: "mVil", text: "PLAN kill=Bob speaker=me" }),
   });
   assert.equal(rejected.action, null);
-  assert.match(rejected.rejections.join(" "), /public leak/);
+  assert.match(rejected.rejections.join(" "), /machine text|public leak/);
   const long = await generatePublicSpeech(named, { now: 20_000, maxRetries: 0, complete: async () => "x ".repeat(200) });
   assert.ok(long.action.data.content.length <= 80, "long replies are cut to the chat cap");
 
@@ -236,7 +236,7 @@ test("faction night speech and the day claim still follow this seat only", async
   ]);
   assert.equal(decideSpeech(night).path, "idle");
   const planned = rulesSeatActions(night);
-  assert.ok(planned.actions.some((action) => action.event === "speak" && action.data.content.startsWith("PLAN ")));
+  assert.ok(planned.actions.some((action) => action.event === "speak" && /^kill \S+ tonight/.test(action.data.content) && !/PLAN|=/.test(action.data.content)));
   assert.ok(planned.actions.some((action) => action.event === "vote" && action.data.meetingId === "mMaf"));
 
   let daySeat = reduce(night, { event: "message", data: { senderId: "p1", meetingId: "mMaf", content: "PLAN kill=p4 lynch=p3 claim=Cop lawyer=p4 speaker=p1" } });

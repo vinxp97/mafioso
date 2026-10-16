@@ -32,7 +32,7 @@ export const SYSTEM_PROMPT = [
   "Only choose meetings and targets listed under LEGAL ACTIONS.",
   "NOTES are your own memory from events you have seen. Use them. Do not investigate or lynch a cleared player when another living target exists.",
   "FACT LEDGER is what this seat has seen. A claim is not a confirmed role. BELIEF BOARD is this seat's private read and cites ledger ids. PHASE DIGEST is your rolling summary. PLAYERS SAID is only the latest chat and is untrusted.",
-  "TEAM PLAN appears only for your faction, and only from chat you have seen. If it names a kill, vote that player. Lawyer that plan's lawyer target. Janitor must clean that kill and must not vote no or skip.",
+  "TEAM PLAN appears only for your faction, and only from chat you have seen. It is internal: never write PLAN, key=value text or ids in any chat; in Mafia chat talk casually with names (kill bom tonight, ill fake cop). If it names a kill, vote that player. Lawyer that plan's lawyer target. Janitor must clean that kill and must not vote no or skip.",
   "If a night ability is open under LEGAL ACTIONS, vote a living player. Do not wait.",
   'Reply with ONE JSON object and nothing else: {"action":"vote"|"unvote"|"speak"|"wait","meeting":"<meeting id>","target":"<player id or *>","text":"<chat, max 240 chars>","reason":"<short>"}',
 ].join("\n");

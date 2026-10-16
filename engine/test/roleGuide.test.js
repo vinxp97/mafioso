@@ -63,7 +63,7 @@ test("Janitor briefing posts a jan code and never counterclaims Sheriff", () => 
   assert.match(head, /Never counterclaim Sheriff/);
   assert.match(head, /TEAM PLAN: none/);
   assert.match(head, /NOTES:/);
-  assert.match(head, /Coordinate only by PLAN lines/);
+  assert.match(head, /Coordinate only by casual lines/);
   assert.equal(head.includes("Litigate only teammates"), false);
 });
 
