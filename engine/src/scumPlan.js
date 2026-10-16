@@ -92,7 +92,8 @@ export function claimLine(plan) {
 
 /** Record the first PLAN line this bot sees in its own faction meeting. */
 export function noteFactionPlan(view, message) {
-  if (!view?.notes || view.notes.plan || !message?.meetingId) return;
+  if (!view?.notes || !message?.meetingId) return;
+  if (view.notes.plan && view.notes.plan.night === planNight(view)) return;
   const parsed = parsePlanLine(message.content);
   if (!parsed) return;
   const faction = scumFaction(view);
@@ -108,16 +109,26 @@ export function noteFactionPlan(view, message) {
     janitorTarget: parsed.killTarget,
     speakerId: parsed.speakerId || message.senderId || null,
     source: "chat",
+    night: planNight(view),
   };
 }
 
 /** Plan already visible to this bot. Drafts are not stored here. */
+// A PLAN is made on Night N and holds through Day N only. Night N+1 needs a new one.
+function planNight(view) {
+  const day = Number(view?.phase?.day);
+  return Number.isFinite(day) && day > 0 ? day : null;
+}
+
 export function agreedPlan(view) {
   const faction = scumFaction(view);
   if (!faction) return null;
-  if (view.notes?.plan?.source === "chat" && view.notes.plan.killTarget) return view.notes.plan;
+  const night = planNight(view);
+  const p = view.notes?.plan;
+  if (p?.source === "chat" && p.killTarget && (p.night == null || p.night === night)) return p;
   const name = FACTION_MEETINGS[faction] || faction;
   for (const message of view.messages || []) {
+    if (night != null && message?.phase && message.phase !== `Night ${night}`) continue;
     const meeting = message?.meetingId ? view.meetings?.[message.meetingId] : null;
     if (!meeting?.amMember || meeting.name !== name) continue;
     const parsed = parsePlanLine(message.content);

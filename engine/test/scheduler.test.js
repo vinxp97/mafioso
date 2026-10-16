@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
+import { SPEECH_SYSTEM,
   reduceAll, reduce, validateAction, decideSpeech, scheduleSpeech, speechCap,
   generatePublicSpeech, proposeSeatActions, rulesSeatActions, SYSTEM_PROMPT,
 } from "../src/index.js";
@@ -75,6 +75,9 @@ test("rate cap rejects spam even when named", () => {
     chat("p1", "a", 10_000),
     chat("p1", "b", 20_000),
     chat("p1", "c", 40_000),
+    chat("p1", "d", 45_000),
+    chat("p1", "e", 47_000),
+    chat("p1", "f", 49_000),
     chat("p2", "vote Me", 50_000),
   ]);
   const capped = decideSpeech(spam, { now: 59_000 });
@@ -105,23 +108,25 @@ test("generator uses the seat briefing and validateAction still gates the line",
   };
   const spoken = await generatePublicSpeech(named, { complete, now: 20_000 });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].system, SYSTEM_PROMPT);
-  assert.match(calls[0].user, /FACT LEDGER/);
-  assert.match(calls[0].user, /BELIEF BOARD/);
-  assert.match(calls[0].user, /PHASE DIGEST/);
-  assert.match(calls[0].user, /ROLE GUIDE/);
-  assert.match(calls[0].user, /PLAYERS SAID/);
-  assert.match(calls[0].user, /SCHEDULER: approved/);
+  // Short chat prompt: own voice, recent chat, who to answer; capped output.
+  assert.equal(calls[0].system, SPEECH_SYSTEM);
+  assert.equal(calls[0].maxTokens, 40);
+  assert.match(calls[0].user, /voice:/);
+  assert.match(calls[0].user, /chat:/);
+  assert.ok(calls[0].user.length < 900, `prompt ${calls[0].user.length} chars`);
+  assert.ok(spoken.action.data.content.length <= 80);
   assert.equal(validateAction(named, spoken.action).ok, true);
   assert.equal(spoken.action.event, "speak");
 
   const rejected = await generatePublicSpeech(named, {
     now: 20_000,
     maxRetries: 0,
-    complete: async () => JSON.stringify({ action: "speak", meeting: "mVil", text: "x".repeat(241) }),
+    complete: async () => JSON.stringify({ action: "speak", meeting: "mVil", text: "PLAN kill=Bob speaker=me" }),
   });
   assert.equal(rejected.action, null);
-  assert.match(rejected.rejections.join(" "), /too long/);
+  assert.match(rejected.rejections.join(" "), /public leak/);
+  const long = await generatePublicSpeech(named, { now: 20_000, maxRetries: 0, complete: async () => "x ".repeat(200) });
+  assert.ok(long.action.data.content.length <= 80, "long replies are cut to the chat cap");
 
   const idle = day();
   let used = 0;
@@ -159,7 +164,7 @@ test("approved speech still keeps the vote, and a capped seat does not speak", a
   const named = day([chat("p2", "vote Me", 5_000)]);
   const plan = await proposeSeatActions(named, {
     now: 20_000,
-    complete: async ({ user }) => user.includes("SCHEDULER: approved")
+    complete: async ({ purpose }) => purpose === "speech"
       ? '{"action":"speak","meeting":"Village","text":"I checked nobody. Do not lynch me."}'
       : '{"action":"vote","meeting":"mVil","target":"p3"}',
   });
@@ -167,12 +172,15 @@ test("approved speech still keeps the vote, and a capped seat does not speak", a
   assert.ok(plan.actions.some((action) => action.event === "vote" && action.data.selection === "p3"));
   const line = plan.actions.find((action) => action.event === "speak");
   assert.equal(validateAction(named, line).ok, true);
-  assert.match(line.data.content, /Do not lynch me/);
+  assert.match(line.data.content, /^alice .*checked nobody/i, "answers the player who pushed it");
 
   const spam = day([
     chat("p1", "a", 10_000),
     chat("p1", "b", 20_000),
     chat("p1", "c", 40_000),
+    chat("p1", "d", 45_000),
+    chat("p1", "e", 47_000),
+    chat("p1", "f", 49_000),
     chat("p2", "vote Me", 50_000),
   ]);
   let calls = 0;
@@ -202,6 +210,9 @@ test("optional scheduler model can wait on a fuzzy line and cannot beat a cap", 
     chat("p1", "a", 10_000),
     chat("p1", "b", 20_000),
     chat("p1", "c", 40_000),
+    chat("p1", "d", 45_000),
+    chat("p1", "e", 47_000),
+    chat("p1", "f", 49_000),
     chat("p2", "vote Me", 50_000),
   ]);
   let calls = 0;
@@ -229,7 +240,7 @@ test("faction night speech and the day claim still follow this seat only", async
   assert.ok(planned.actions.some((action) => action.event === "vote" && action.data.meetingId === "mMaf"));
 
   let daySeat = reduce(night, { event: "message", data: { senderId: "p1", meetingId: "mMaf", content: "PLAN kill=p4 lynch=p3 claim=Cop lawyer=p4 speaker=p1" } });
-  daySeat = reduce(daySeat, { event: "state", data: { id: 3, name: "Day 2" } });
+  daySeat = reduce(daySeat, { event: "state", data: { id: 3, name: "Day 1" } });
   daySeat = reduce(daySeat, { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p4", "p3", "p2", "*"], votes: {} } });
   const claim = rulesSeatActions(daySeat);
   assert.equal(claim.schedule.urgency, 3);
@@ -238,8 +249,8 @@ test("faction night speech and the day claim still follow this seat only", async
   assert.ok(claim.actions.some((action) => action.event === "vote" && action.data.selection === "p3"));
   const generated = await proposeSeatActions(daySeat, {
     maxRetries: 0,
-    complete: async ({ user }) => (user.includes("SCHEDULER: approved") ? "nope" : '{"action":"vote","meeting":"mVil","target":"p3"}'),
+    complete: async ({ user, purpose }) => (purpose === "speech" ? '{"action":"vote"}' : '{"action":"vote","meeting":"mVil","target":"p3"}'),
   });
   assert.ok(generated.actions.some((action) => action.event === "vote" && action.data.selection === "p3"));
-  assert.ok(generated.actions.some((action) => action.data.content === "I'm Cop. Vote Bob."));
+  assert.ok(generated.actions.some((action) => action.event === "speak" && /Bob/.test(action.data.content)), JSON.stringify(generated.actions));
 });

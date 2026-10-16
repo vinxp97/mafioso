@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -240,11 +240,13 @@ export function resultsFromTable(table) {
 export function bindSeatComplete(complete, promptText) {
   if (typeof complete !== "function") return null;
   return (prompt) => complete({
-    system: prompt?.purpose === "memory" || prompt?.purpose === "scheduler" || prompt?.purpose === "candidates"
+    system: prompt?.purpose === "memory" || prompt?.purpose === "scheduler" || prompt?.purpose === "candidates" || prompt?.purpose === "speech"
       ? prompt.system
       : (promptText || prompt?.system),
     user: prompt?.user,
     purpose: prompt?.purpose,
+    ...(prompt?.maxTokens != null ? { maxTokens: prompt.maxTokens } : {}),
+    ...(prompt?.json === false ? { json: false } : {}),
   });
 }
 
@@ -262,11 +264,13 @@ function withTimeout(p, ms) {
 }
 
 /** Our own send log, so the 8s cooldown and 3-per-minute cap hold before the server echoes our line back. */
+export const CHAT_LIMITS = { cooldownMs: 3500, perMinute: 6, fillerGapMs: 20000, fillerChance: 0.4 };
+
 function localSpeechOk(table, id, clock) {
   const t = clock ?? Date.now();
   const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000);
-  if (mine.length >= 3) return false;
-  return !mine.length || t - Math.max(...mine) >= 8_000;
+  if (mine.length >= CHAT_LIMITS.perMinute) return false;
+  return !mine.length || t - Math.max(...mine) >= CHAT_LIMITS.cooldownMs;
 }
 
 /** Send (or propose) validated actions for one seat; dedups per state, allows a changed vote. */
@@ -418,6 +422,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
   const stamp = speechStamp(view);
   const added = [];
   for (let action of actions || []) {
+    // Public lines are cut to chat size (and ids turned into names) before validation.
+    if (isPublicSpeak(view, action)) {
+      action = humanizeSpeak(view, action);
+      action = { ...action, data: { ...action.data, content: chatShorten(action.data.content) } };
+    }
     if (!validateAction(view, action).ok) continue;
     const pub = isPublicSpeak(view, action);
     // PLAN lines only ever go to this seat's own private faction chat.
@@ -471,6 +480,9 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
 /** Night actions first, then votes, then speech. Lower runs first. */
 export function seatPriority(view) {
   if (view?.phase?.phase === "Night") return 0;
+  // Being named, asked or voted: reply before generic votes or chatter.
+  const pm = publicSpeechMeeting(view);
+  if (pm && addressedBy(view, pm.id)) return 0.5;
   const openVote = Object.values(view?.meetings || {}).some((m) => m?.voting && m.canVote && m.amMember && (m.votes?.[view.selfId] == null));
   return openVote ? 1 : 2;
 }
@@ -523,6 +535,20 @@ function startUpgrade(table, id, ctx) {
       const base = bindSeatComplete(ctx.complete, table.byId.get(id)?.promptText);
       const timed = (input) => withTimeout(base(input), LLM_TIMEOUT_MS);
       const model = limitedComplete(table, id, timed, ctx.limiter, stateId, seatPriority(view));
+      // Filler: a cheap canned reaction instead of queueing behind a busy GPU, never when addressed.
+      if (!night && ctx.limiter?.pending >= 2) {
+        const pm = publicSpeechMeeting(view);
+        const t = ctx.clockOf();
+        const last = Math.max(0, ...(table.spokeAt?.[id] || []));
+        if (pm && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && Math.random() < CHAT_LIMITS.fillerChance) {
+          const line = cannedReaction(view);
+          if (line) {
+            const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: line } }], { ...ctx, source: "canned", clock: t });
+            if (ctx.onAdded) ctx.onAdded(added);
+            if (added.length) continue;
+          }
+        }
+      }
       let plan;
       try {
         plan = await proposeSeatActions(view, {
@@ -575,6 +601,51 @@ export function nightOneRandomPicks(view, accountId) {
   return out;
 }
 
+// ---- Mafia night chatter: 1-2 short private lines per night in the faction chat, no model call. ----
+export const SCUM_CHAT = { minDelayMs: 4000, maxDelayMs: 15000, gapMs: 6000 };
+
+function factionChat(view) {
+  return Object.values(view?.meetings || {}).find((m) => m?.amMember && m.speech && (m.name === "Mafia" || m.name === "Cult")) || null;
+}
+
+export function scumChatterLines(view, rng = Math.random) {
+  const plan = seenPlan(view);
+  const nm = (pid) => (pid && view.players?.[pid]?.name) || null;
+  const kill = nm(plan?.killTarget), lynch = nm(plan?.lynchTarget), claim = String(plan?.claimRole || "villager").toLowerCase();
+  const pool = [
+    kill && `ok ${kill.toLowerCase()} it is`, kill && `ya go ${kill.toLowerCase()}`, "sounds good", "ok im in",
+    lynch && `ill push ${lynch.toLowerCase()} tmrw`, lynch && `${lynch.toLowerCase()} is an easy wagon`,
+    `if pressed i fakeclaim ${claim === "cop" ? "villager" : claim}`, "dont all vote the same guy first", "who do we think cop is",
+  ].filter(Boolean);
+  const out = [];
+  while (out.length < 2 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  return out.slice(0, 1 + (rng() < 0.5 ? 1 : 0));
+}
+
+function scheduleScumChatter(table, id, view, ctx) {
+  if (view?.phase?.phase !== "Night" || !scumFaction(view)) return;
+  const chat = factionChat(view);
+  if (!chat) return;
+  const key = `${id}|${view.stateId}`;
+  if ((table.scumChat ||= {})[key]) return;
+  // Wait until a PLAN is visible so the lines can agree with it.
+  if (!seenPlan(view)) return;
+  table.scumChat[key] = true;
+  const stateId = view.stateId;
+  let at = SCUM_CHAT.minDelayMs + Math.floor(Math.random() * (SCUM_CHAT.maxDelayMs - SCUM_CHAT.minDelayMs));
+  for (const line of scumChatterLines(view)) {
+    const wait = at; at += SCUM_CHAT.gapMs + Math.floor(Math.random() * 4000);
+    const p = new Promise((r) => setTimeout(r, wait)).then(async () => {
+      const v = table.views[id];
+      if (!v || v.stateId !== stateId || !selfAlive(v) || !v.meetings?.[chat.id]) return;
+      const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: chat.id, content: line } }], { ...ctx, source: "scum-chat", clock: Date.now() });
+      if (ctx.onAdded) ctx.onAdded(added);
+    });
+    (table.upgrades ||= new Set()).add(p);
+    p.finally(() => table.upgrades.delete(p));
+  }
+}
+
 function scumLocked(view, action) {
   const m = view.meetings?.[action.data.meetingId];
   if (!m || view.phase?.phase !== "Night") return false;
@@ -617,6 +688,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     const rules = rulesSeatActions(view, { rng, now: clock });
     const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? Date.now(), { source: "rules" });
     const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
+    scheduleScumChatter(table, id, view, { ...ctx, onAdded });
     if (complete) {
       startUpgrade(table, id, {
         ...ctx, complete, rng, limiter, onSchedule, onAdded,

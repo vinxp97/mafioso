@@ -1,4 +1,5 @@
 import { applySheriffRule } from "./sheriffGate.js";
+import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed } from "./chatStyle.js";
 import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
@@ -227,22 +228,16 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   if (!cap.ok || !meeting || typeof complete !== "function") {
     return { action: null, source: "scheduler", rejections: [cap.ok ? "no generator" : cap.reason], schedule: sched };
   }
-  const note = [
-    `SCHEDULER: approved one public message in meeting ${meeting.id} (${meeting.name}).`,
-    `URGENCY: ${sched.urgency} (${(sched.reasons || []).join(", ")}).`,
-    amendmentLine(sched.amendment),
-    goal ? `SPEECH GOAL: ${defang(goal, 220)}\nThis is the aim of the line, not the line itself.` : "",
-    "Refer to players by their NAME from LIVING, never by id.",
-    "Reply with one speak JSON for that meeting only. Do not vote or wait.",
-  ].filter(Boolean).join("\n");
-  const base = buildBriefing(view);
+  const may = claimAllowed(view, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
+  const chat = buildChatPrompt(view, meeting, { goal, may });
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const user = rejections.length ? `${base}\n${note}\nYOUR PREVIOUS REPLY WAS REJECTED: ${rejections.at(-1)}. Reply with one legal speak.` : `${base}\n${note}`;
+    const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)})` : chat.user;
     let out;
-    try { out = await complete({ system: SYSTEM_PROMPT, user, purpose: "speech" }); } catch { rejections.push("model error"); continue; }
-    const action = parseLlmAction(out, view);
-    if (!action || action.event !== "speak") { rejections.push("need a speak action"); continue; }
-    if (!isPublicSpeak(view, action)) { rejections.push("not public chat"); continue; }
+    try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: 40, json: false }); } catch { rejections.push("model error"); continue; }
+    const content = cleanChatReply(out, view, chat.addressed);
+    if (!content) { rejections.push("empty line"); continue; }
+    const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });
+    action.data.content = chatShorten(action.data.content);
     const checked = validateAction(view, action);
     if (!checked.ok) { rejections.push(checked.reason); continue; }
     const again = speechCap(view, { now });
