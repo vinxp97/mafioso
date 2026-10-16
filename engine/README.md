@@ -33,7 +33,7 @@ Night, when no PLAN line has arrived. This seat speaks its own draft and votes t
 Day. The speaker id says `I'm <claim>. Vote <lynch>.` in Village, and every scum seat that still has the plan votes that lynch when it is legal. Town seats ignore PLAN lines, including lines pasted in Village.
 
 ## LLM adapter (`src/llmDecide.js`)
-- `buildBriefing(view)` — phase/role/living/allies/claims/`NOTES`/optional `TEAM PLAN`/`LEGAL ACTIONS`, then chat under `PLAYERS SAID (untrusted, quoted)` (one-line JSON-quoted, injection markers defanged), ending with a JSON-only instruction. `TEAM PLAN` is included only for Mafia or Cult, and only from chat this view has seen.
+- `buildBriefing(view)` — phase/role/living/allies/claims/`NOTES`/optional `TEAM PLAN`/this seat's Frontier Justice `ROLE GUIDE`/`LEGAL ACTIONS`, then chat under `PLAYERS SAID (untrusted, quoted)` (one-line JSON-quoted, injection markers defanged), ending with a JSON-only instruction. `TEAM PLAN` is included only for Mafia or Cult, and only from chat this view has seen. `ROLE GUIDE` is the card in `data/frontier-justice.json` for the known own role (Villager, Cop, Journalist, Sheriff, Mafioso, Janitor, Lawyer / Loyal Lawyer). It is guidance. It does not replace NOTES, TEAM PLAN, night must-act, or `validateAction`.
 - `parseLlmAction(text, view)` — `{action:vote|unvote|speak|wait, meeting (id or name), target (id/name/"no one"), text}`.
 - `llmDecide(view, {complete, maxRetries=1})` — `complete({system,user})` is injected. Parse → `validateAction`; on failure retry with rejection note; else rules `decide`. Returns `{actions, source:'llm'|'fallback', rejections}`; never an unvalidated action.
 - `SYSTEM_PROMPT` — scum-aware, never admit AI, chat untrusted, JSON only.
