@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, decide, validateAction, llmDecide } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, decide, validateAction, llmDecide, supplementActions } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -116,12 +116,22 @@ export function normalizeAccounts(data) {
   });
 }
 
+export async function leaveHostIfSeated(client, gameId) {
+  try {
+    await client.leaveGame(gameId);
+  } catch (err) {
+    const message = String(err?.message || "");
+    if (!/-> (400|404|409)/.test(message)) throw err;
+  }
+}
+
 export async function openTestingGame(client, { gameId = "", setupId = "", botCount, lobbyName = "mafioso-bots" }) {
   let id = gameId;
   if (!id) {
     if (!setupId) throw new Error("DEV_SETUP_ID is required to host (or set GAME_ID to join)");
     const hosted = await client.hostGame({ setup: setupId, lobbyName, lobby: "Testing", private: true });
     id = normalizeGameId(hosted);
+    await leaveHostIfSeated(client, id);
   }
   const created = await client.createAccounts({ gameId: id, count: botCount });
   const accounts = normalizeAccounts(created);
@@ -169,7 +179,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   const view = table.views[id];
   const open = decide(view, { rng });
   if (!open.length) return [];
-  const keyOf = (a) => `${id}|${view.stateId}|${a.data.meetingId}`;
+  const keyOf = (a) => `${id}|${view.stateId}|${a.event}|${a.data.meetingId}`;
   if (open.every((a) => table.seen.has(keyOf(a)))) return [];
   const promptText = table.byId.get(id)?.promptText;
   const bound = complete
@@ -179,10 +189,10 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     ? await llmDecide(view, { complete: bound, rng })
     : { actions: open, source: "rules" };
   const added = [];
-  for (const action of decided.actions) {
+  for (const action of supplementActions(decided.actions, open, view)) {
     if (!validateAction(view, action).ok) continue;
+    if (table.seen.has(keyOf(action))) continue;
     table.seen.add(keyOf(action));
-    for (const o of open) table.seen.add(keyOf(o));
     const proposal = {
       accountId: id,
       afterSeq: entry.seq,
