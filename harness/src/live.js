@@ -221,8 +221,19 @@ export async function seedSelfIds(client, table, ids, { sleep = defaultSleep, tr
   return missing;
 }
 
-export function gameFinished(table, accountIds) {
-  return accountIds.length > 0 && accountIds.every((id) => table.views[id]?.finished);
+/**
+ * The game is over once any of our seats holds the winners result (it is game-wide), or every seat is
+ * finished or gone. Waiting for "winners" on every seat hung runs pr9 and live-final: seats that were
+ * vote-kicked or left never get it, so the harness idled after the game ended until stopped by hand.
+ */
+export const WINNERS_GRACE_MS = 10_000;
+export function gameFinished(table, accountIds, { now = Date.now, graceMs = 0 } = {}) {
+  if (!accountIds.length) return false;
+  if (accountIds.every((id) => table.views[id]?.finished || table.views[id]?.leftGame)) return true;
+  if (!accountIds.some((id) => table.views[id]?.winners)) return false;
+  // Give the other seats a moment to receive their own winners frame (scoring needs it), then stop anyway.
+  table.winnersAt ??= now();
+  return now() - table.winnersAt >= graceMs;
 }
 
 export function resultsFromTable(table) {
@@ -1040,7 +1051,7 @@ export async function pollOnce(client, accounts, sinceById) {
   return entries;
 }
 
-export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random } = {}) {
+export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, signals = null, exit = (c) => process.exit(c) } = {}) {
   const cfg = liveConfigFromEnv(env);
   const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
   const say = (m) => log(redact(m, secrets));
@@ -1063,6 +1074,16 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
   const table = createBotTable(accounts);
+  // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
+  if (signals) {
+    for (const sig of ["SIGINT", "SIGTERM"]) {
+      signals.once(sig, () => {
+        for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
+        say(`game_end status=stopped reason=${sig.toLowerCase()} game=${opened.gameId}`);
+        exit(130);
+      });
+    }
+  }
   // The server sends "self" once, on join, before our stream connects, and the event buffer is capped,
   // so seed each seat's playerId from GET /dev/accounts. Without selfId every seat decides nothing.
   await seedSelfIds(client, table, accounts.map((a) => a.accountId), { sleep, log: say });
@@ -1097,6 +1118,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     logSends(added);
   }, { isStopped: (id, entry) => !!table.stopped?.[id] && entry?.event !== "winners" && entry?.event !== "finished", onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
   say(`llm concurrency=${concurrency}`);
+  const endOpts = { now, graceMs: WINNERS_GRACE_MS };
   const frameCounts = {}; let lastTrace = 0;
   const onFrame = async (frame) => {
     const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;
@@ -1105,13 +1127,13 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     if (frame.type !== "game" || !frame.entry) return false;
     const done = seats.push(frame.entry);
     if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;
-    return gameFinished(table, accounts.map((a) => a.accountId));
+    return gameFinished(table, accounts.map((a) => a.accountId), endOpts);
   };
   let outcome = { status: "finished" };
   if (cfg.transport === "poll") {
     const since = new Map();
     let spins = 0;
-    while (!gameFinished(table, accounts.map((a) => a.accountId)) && spins < 10_000) {
+    while (!gameFinished(table, accounts.map((a) => a.accountId), endOpts) && spins < 10_000) {
       await refresh();
       const entries = await pollOnce(client, accounts, since);
       if (!entries.length) break;
@@ -1129,7 +1151,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     outcome = await runStreamLoop({
       restart: { checkGame: () => probeGame(client, { gameId: opened.gameId, accountIds: ourIds }), now },
       sleep, backoff: (n) => backoffMs(n, { rng }),
-      shouldStop: () => gameFinished(table, accounts.map((a) => a.accountId)),
+      shouldStop: () => gameFinished(table, accounts.map((a) => a.accountId), endOpts),
       fetchStream: async () => {
         await refresh();
         const res = await gameFetch(url, { headers: { accept: "text/event-stream", authorization: `Bearer ${client.token}` } });
@@ -1160,7 +1182,8 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   }
   await seats.drain();
   await drainUpgrades(table);
-  say(`game_end status=finished game=${opened.gameId}`);
+  const winView = accounts.map((a) => table.views[a.accountId]).find((v) => v?.winners);
+  say(`game_end status=finished game=${opened.gameId}${winView ? ` winner=${(winView.winners.groups || []).join("/") || "?"}` : ""}`);
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {
