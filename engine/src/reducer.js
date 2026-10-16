@@ -31,6 +31,23 @@ export function reduce(view, frame) {
   const { event, data } = frame;
   if (frame.t != null && Number.isFinite(Number(frame.t)) && !(Number(frame.t) < (v.clock ?? -Infinity))) v.clock = Number(frame.t);
   switch (event) {
+    case "time": case "timerInfo": {
+      // Day timer for late-day rules. Shapes vary, so keep the numbers we can read.
+      const d = data && typeof data === "object" ? data : {};
+      if (d.name && d.name !== "main") break;
+      const tm = (v.timer && v.timer.stateId === v.stateId) ? v.timer : { stateId: v.stateId };
+      const length = Number(d.delay ?? d.length ?? d.duration ?? d.total);
+      if (Number.isFinite(length) && length > 0) tm.length = length;
+      const start = Number(d.start ?? d.startTime ?? d.started);
+      if (Number.isFinite(start) && start > 0) tm.start = start;
+      if (event === "time" && Number.isFinite(Number(d.time))) {
+        const val = Number(d.time);
+        if (tm.first == null) tm.first = val;
+        tm.last = val;
+      }
+      v.timer = tm;
+      break;
+    }
     case "self": v.selfId = String(data); updateRole(v); break;
     case "players": v.players = clone(data) || {}; break;
     case "playerJoin": if (data?.id) v.players[data.id] = clone(data); break;

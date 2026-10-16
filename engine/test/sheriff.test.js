@@ -59,3 +59,29 @@ test("time can stand in for discussion once the Sheriff has outed and has a read
   v = reduce(v, { event: "time", t: 130_000, data: {} });
   assert.equal(validateAction(v, shoot("p4")).ok, true);
 });
+
+test("late Day 1 with no read: the Sheriff still shoots the village's top vote", () => {
+  const talk = [say("p1", "I'm Sheriff.", 1_000), ...["p2", "p3", "p4", "p5", "p6", "p2"].map((id, i) => say(id, "no idea", 2_000 + i))];
+  let v = base([...talk, { event: "timerInfo", t: 0, data: { name: "main", delay: 600_000 } }]);
+  v = reduce(v, { event: "vote", t: 3_000, data: { meetingId: "mVil", voterId: "p2", target: "p5" } });
+  v = reduce(v, { event: "vote", t: 3_100, data: { meetingId: "mVil", voterId: "p3", target: "p5" } });
+  v = reduce(v, { event: "vote", t: 3_200, data: { meetingId: "mVil", voterId: "p4", target: "p6" } });
+  const mid = sheriffShotReady(v, { now: 300_000 });
+  assert.equal(mid.ok, false);
+  assert.match(mid.reason, /no read/);
+  const late = sheriffShotReady(v, { now: 520_000 });
+  assert.equal(late.ok, true);
+  assert.equal(late.target, "p5");
+  assert.equal(late.why, "late day 1, no read");
+  assert.deepEqual(applySheriffRule(v, [shoot("p2")], { now: 520_000 }), [shoot("p5")]);
+});
+
+test("late fallback also works from a countdown timer, and not on Day 2", () => {
+  const talk = [say("p1", "I'm Sheriff.", 1_000), ...["p2", "p3", "p4", "p5", "p6", "p2"].map((id, i) => say(id, "hmm", 2_000 + i))];
+  let v = base(talk);
+  v = reduce(v, { event: "time", t: 10_000, data: { name: "main", time: 590_000 } });
+  v = reduce(v, { event: "time", t: 520_000, data: { name: "main", time: 80_000 } });
+  assert.equal(sheriffShotReady(v, { now: 520_000 }).ok, true);
+  const d2 = reduce(v, { event: "state", t: 600_000, data: { id: 5, name: "Day 2" } });
+  assert.equal(sheriffShotReady(d2, { now: 1_200_000 }).ok, false);
+});

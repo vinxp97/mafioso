@@ -5,7 +5,7 @@ import { NO_ONE } from "./types.js";
 import { memoryOf } from "./notes.js";
 import { beliefAlign } from "./beliefs.js";
 
-export const SHERIFF_RULES = Object.freeze({ minOtherMessages: 6, minElapsedMs: 120_000 });
+export const SHERIFF_RULES = Object.freeze({ minOtherMessages: 6, minElapsedMs: 120_000, lateFraction: 0.85, lateElapsedMs: 360_000 });
 const POWER_ROLES = new Set(["Cop", "Journalist", "Sheriff", "Doctor"]);
 
 export function isGunMeeting(meeting) {
@@ -62,6 +62,45 @@ export function sheriffShotTarget(view) {
   return suspect ? { target: suspect, why: "suspect" } : { target: null, why: "no read or claim" };
 }
 
+/** Fraction of the current day used, or null when the timer is unreadable. */
+export function dayFraction(view, { now } = {}) {
+  const clock = Number(now ?? view?.clock);
+  const tm = view?.timer?.stateId === view?.stateId ? view.timer : null;
+  if (!Number.isFinite(clock) || !tm) return null;
+  if (tm.length && tm.start) return Math.max(0, Math.min(1, (clock - tm.start) / tm.length));
+  const start = Number(view?.phaseStartedAt);
+  const elapsed = Number.isFinite(start) ? clock - start : null;
+  if (tm.length && elapsed != null) return Math.max(0, Math.min(1, elapsed / tm.length));
+  // A countdown "time" value: remaining ms. elapsed / (elapsed + remaining).
+  if (tm.first != null && tm.last != null && tm.last < tm.first && elapsed != null && elapsed + tm.last > 0) {
+    return Math.max(0, Math.min(1, elapsed / (elapsed + tm.last)));
+  }
+  return null;
+}
+
+/** Late in the day with no read: whoever the village is voting most, else the first living non-claimer. */
+export function sheriffLateTarget(view) {
+  const counts = {};
+  for (const m of Object.values(view?.meetings || {})) {
+    if (isGunMeeting(m) || !m?.voting) continue;
+    for (const [voter, t] of Object.entries(m.votes || {})) {
+      if (voter === view?.selfId) continue;
+      for (const id of Array.isArray(t) ? t : [t]) if (living(view, id) && !POWER_ROLES.has(claimedRole(view, id))) counts[id] = (counts[id] || 0) + 1;
+    }
+  }
+  const voted = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (voted) return voted;
+  return Object.keys(view?.players || {}).find((id) => living(view, id) && !POWER_ROLES.has(claimedRole(view, id))) || null;
+}
+
+function isLate(view, now) {
+  const f = dayFraction(view, { now });
+  if (f != null) return f >= SHERIFF_RULES.lateFraction;
+  const start = Number(view?.phaseStartedAt);
+  const clock = Number(now ?? view?.clock);
+  return Number.isFinite(start) && Number.isFinite(clock) && clock - start >= SHERIFF_RULES.lateElapsedMs;
+}
+
 /** Whether this Sheriff may shoot now, and at whom. */
 export function sheriffShotReady(view, { now } = {}) {
   const lines = phaseLines(view);
@@ -75,7 +114,15 @@ export function sheriffShotReady(view, { now } = {}) {
     return { ok: false, reason: `discussion first (${others}/${SHERIFF_RULES.minOtherMessages} lines)` };
   }
   const pick = sheriffShotTarget(view);
-  if (!pick.target) return { ok: false, reason: pick.why };
+  if (!pick.target) {
+    // Always shoot on Day 1: late in the day with still no read, take the top suspect anyway.
+    const day1 = /^day 1$/i.test(String(view?.phase?.name || "").trim());
+    if (day1 && isLate(view, clock)) {
+      const late = sheriffLateTarget(view);
+      if (late) return { ok: true, target: late, why: "late day 1, no read" };
+    }
+    return { ok: false, reason: pick.why };
+  }
   return { ok: true, target: pick.target, why: pick.why };
 }
 
