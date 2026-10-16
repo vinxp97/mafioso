@@ -38,3 +38,19 @@ import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoCom
 const complete = createLmStudioComplete();       // or createExperientialComplete() / createOpenCodeGoComplete()
 const { proposed } = await runLoopAsync(entries, { complete });
 ```
+
+## Live multi-bot (`src/live.js`, `scripts/live.mjs`)
+
+`MAFIOSO_LLM=lmstudio|experiential|opencode` picks the factory (`createBackendComplete`). Default `lmstudio`. `BOT_COUNT` defaults to 9 (integer 1..50).
+
+`runLiveCli` with `MAFIOSO_LIVE` unset or not `1` logs a dry-run line and returns. It does not call fetch. With `MAFIOSO_LIVE=1` it reads `DEV_API_CLIENT_ID` / `DEV_API_CLIENT_SECRET`, refuses hosts outside `DEV_HOSTS`, then `getToken` → `hostGame` (private Testing only; `DEV_SETUP_ID` required) or joins `GAME_ID` → `createAccounts({count: BOT_COUNT})` → SSE `GET /api/dev/stream` (or `MAFIOSO_TRANSPORT=poll`). One table maps `accountId` → view. Each account is reduced, decided, and `validateAction`'d on its own. `send` runs only for actions that pass. Repeated `seq` values are ignored. Token age past 55 minutes refreshes before the next stream connect. Dropped streams back off and reconnect. Logs are passed through `redact` for the credential and key env values.
+
+VPS base URL: `http://127.0.0.1:3000`. Windows Compose reaches LM Studio at `http://host.docker.internal:1234/v1`. Optional Cloudflare Access headers (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) are added only to game fetches.
+
+Gaps: the SSE path is the documented Dev API stream and is covered with a fake body. This environment cannot open the live socket (Cloudflare 1010). `createAccounts` / `hostGame` responses are accepted as a string id, `{id|gameId}`, or `{accounts:[{id}]}`. Poll mode stops when a page is empty. One `docker compose up` plays one game, scores it, evolves, and exits (`restart: "no"`).
+
+## Prompt store (`src/prompts.js`)
+
+Seed: `data/prompts/seed.json` (the engine `SYSTEM_PROMPT`). Runtime: `data/prompts/runtime/prompts.json`, gitignored.
+
+Each record is `{id, text, createdAt, parentId, scores:{wins,losses,draws,byRole}, gamesPlayed, notes}`. `selectPrompts` draws with epsilon-greedy over win rate (unplayed prompts use 0.5). `finishGame` records outcomes from `winners.players` (self in the list wins; empty or null winners is a draw) and asks `complete` for one child per distinct prompt. The child is stored only when `validateEvolvedPrompt` still finds the never-admit-AI line and `"vote"|"unvote"|"speak"|"wait"`. A reply that admits being an AI, or that drops the JSON contract, is skipped and the parent stays.

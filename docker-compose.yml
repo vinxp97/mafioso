@@ -1,0 +1,47 @@
+# Private Testing lobby, BOT_COUNT accounts, one process.
+# Secrets stay in .env (gitignored). Copy .env.example and fill them in.
+# Windows Docker Desktop (LM Studio via host.docker.internal):
+#   docker compose up --build
+# VPS, Dev API already on port 3000 (host network; 127.0.0.1 is the VPS):
+#   docker compose up --build vps
+# The vps service is profiled so a bare `up` does not also start host networking.
+services:
+  bots:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MAFIOSO_LIVE: ${MAFIOSO_LIVE:-0}
+      DEV_API_BASE_URL: ${DEV_API_BASE_URL:-https://dev.ultimafia.gg}
+      MAFIOSO_LLM: ${MAFIOSO_LLM:-lmstudio}
+      LM_STUDIO_BASE_URL: ${LM_STUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      BOT_COUNT: ${BOT_COUNT:-9}
+      MAFIOSO_EVOLVE: ${MAFIOSO_EVOLVE:-1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./harness/data/prompts/runtime:/app/harness/data/prompts/runtime
+
+  vps:
+    profiles: ["vps"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MAFIOSO_LIVE: ${MAFIOSO_LIVE:-0}
+      DEV_API_BASE_URL: ${DEV_API_BASE_URL:-http://127.0.0.1:3000}
+      MAFIOSO_LLM: ${MAFIOSO_LLM:-lmstudio}
+      LM_STUDIO_BASE_URL: ${LM_STUDIO_BASE_URL:-http://127.0.0.1:1234/v1}
+      BOT_COUNT: ${BOT_COUNT:-9}
+      MAFIOSO_EVOLVE: ${MAFIOSO_EVOLVE:-1}
+    volumes:
+      - ./harness/data/prompts/runtime:/app/harness/data/prompts/runtime

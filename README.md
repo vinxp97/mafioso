@@ -85,9 +85,22 @@ cd harness && node scripts/lmstudio-smoke.mjs
 
 OpenCode Go also sends `user-agent: mafioso/0.1`. Set `OPENCODE_SESSION` to pin the session id, or leave it unset and the factory generates one id and reuses it for every call on that client.
 
-## Live play (not default)
+## Nine bots
 
-Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually a VPS-local Ultimafia (`http://127.0.0.1:3000`) to avoid Cloudflare Access. Private **Testing** lobbies only. Never commit secrets.
+One process seats `BOT_COUNT` Dev API accounts (default 9) in a single private Testing game, reduces each account’s events, and sends only actions that pass `validateAction`. `MAFIOSO_LLM=lmstudio` is the default. `MAFIOSO_LIVE=0` (the Compose default) prints a dry-run line and does not connect.
+
+| Where | Command | Dev API | LM Studio |
+| --- | --- | --- | --- |
+| Windows Docker Desktop | `docker compose up --build bots` | `https://dev.ultimafia.gg` unless you override it | `http://host.docker.internal:1234/v1` |
+| VPS (API already on port 3000) | `docker compose up --build vps` | `http://127.0.0.1:3000` | `http://127.0.0.1:1234/v1` if Qwen is on that machine |
+
+The VPS service uses host networking. `127.0.0.1` inside a normal bridge container is the container, not the VPS. Token exchange against `http://127.0.0.1:3000` is the path that already works there. Both origins are on the `DEV_HOSTS` allowlist. Prod is rejected.
+
+On Windows: start Docker Desktop, start LM Studio, load Qwen, start the local server on port 1234. Copy `.env.example` to `.env` and set `MAFIOSO_LIVE=1`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID` to join a game you already opened). Do not commit `.env`.
+
+`dev.ultimafia.gg` sits behind Cloudflare Access. A PC that only gets an Access wall or error 1010 needs `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in `.env`. Those headers are sent only to the game host, not to LM Studio.
+
+After the game, each prompt lineage that played is scored (win / loss / draw, plus per-role counts) and Qwen is asked for a child system prompt. The child is saved only if it still contains the never-admit-AI line and the JSON action contract. The next launch draws `BOT_COUNT` prompts with epsilon-greedy (default epsilon 0.2) so the nine bots can sit on different lineages. History is `harness/data/prompts/runtime/prompts.json` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
 
 ## Status
 
@@ -97,7 +110,7 @@ Needs Vinman’s same-turn approval, a Developer-group Dev API key, and usually 
 | LLM decide + rules fallback | Tested with fake model |
 | Harness Dev API stub + SSE replay | Tested offline |
 | Model backends (LM Studio, Experiential Labs, OpenCode Go) | Tested offline (fake fetch). Live keys stay in env |
-| Live stream loop / token refresh / send | Not started (needs approval + key) |
+| Live multi-bot runner + prompt evolve | Tested offline (fake fetch). Live run is on the Windows PC or the VPS |
 
 ## License
 
