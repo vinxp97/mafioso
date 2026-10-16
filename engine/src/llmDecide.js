@@ -279,7 +279,7 @@ function formatSpeechGoal(choice) {
  * CandidateGen failure, or a set with no legal vote, uses llmDecide and then rules decide.
  * Night and day votes are not dropped when the scheduler says wait.
  */
-export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score, llmFallback = true } = {}) {
+export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score, llmFallback = true, speechFirst = false } = {}) {
   if (view?.selfId && !selfAlive(view)) {
     return { actions: [], schedule: decideSpeech(view, { now }), source: "dead", rejections: ["dead seat"], speechGoal: null };
   }
@@ -290,7 +290,8 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
   let decided = { actions: rules.actions, source: "rules", rejections: [] };
   let speechGoal = null;
   const model = typeof complete === "function";
-  if (model && (rules.actions.length || allowSpeech)) {
+  // speechFirst: a speak decision costs exactly one model call (the speech line); votes stay on rules.
+  if (model && (rules.actions.length || allowSpeech) && !(speechFirst && allowSpeech)) {
     const decisions = openDecisions(view, { speechSchedule: speakSched });
     let selected = null;
     if (decisions.length) {
