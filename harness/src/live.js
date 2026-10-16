@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -318,25 +318,58 @@ function dayVoteReason(table, view, meetingId, now) {
   return null;
 }
 
-export const CONSOLIDATE = { minVotes: 2, townBelief: 0.8 };
+export const CONSOLIDATE = { minVotes: 2, townBelief: 0.8, suspectVoterShare: 0.5 };
 
-/** The current vote leader to follow, or null (no 2+ leader, a tie, self, or strong contrary evidence). */
+/** This seat's mafia lean on a player: +suspect, +BeliefBoard Mafia, -cleared/-Village read. */
+function notesLean(view, mem, board, id) {
+  const b = board[id];
+  const al = b ? beliefAlign(b.role) : null;
+  let s = 0;
+  if (mem.suspects?.has?.(id)) s += 2;
+  if (al === "Mafia" || al === "Cult") s += 3 * (b.probability || 0.5);
+  if (mem.cleared?.has?.(id)) s -= 4;
+  if (al === "Village") s -= 3 * (b.probability || 0.5);
+  return s;
+}
+
+/** A public, uncontested Village-role claim (a counterclaimed role is already a suspect). */
+function claimedTown(view, mem, id) {
+  const c = view?.claims?.[id];
+  return !!c?.role && c.kind !== "retract" && ALIGNMENT[c.role] === "Village" && !mem.suspects?.has?.(id);
+}
+
+/**
+ * The wagon to join, or null. Game 1fo007iEq: following any 2+ wagon let a town seat hammer a mafia
+ * wagon on town 4-3. Now a wagon is skipped when its target is a claimed or cleared town player, or
+ * when most of its voters are players this seat suspects. Among the rest, the wagon this seat's own
+ * notes agree with wins; a tie with no notes preference is not followed.
+ */
 export function townFollow(view, meeting) {
-  const tally = {};
+  const wagons = {};
   for (const [voter, t] of Object.entries(meeting?.votes || {})) {
     if (voter === view.selfId) continue;
     const sel = Array.isArray(t) ? t[0] : t;
-    if (sel && sel !== "*") tally[sel] = (tally[sel] || 0) + 1;
+    if (sel && sel !== "*") (wagons[sel] ||= []).push(voter);
   }
-  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  if (!ranked.length || ranked[0][1] < CONSOLIDATE.minVotes) return null;
-  if (ranked[1] && ranked[1][1] === ranked[0][1]) return null;
-  const lead = ranked[0][0];
-  if (lead === view.selfId || view.dead?.[lead] || !(meeting.targets || []).includes(lead)) return null;
-  if (memoryOf(view).cleared?.has?.(lead)) return null;
-  const b = rulesBeliefBoard(view).entries[lead];
-  if (b && beliefAlign(b.role) === "Village" && (b.probability || 0) >= CONSOLIDATE.townBelief) return null;
-  return lead;
+  const mem = memoryOf(view);
+  const board = rulesBeliefBoard(view).entries;
+  const ok = Object.entries(wagons).filter(([lead, voters]) => {
+    if (voters.length < CONSOLIDATE.minVotes) return false;
+    if (lead === view.selfId || view.dead?.[lead] || !(meeting.targets || []).includes(lead)) return false;
+    if (mem.cleared?.has?.(lead) || claimedTown(view, mem, lead)) return false;
+    const b = board[lead];
+    if (b && beliefAlign(b.role) === "Village" && (b.probability || 0) >= CONSOLIDATE.townBelief) return false;
+    const sus = voters.filter((x) => notesLean(view, mem, board, x) > 0).length;
+    return sus / voters.length <= CONSOLIDATE.suspectVoterShare;
+  }).map(([lead, voters]) => ({ lead, votes: voters.length, lean: notesLean(view, mem, board, lead) }));
+  if (!ok.length) return null;
+  // Notes first (agreeing wagon beats a bigger one), then size.
+  ok.sort((x, y) => (y.lean > 0) - (x.lean > 0) || y.votes - x.votes || y.lean - x.lean);
+  const [top, next] = ok;
+  if (next && (top.lean > 0) === (next.lean > 0) && top.votes === next.votes && top.lean === next.lean) return null;
+  // A wagon this seat's notes lean against is never joined just for its size.
+  if (top.lean < 0) return null;
+  return top.lead;
 }
 
 /** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
@@ -464,9 +497,13 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     // Public lines are cut to chat size (and ids turned into names) before validation.
     if (isPublicSpeak(view, action)) {
       action = humanizeSpeak(view, action);
-      action = { ...action, data: { ...action.data, content: chatShorten(action.data.content) } };
+      action = { ...action, data: { ...action.data, content: varyOpener(view, chatShorten(action.data.content), Math.random, action.data.meetingId) } };
     }
-    if (!validateAction(view, action).ok) continue;
+    const verdict = validateAction(view, action);
+    if (!verdict.ok) {
+      if (isPublicSpeak(view, action)) { const r = String(verdict.reason || "?").replace(/\(.*$/, "").trim(); (table.speechRejects ||= {})[r] = ((table.speechRejects || {})[r] || 0) + 1; }
+      continue;
+    }
     const pub = isPublicSpeak(view, action);
     // PLAN lines only ever go to this seat's own private faction chat.
     if (action.event === "speak" && /\bPLAN\b/.test(String(action.data?.content || ""))) {
@@ -718,12 +755,36 @@ function scumLocked(view, action) {
   return /janitor|lawyer/i.test(String(view.role || ""));
 }
 
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded } = {}) {
+export const SPEECH_LOG_MAX = 500;
+
+/**
+ * One log line for an incoming PUBLIC chat message (claim-tagger training data), or null.
+ * Only meetings this seat knows are public (Village etc.); faction chat, whispers, server lines and
+ * unknown meetings are never logged. Deduped across our seats. Sender name kept (anonymized later).
+ */
+export function publicChatLogLine(table, accountId, entry) {
+  if (entry?.event !== "message" || !entry.data) return null;
+  const d = entry.data;
+  const view = table.views[accountId];
+  const m = view?.meetings?.[d.meetingId];
+  if (!d.senderId || d.senderId === "server" || !m || !isPublicSpeechMeeting(m)) return null;
+  const text = String(d.content ?? "").trim();
+  if (!text) return null;
+  const key = `${d.meetingId}|${d.senderId}|${d.time ?? d.t ?? entry.t ?? ""}|${text}`;
+  const seen = (table.chatLogged ||= new Set());
+  if (seen.has(key)) return null;
+  seen.add(key);
+  const name = view.players?.[d.senderId]?.name || d.senderId;
+  return `chat [${view.phase?.name || ""}] ${m.name} ${name}: ${sanitizeChat(text, SPEECH_LOG_MAX)}`;
+}
+
+export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
+  if (onChat) { const line = publicChatLogLine(table, id, entry); if (line) onChat(line); }
   if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
     for (const inj of noteSeatRole(table, id, table.views[id])) {
       if (table.views[inj.accountId]) table.views[inj.accountId] = engineReduce(table.views[inj.accountId], { event: "teammates", data: inj.data });
@@ -837,17 +898,32 @@ export async function* iterateSse(source) {
  * Reconnect until shouldStop or the stream handler asks to stop.
  * fetchStream throws or returns an async iterable / ReadableStream of SSE bytes.
  */
-export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle }) {
+export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle, backfill, onInfo }) {
+  const staleSeen = new Set();
   let attempt = 0;
   while (!shouldStop()) {
     try {
       const body = await fetchStream();
       attempt = 0;
+      // The stream has no replay. Game qAl36MVss filled and started while the bots were being seated,
+      // so self/roleReveal/state went out before we subscribed; every seat idled into Vote Kick.
+      // The stream is already subscribed here, so pull each seat's buffered events first; the
+      // per-seat seq guard drops the duplicates the stream then repeats.
+      if (backfill) {
+        for (const entry of (await backfill()) || []) {
+          if (await onFrame({ type: "game", entry })) return;
+        }
+      }
       for await (const frame of iterateSse(body)) {
         if (frame.type === "accounts_dropped") {
           const raw = JSON.stringify(frame.entry ?? {});
-          if (onError) onError(new Error(`accounts_dropped frame ${raw.slice(0, 300)}`));
-          if (!ourIds || ourIds.some((a) => raw.includes(a))) throw new Error("accounts_dropped");
+          if (!ourIds || ourIds.some((a) => raw.includes(a))) {
+            if (onError) onError(new Error(`accounts_dropped frame ${raw.slice(0, 300)}`));
+            throw new Error("accounts_dropped");
+          }
+          // Records from older server boots (redis, TTL-expired). Not ours: note once, keep going.
+          const ids = (frame.entry?.accounts || []).map((a) => `${a.id}@${a.gameId}`).join(",");
+          if (!staleSeen.has(ids)) { staleSeen.add(ids); if (onInfo) onInfo(`stale accounts_dropped (not ours, ignored): ${ids.slice(0, 200)}`); }
           continue;
         }
         const stop = await onFrame(frame);
@@ -922,7 +998,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   // Local backends serve one request at a time: queue them globally with night actions first.
   const concurrency = Number(env.MAFIOSO_LLM_CONCURRENCY) > 0 ? Number(env.MAFIOSO_LLM_CONCURRENCY) : (cfg.llm === "lmstudio" ? 1 : 4);
   const limiter = createLlmLimiter(concurrency);
-  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`); };
+  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, SPEECH_LOG_MAX)) : "")} source=${p.source} prompt=${p.promptId}`); };
   let winnersLogged = false;
   table.onDeferred = (p) => logSends([p]);
   table.onMeeting = (who, m) => say(`meeting ${who} [${table.views[who]?.phase?.name || ""}] ${m.id} name=${JSON.stringify(m.rawName || m.name)} role=${m.factionRole || "-"} vote=${!!m.voting} canVote=${m.canVote !== false} targets=${(m.targets || []).length}`);
@@ -934,6 +1010,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       winnersLogged = true; say(`winners game=${opened.gameId} ${JSON.stringify(entry.data).slice(0, 400)}`);
     }
     const added = await onGameEntry(table, entry, {
+      onChat: (line) => say(line),
       complete, rng, dryRun: false, fast: true, limiter, onAdded: logSends,
       send: (p) => client.send(p),
       onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`),
@@ -981,6 +1058,14 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       },
       onFrame,
       ourIds: accounts.map((a) => a.accountId),
+      backfill: async () => {
+        const since = new Map(accounts.map((a) => [a.accountId, table.lastSeq[a.accountId] || 0]));
+        const got = await pollOnce(client, accounts, since).catch((e) => { say(`backfill-error ${e?.message || e}`); return []; });
+        got.sort((x, y) => (x.seq ?? 0) - (y.seq ?? 0));
+        say(`backfill ${got.length} buffered events (${[...new Set(got.map((e) => e.event))].filter((e) => !/time/.test(e)).slice(0, 12).join(",")})`);
+        return got;
+      },
+      onInfo: say,
       settle: async () => { await seats.drain(); await drainUpgrades(table); },
       onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
     });

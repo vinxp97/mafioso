@@ -131,3 +131,42 @@ test("mafia night: chatter first, then the kill votes", { timeout: 30000 }, asyn
   assert.ok(firstKill > 0);
   for (const s of mafia) assert.ok(talk.some(([p, i]) => p.accountId === s.acc && i < firstKill), `${s.role} talks before the first kill vote`);
 });
+
+// 1fo007iEq-style: two mafia on a town target; follow-the-leader handed them the lynch.
+const BEA = "rhyFPKXcnH", CAL = "otU9CsNlbw", DOT = "jVE7zbEozZZ", ELI = "k9xFo5YsB11", FIN = "BXHO_QetVp", HAP = "Hsd2JfBMtVt", IVO = "kCMt06jKvBp";
+const vilM = (votes) => ({ targets: Object.keys(players), votes });
+
+test("town skips a wagon whose voters are mostly players this seat suspects", () => {
+  const v = seat("Villager");
+  v.notes.suspects = [HAP, IVO];
+  assert.equal(townFollow(v, vilM({ [HAP]: DOT, [IVO]: DOT })), null, "suspects-only wagon is not joined");
+  assert.equal(townFollow(v, vilM({ [HAP]: DOT, [IVO]: DOT, [BEA]: DOT })), null, "2 of 3 voters suspected: skip");
+  assert.equal(townFollow(v, vilM({ [HAP]: DOT, [BEA]: DOT, [ELI]: DOT, [FIN]: DOT })), DOT, "1 of 4 suspected: a real town wagon");
+});
+
+test("town skips a wagon on a claimed or cleared town player", () => {
+  const claimed = seat("Villager", [msg(FIN, "im journalist btw")]);
+  assert.equal(claimed.claims?.[FIN]?.role, "Journalist");
+  assert.equal(townFollow(claimed, vilM({ [BEA]: FIN, [DOT]: FIN })), null);
+  const cleared = seat("Villager");
+  cleared.notes.cleared = [CAL];
+  assert.equal(townFollow(cleared, vilM({ [BEA]: CAL, [DOT]: CAL })), null);
+  const cc = seat("Villager", [msg(FIN, "im journalist"), msg(ELI, "im journalist, fin is lying")]);
+  assert.ok(townFollow(cc, vilM({ [BEA]: FIN, [DOT]: FIN })), "a counterclaimed claim is not protection");
+});
+
+test("town prefers the wagon its own notes agree with, even when it is smaller", () => {
+  const v = seat("Villager");
+  v.notes.suspects = [CAL];
+  assert.equal(townFollow(v, vilM({ [BEA]: DOT, [ELI]: DOT, [FIN]: DOT, [HAP]: CAL, [IVO]: CAL })), CAL);
+  const tie = seat("Villager");
+  tie.notes.suspects = [CAL];
+  assert.equal(townFollow(tie, vilM({ [BEA]: DOT, [ELI]: DOT, [HAP]: CAL, [IVO]: CAL })), CAL, "a tie is broken by notes");
+});
+
+test("4-3 replay: the last town seat does not hammer town on a mafia-led wagon", () => {
+  // Hap+Ivo (mafia) + Dot already on Eli; this seat suspected Hap and Ivo from their pushes.
+  const v = seat("Villager", [msg(HAP, "eli is mafia lynch him"), msg(IVO, "yeah eli")]);
+  v.notes.suspects = [HAP, IVO];
+  assert.equal(townFollow(v, vilM({ [HAP]: ELI, [IVO]: ELI, [DOT]: ELI, [BEA]: CAL, [FIN]: CAL })), CAL);
+});
