@@ -1,3 +1,6 @@
+import { sheriffShotCheck } from "./sheriffGate.js";
+import { isPublicSpeechMeeting } from "./scheduler.js";
+import { selfAlive } from "./reducer.js";
 import { MAX_SPEECH } from "./types.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
@@ -14,6 +17,20 @@ export function legalVotes(view) {
 export function validateAction(view, action) {
   const no = (reason) => ({ ok: false, reason });
   if (!action || typeof action.data !== "object" || action.data === null) return no("malformed");
+  if ((action.event === "vote" || action.event === "speak") && !selfAlive(view)) return no("dead seat");
+  // Vote Kick ejects players who have not acted (often our own teammate). Bots never kick.
+  if (action.event === "vote") {
+    const km = view.meetings?.[action.data?.meetingId];
+    const kt = km?.targets || [];
+    if (km && (/vote\s*kick/i.test(String(km.name || "")) || (kt.length === 1 && /^kick$/i.test(String(kt[0]))))) return no("never vote kick");
+  }
+  // PLAN syntax, prompt text and raw ids never go to a public chat.
+  if (action.event === "speak" && view.meetings?.[action.data?.meetingId] && isPublicSpeechMeeting(view.meetings[action.data.meetingId])) {
+    const leak = publicLeak(view, action.data?.content);
+    if (leak) return no(`public leak: ${leak}`);
+  }
+  const gun = sheriffShotCheck(view, action);
+  if (!gun.ok) return no(gun.reason);
   const m = view.meetings[action.data.meetingId];
   if (!m) return no("unknown meeting");
   switch (action.event) {
@@ -38,4 +55,16 @@ export function validateAction(view, action) {
     }
     default: return no("unsupported event");
   }
+}
+
+const LEAK_RE = /\bPLAN\b|\b(kill|lynch|condemn|claim|lawyer|speaker)=|\bsystem\b|\bprompt\b/i;
+/** Reason a public line must not go out, or null. */
+export function publicLeak(view, content) {
+  const text = String(content || "");
+  const m = text.match(LEAK_RE);
+  if (m) return `contains "${m[0]}"`;
+  for (const id of Object.keys(view?.players || {})) {
+    if (id.length >= 4 && text.includes(id)) return "contains a player id";
+  }
+  return null;
 }

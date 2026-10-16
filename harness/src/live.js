@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, publicLeak, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -172,6 +172,55 @@ export function createBotTable(accounts) {
   };
 }
 
+/**
+ * Per-seat async queues. Entries for one accountId run strictly in order; different seats run
+ * concurrently. A failing entry is reported and does not stop that seat's queue.
+ */
+export function createSeatQueues(handler, { onError, isStopped } = {}) {
+  const stopped = (id, entry) => typeof isStopped === "function" && isStopped(id, entry);
+  const tails = new Map();
+  return {
+    push(entry) {
+      const id = entry?.accountId ?? "_";
+      const next = (tails.get(id) || Promise.resolve())
+        .then(() => (stopped(id, entry) ? undefined : handler(entry)))
+        .catch((err) => { if (onError) onError(err, id); });
+      tails.set(id, next);
+      return next;
+    },
+    drain() { return Promise.all([...tails.values()]); },
+    get size() { return tails.size; },
+  };
+}
+
+export async function seedSelfIds(client, table, ids, { sleep = defaultSleep, tries = 20, log = () => {} } = {}) {
+  let missing = ids;
+  for (let i = 0; i < tries && missing.length; i++) {
+    let list = [];
+    try { list = await client.api("GET", "/dev/accounts"); } catch (e) { log(`seed-self error ${e?.message || e}`); break; }
+    const rows = Array.isArray(list) ? list : Array.isArray(list?.accounts) ? list.accounts : null;
+    if (!rows) break; // endpoint missing (e.g. a mock): let the stream's own "self" frame set it
+    const byId = new Map(rows.map((a) => [a.id || a.accountId, a]));
+    for (const id of missing) {
+      const playerId = byId.get(id)?.playerId;
+      if (playerId) table.views[id] = engineReduce(table.views[id] ?? emptyView(), { event: "self", data: String(playerId) });
+    }
+    // Our own seats' display names, so speech can say "Bob" even if the players frame was missed.
+    const named = ids.map((id) => byId.get(id)).filter((a) => a?.playerId && a?.name);
+    for (const id of ids) {
+      const v = (table.views[id] ||= emptyView());
+      for (const a of named) {
+        const pid = String(a.playerId);
+        if (!v.players[pid]?.name) v.players[pid] = { ...(v.players[pid] || {}), id: pid, name: String(a.name) };
+      }
+    }
+    missing = ids.filter((id) => !table.views[id]?.selfId);
+    if (missing.length) await sleep(1000);
+  }
+  log(`seeded selfId for ${ids.length - missing.length}/${ids.length} seats`);
+  return missing;
+}
+
 export function gameFinished(table, accountIds) {
   return accountIds.length > 0 && accountIds.every((id) => table.views[id]?.finished);
 }
@@ -204,42 +253,404 @@ export function bindSeatComplete(complete, promptText) {
  * Public chat waits on this seat's scheduler. Votes and night actions do not.
  * Sends only when dryRun is false. send() is expected to validate again.
  */
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now } = {}) {
+const QUIET_EVENTS = new Set(["time", "clearTimer", "timerInfo"]);
+const LLM_TIMEOUT_MS = 45_000;
+const TICK_DECIDE_MS = 5_000;
+function withTimeout(p, ms) {
+  let t;
+  return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`model call timed out after ${ms}ms`)), ms); })]).finally(() => clearTimeout(t));
+}
+
+/** Our own send log, so the 8s cooldown and 3-per-minute cap hold before the server echoes our line back. */
+function localSpeechOk(table, id, clock) {
+  const t = clock ?? Date.now();
+  const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000);
+  if (mine.length >= 3) return false;
+  return !mine.length || t - Math.max(...mine) >= 8_000;
+}
+
+/** Send (or propose) validated actions for one seat; dedups per state, allows a changed vote. */
+export const VOTE_GAP_MS = 3000;
+export const VOTE_BACKOFF_MS = 6000;
+
+// ---- Day village vote: discuss first, then a staggered BeliefBoard vote. ----
+export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000, staggerMinMs: 2000, staggerMaxMs: 20000, scumExtraMs: 10000 };
+
+export function isDayVillageVote(view, meetingId) {
+  const m = view?.meetings?.[meetingId];
+  return view?.phase?.phase === "Day" && !!m && m.voting && (m.name === "Village" || (m.speech && !m.faction && !/shoot|gun|kick/i.test(`${m.name} ${m.actionName || ""}`)));
+}
+
+function publicLinesThisDay(view, meetingId) {
+  return (view.messages || []).filter((x) => x.meetingId === meetingId && x.senderId && x.senderId !== "server");
+}
+
+/** The Sheriff (known to the harness) has outed or passed, is dead, or his window has run out. */
+export function sheriffWindowDone(table, view, meetingId, now) {
+  const sheriff = Object.values(table.roster || {}).find((r) => /sheriff/i.test(String(r.role || "")));
+  if (!sheriff) return true;
+  if (view.dead?.[sheriff.id]) return true;
+  if (publicLinesThisDay(view, meetingId).some((x) => x.senderId === sheriff.id)) return true;
+  const start = Number(view.phaseStartedAt);
+  return Number.isFinite(start) && now - start >= DAY_VOTE.sheriffWindowMs;
+}
+
+export function dayVoteReady(table, view, meetingId, now) {
+  const frac = dayFraction(view, { now });
+  if (frac != null && frac >= DAY_VOTE.fraction) return true;
+  const tm = view.timer?.stateId === view.stateId ? view.timer : null;
+  if (tm?.last != null && tm.first != null && tm.last < tm.first && tm.last <= DAY_VOTE.remainingMs) return true;
+  const others = publicLinesThisDay(view, meetingId).filter((x) => x.senderId !== view.selfId).length;
+  return others >= DAY_VOTE.otherLines && sheriffWindowDone(table, view, meetingId, now);
+}
+
+/** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
+export function beliefDayPick(view, meeting, rng = Math.random) {
+  const board = rulesBeliefBoard(view).entries;
+  const mem = memoryOf(view);
+  const mates = allies(view);
+  const pool = (meeting.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !mates.has(t) && view.players?.[t]);
+  const score = (id) => {
+    const b = board[id];
+    const al = b ? beliefAlign(b.role) : null;
+    let sc = 0;
+    if (al === "Mafia" || al === "Cult") sc += 10 * (b.probability || 0.5);
+    else if (al === "Village") sc -= 6 * (b.probability || 0.5);
+    if (mem.suspects?.has?.(id)) sc += 2;
+    if (mem.cleared?.has?.(id)) sc -= 4;
+    return sc + rng() * 0.5;
+  };
+  const ranked = pool.map((id) => [id, score(id)]).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  if (!ranked.length) return null;
+  const r = rng();
+  return ranked[r < 0.6 ? 0 : r < 0.85 ? Math.min(1, ranked.length - 1) : Math.min(2, ranked.length - 1)];
+}
+
+/** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
+function shapeDayVotes(table, id, view, actions, now, { source }) {
+  const out = [];
+  for (const a of actions) {
+    if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
+    if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
+    const scum = !!scumFaction(view);
+    if (!scum && source === "rules") {
+      const pick = beliefDayPick(view, view.meetings[a.data.meetingId]);
+      if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+function voteDelay(table, id, view, action) {
+  const now = Date.now();
+  let wait = 0;
+  const kill = factionKillMeeting(view);
+  // Only the first voter decides; teammates copy after a human-like 1-5s pause.
+  if (kill && kill.id === action.data.meetingId && factionLeader(view) !== view.selfId && !table.copied?.[`${id}|${view.stateId}`]) {
+    (table.copied ||= {})[`${id}|${view.stateId}`] = true;
+    wait = 1000 + Math.floor(Math.random() * 4000);
+  }
+  // Day village vote: first vote of the day is staggered 2-20s; scum wait longer so they never lead.
+  if (table.fastMode && isDayVillageVote(view, action.data.meetingId) && !table.dayStaggered?.[`${id}|${view.stateId}`]) {
+    (table.dayStaggered ||= {})[`${id}|${view.stateId}`] = true;
+    wait = Math.max(wait, DAY_VOTE.staggerMinMs + Math.floor(Math.random() * (DAY_VOTE.staggerMaxMs - DAY_VOTE.staggerMinMs))
+      + (scumFaction(view) ? DAY_VOTE.scumExtraMs : 0));
+  }
+  const last = table.lastVoteAt?.[id];
+  if (last != null) wait = Math.max(wait, last + VOTE_GAP_MS - now);
+  const back = table.voteBackoff?.[id];
+  if (back != null) wait = Math.max(wait, back - now);
+  return Math.max(0, wait);
+}
+
+function deferVote(table, id, action, wait, { source, entry, send, onError }) {
+  const stateId = table.views[id]?.stateId;
+  // Reserve the slot now so later votes from this seat queue behind this one.
+  (table.lastVoteAt ||= {})[id] = Date.now() + wait;
+  const p = new Promise((resolve) => setTimeout(resolve, wait)).then(async () => {
+    const view = table.views[id];
+    if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
+    if (!validateAction(view, action).ok) return;
+    const back = table.voteBackoff?.[id];
+    if (back != null && back > Date.now()) { deferVote(table, id, action, back - Date.now(), { source, entry, send, onError }); return; }
+    table.lastVoteAt[id] = Date.now();
+    (table.lastVoteAction ||= {})[id] = action;
+    const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+delay`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
+    table.proposed.push(proposal);
+    table.onDeferred?.(proposal);
+    if (send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+/** Server said "voting too quickly": hold this seat's votes and resend the last one later. */
+export function noteVoteThrottle(table, id, { send, onError } = {}) {
+  (table.voteBackoff ||= {})[id] = Date.now() + VOTE_BACKOFF_MS;
+  const last = table.lastVoteAction?.[id];
+  if (last && send) deferVote(table, id, last, VOTE_BACKOFF_MS, { source: "throttle", entry: null, send, onError });
+}
+
+/** Harness knows every seat's role: give each scum seat its own teammates (game knowledge in FJ). */
+export function noteSeatRole(table, id, view) {
+  if (!view?.selfId || !view.role) return [];
+  (table.roster ||= {})[view.selfId] = { id: view.selfId, accountId: id, role: view.role, name: view.players?.[view.selfId]?.name || null };
+  const out = [];
+  const align = (r) => ALIGNMENT[r] || null;
+  for (const me of Object.values(table.roster)) {
+    const f = align(me.role);
+    if (f !== "Mafia" && f !== "Cult") continue;
+    const mates = Object.values(table.roster).filter((o) => o.id !== me.id && align(o.role) === f).map(({ id: pid, name, role }) => ({ id: pid, name, role }));
+    const key = JSON.stringify(mates);
+    if ((table.matesKey ||= {})[me.accountId] === key) continue;
+    table.matesKey[me.accountId] = key;
+    out.push({ accountId: me.accountId, data: mates });
+  }
+  return out;
+}
+
+async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock }) {
+  const view = table.views[id];
+  const stamp = speechStamp(view);
+  const added = [];
+  for (let action of actions || []) {
+    if (!validateAction(view, action).ok) continue;
+    const pub = isPublicSpeak(view, action);
+    // PLAN lines only ever go to this seat's own private faction chat.
+    if (action.event === "speak" && /\bPLAN\b/.test(String(action.data?.content || ""))) {
+      const m = view.meetings?.[action.data.meetingId];
+      if (pub || !m || !(m.name === "Mafia" || m.name === "Cult")) continue;
+    }
+    const key = pub
+      ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
+      : action.event === "vote"
+        ? `${id}|${view.stateId}|vote|${action.data.meetingId}|${JSON.stringify(action.data.selection)}`
+        : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}|${action.data.content ?? ""}`;
+    if (pub && table.speechStamp[id] === stamp) continue;
+    if (pub && !localSpeechOk(table, id, clock)) continue;
+    if (table.seen.has(key)) continue;
+    if (action.event === "vote") {
+      const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
+      if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
+      // One initial vote, then at most one model upgrade to a different valid target. No churn.
+      const n = (table.voteCount ||= {})[vk] || 0;
+      if (n >= 2 || (n === 1 && source === "rules")) continue;
+      // Copy/teammate votes and the server's vote rate limit: send later, re-checked at send time.
+      const wait = voteDelay(table, id, view, action);
+      if (wait > 0) { table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection); deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError }); continue; }
+      table.voteCount[vk] = n + 1;
+      table.lastVote[vk] = JSON.stringify(action.data.selection);
+      (table.lastVoteAt ||= {})[id] = Date.now();
+    }
+    table.seen.add(key);
+    if (pub) {
+      action = humanizeSpeak(view, action);
+      if (!String(action.data?.content || "").trim()) continue;
+      if (publicLeak(view, action.data.content)) { table.leaksBlocked = (table.leaksBlocked || 0) + 1; continue; }
+      table.speechStamp[id] = stamp;
+      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
+    }
+    const proposal = {
+      accountId: id, afterSeq: entry?.seq, source, phase: view.phase?.name || "",
+      promptId: table.byId.get(id)?.promptId, ...action,
+    };
+    table.proposed.push(proposal);
+    added.push(proposal);
+    if (!dryRun && send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
+  }
+  return added;
+}
+
+/** Night actions first, then votes, then speech. Lower runs first. */
+export function seatPriority(view) {
+  if (view?.phase?.phase === "Night") return 0;
+  const openVote = Object.values(view?.meetings || {}).some((m) => m?.voting && m.canVote && m.amMember && (m.votes?.[view.selfId] == null));
+  return openVote ? 1 : 2;
+}
+
+/**
+ * Global model limiter: at most `concurrency` calls in flight, highest priority first.
+ * A queued call whose isStale() turns true (phase changed, seat died) is dropped with Error("stale").
+ */
+export function createLlmLimiter(concurrency = Infinity) {
+  const queue = []; let active = 0; let seq = 0;
+  const stats = { started: 0, dropped: 0 };
+  const pump = () => {
+    while (active < concurrency && queue.length) {
+      queue.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
+      const job = queue.shift();
+      if (job.isStale && job.isStale()) { stats.dropped++; job.reject(new Error("stale")); continue; }
+      active++; stats.started++;
+      Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; pump(); });
+    }
+  };
+  return {
+    run(fn, { priority = 2, isStale } = {}) {
+      return new Promise((resolve, reject) => { queue.push({ fn, priority, isStale, resolve, reject, seq: seq++ }); pump(); });
+    },
+    get pending() { return queue.length; },
+    get active() { return active; },
+    stats,
+  };
+}
+
+/** Wrap a seat's model with the limiter; every call is tied to the state it was asked in. */
+function limitedComplete(table, id, base, limiter, stateId, priority) {
+  if (!limiter) return base;
+  const isStale = () => table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id];
+  return (input) => limiter.run(() => base(input), { priority, isStale });
+}
+
+/** Model pass for one seat on its latest view; results only land if the state has not moved on. */
+function startUpgrade(table, id, ctx) {
+  (table.pending ||= {});
+  if (table.pending[id]) { (table.dirty ||= {})[id] = true; return; }
+  table.pending[id] = true;
+  const run = async () => {
+    do {
+      if (table.dirty) table.dirty[id] = false;
+      const view = table.views[id];
+      if (!view || !selfAlive(view) || view.finished) break;
+      const stateId = view.stateId;
+      const night = view.phase?.phase === "Night";
+      const base = bindSeatComplete(ctx.complete, table.byId.get(id)?.promptText);
+      const timed = (input) => withTimeout(base(input), LLM_TIMEOUT_MS);
+      const model = limitedComplete(table, id, timed, ctx.limiter, stateId, seatPriority(view));
+      let plan;
+      try {
+        plan = await proposeSeatActions(view, {
+          complete: model, rng: ctx.rng, now: ctx.clockOf(),
+          // One call per decision at night; speech takes one generator call (engine-only scheduling).
+          llmFallback: false, speechFirst: true, memory: false, maxRetries: 0, scheduleComplete: null,
+        });
+      } catch (err) {
+        if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
+        continue;
+      }
+      const now = table.views[id];
+      if (!now || now.stateId !== stateId || !selfAlive(now)) { ctx.onStale?.(id); continue; }
+      const sch = plan.schedule;
+      if (ctx.onSchedule && sch && sch.meetingId && !night) {
+        const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
+        if (table.lastSchedule?.[id] !== key) { (table.lastSchedule ||= {})[id] = key; ctx.onSchedule(id, sch); }
+      }
+      // Scum votes stay on the seen PLAN: the model may not move a faction kill, clean, or litigate.
+      const keep = shapeDayVotes(table, id, now, plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a))), ctx.clockOf(), { source: plan.source });
+      const added = await emitActions(table, id, keep, { ...ctx, source: plan.source, clock: ctx.clockOf() });
+      if (ctx.onAdded) ctx.onAdded(added);
+    } while (table.dirty?.[id]);
+  };
+  const p = run().finally(() => { table.pending[id] = false; });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+// Night 1 Cop and Journalist have nothing to reason about yet: seeded random legal target, no model call.
+export function isNightOneInvestigator(view) {
+  return view?.phase?.phase === "Night" && view.phase.day === 1 && /^(cop|journalist)$/i.test(String(view.role || ""));
+}
+
+function seedOf(text) {
+  let h = 2166136261;
+  for (const c of String(text)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+}
+
+export function nightOneRandomPicks(view, accountId) {
+  const out = [];
+  for (const m of Object.values(view.meetings || {})) {
+    if (!m || m.voting === false || m.canVote === false || m.amMember === false) continue;
+    const pool = (m.targets || []).filter((t) => t !== "*" && t !== view.selfId && isAlive(view, t));
+    if (!pool.length) continue;
+    const rng = createSeededRng(seedOf(`${accountId}|${view.selfId}|${view.stateId}|${m.id}`));
+    out.push({ event: "vote", data: { meetingId: m.id, selection: pool[Math.floor(rng() * pool.length)] } });
+  }
+  return out;
+}
+
+function scumLocked(view, action) {
+  const m = view.meetings?.[action.data.meetingId];
+  if (!m || view.phase?.phase !== "Night") return false;
+  if (m.name === "Mafia" || m.name === "Cult") return !!agreedPlan(view);
+  return /janitor|lawyer/i.test(String(view.role || ""));
+}
+
+export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
+  if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
+    for (const inj of noteSeatRole(table, id, table.views[id])) {
+      if (table.views[inj.accountId]) table.views[inj.accountId] = engineReduce(table.views[inj.accountId], { event: "teammates", data: inj.data });
+    }
+  }
+  if (/voting too quickly/i.test(JSON.stringify(entry?.data ?? ""))) noteVoteThrottle(table, id, { send: dryRun ? null : send, onError });
   const view = table.views[id];
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
-  const promptText = table.byId.get(id)?.promptText;
-  const bound = complete ? bindSeatComplete(complete, promptText) : null;
-  const plan = bound
-    ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
-    : rulesSeatActions(view, { rng, now: clock });
-  const stamp = speechStamp(view);
-  const added = [];
-  for (const action of plan.actions) {
-    if (!validateAction(view, action).ok) continue;
-    const key = isPublicSpeak(view, action)
-      ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
-      : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}`;
-    if (isPublicSpeak(view, action) && table.speechStamp[id] === stamp) continue;
-    if (table.seen.has(key)) continue;
-    table.seen.add(key);
-    if (isPublicSpeak(view, action)) table.speechStamp[id] = stamp;
-    const proposal = {
-      accountId: id,
-      afterSeq: entry.seq,
-      source: plan.source,
-      promptId: table.byId.get(id)?.promptId,
-      ...action,
-    };
-    table.proposed.push(proposal);
-    added.push(proposal);
-    if (!dryRun && send) await send({ accountId: id, event: action.event, data: action.data, view });
+  // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
+  if (view.selfId && !selfAlive(view)) {
+    if (!table.stopped?.[id]) { (table.stopped ||= {})[id] = true; if (onSchedule) onSchedule(id, { speak: false, urgency: 0, threshold: 0, path: "dead", reason: "seat is dead; queue stopped", meetingId: "-" }); }
+    return [];
   }
-  return added;
+  // Ticks still wake a seat every few seconds so a silent day can open, without a model call per tick.
+  if (QUIET_EVENTS.has(entry?.event)) {
+    const last = table.lastTick?.[id];
+    if (clock == null || (last != null && clock - last < TICK_DECIDE_MS)) return [];
+    (table.lastTick ||= {})[id] = clock;
+  }
+  const ctx = { dryRun, send, onError, entry };
+  if (fast && isNightOneInvestigator(view)) {
+    return emitActions(table, id, nightOneRandomPicks(view, id), { ...ctx, source: "n1-random", clock });
+  }
+  if (fast) {
+    table.fastMode = true;
+    // Rules first, right now: every open night action and vote gets a legal pick before any model call.
+    const rules = rulesSeatActions(view, { rng, now: clock });
+    const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? Date.now(), { source: "rules" });
+    const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
+    if (complete) {
+      startUpgrade(table, id, {
+        ...ctx, complete, rng, limiter, onSchedule, onAdded,
+        clockOf: () => (now != null ? now : Date.now()),
+      });
+    }
+    return added;
+  }
+  const promptText = table.byId.get(id)?.promptText;
+  const seatComplete = complete ? bindSeatComplete(complete, promptText) : null;
+  const bound = seatComplete ? (input) => withTimeout(seatComplete(input), LLM_TIMEOUT_MS) : null;
+  let plan;
+  try {
+    plan = bound
+      ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
+      : rulesSeatActions(view, { rng, now: clock });
+  } catch (err) {
+    if (onError) onError(err, id);
+    plan = rulesSeatActions(view, { rng, now: clock });
+  }
+  const sch = plan.schedule;
+  if (onSchedule && sch && sch.meetingId && view.phase?.phase !== "Night") {
+    const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
+    if (table.lastSchedule?.[id] !== key) {
+      (table.lastSchedule ||= {})[id] = key;
+      onSchedule(id, sch);
+    }
+  }
+  return emitActions(table, id, plan.actions, { ...ctx, source: plan.source, clock });
+}
+
+/** Wait for queued model upgrades (tests, end of game). */
+export async function drainUpgrades(table) {
+  while (table.upgrades?.size) await Promise.all([...table.upgrades]);
 }
 
 export async function driveAccounts(entries, opts) {
@@ -284,19 +695,26 @@ export async function* iterateSse(source) {
  * Reconnect until shouldStop or the stream handler asks to stop.
  * fetchStream throws or returns an async iterable / ReadableStream of SSE bytes.
  */
-export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity }) {
+export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle }) {
   let attempt = 0;
   while (!shouldStop()) {
     try {
       const body = await fetchStream();
       attempt = 0;
       for await (const frame of iterateSse(body)) {
-        if (frame.type === "accounts_dropped") throw new Error("accounts_dropped");
+        if (frame.type === "accounts_dropped") {
+          const raw = JSON.stringify(frame.entry ?? {});
+          if (onError) onError(new Error(`accounts_dropped frame ${raw.slice(0, 300)}`));
+          if (!ourIds || ourIds.some((a) => raw.includes(a))) throw new Error("accounts_dropped");
+          continue;
+        }
         const stop = await onFrame(frame);
         if (stop || shouldStop()) return;
       }
+      if (settle) await settle();
       if (shouldStop()) return;
     } catch (e) {
+      if (onError) onError(e);
       if (shouldStop()) throw e;
       if (attempt >= maxAttempts) throw e;
     }
@@ -349,19 +767,46 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
   const table = createBotTable(accounts);
+  // The server sends "self" once, on join, before our stream connects, and the event buffer is capped,
+  // so seed each seat's playerId from GET /dev/accounts. Without selfId every seat decides nothing.
+  await seedSelfIds(client, table, accounts.map((a) => a.accountId), { sleep, log: say });
   const refresh = async () => {
     issuedAt = await maybeRefreshToken({
       issuedAt, now: now(), ttl: TOKEN_REFRESH_MS,
       refresh: async () => { await client.getToken(creds); },
     });
   };
-  const onFrame = async (frame) => {
-    if (frame.type !== "game" || !frame.entry) return false;
-    const added = await onGameEntry(table, frame.entry, {
-      complete, rng, dryRun: false,
+  // One serial queue per seat: a slow model call for one seat never holds up another.
+  // Local backends serve one request at a time: queue them globally with night actions first.
+  const concurrency = Number(env.MAFIOSO_LLM_CONCURRENCY) > 0 ? Number(env.MAFIOSO_LLM_CONCURRENCY) : (cfg.llm === "lmstudio" ? 1 : 4);
+  const limiter = createLlmLimiter(concurrency);
+  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`); };
+  let winnersLogged = false;
+  table.onDeferred = (p) => logSends([p]);
+  const seats = createSeatQueues(async (entry) => {
+    // Winners only for our game: our seat, matching gameId when the envelope has one, after the game started.
+    const wv = table.views[entry.accountId];
+    if (entry.event === "winners" && !winnersLogged && table.byId.has(entry.accountId)
+      && (entry.gameId == null || entry.gameId === opened.gameId) && wv?.phase && wv.phase.phase !== "Pregame") {
+      winnersLogged = true; say(`winners game=${opened.gameId} ${JSON.stringify(entry.data).slice(0, 400)}`);
+    }
+    const added = await onGameEntry(table, entry, {
+      complete, rng, dryRun: false, fast: true, limiter, onAdded: logSends,
       send: (p) => client.send(p),
+      onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`),
+      onSchedule: (who, sch) => say(`sched ${who} ${sch.speak ? "speak" : "skip"} u=${sch.urgency}/${sch.threshold} path=${sch.path} reason=${sch.reason}`),
     });
-    for (const p of added) say(`send ${p.accountId} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || ""} source=${p.source} prompt=${p.promptId}`);
+    logSends(added);
+  }, { isStopped: (id, entry) => !!table.stopped?.[id] && entry?.event !== "winners" && entry?.event !== "finished", onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
+  say(`llm concurrency=${concurrency}`);
+  const frameCounts = {}; let lastTrace = 0;
+  const onFrame = async (frame) => {
+    const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;
+    frameCounts[ft] = (frameCounts[ft] || 0) + 1;
+    if (Date.now() - lastTrace > 20000) { lastTrace = Date.now(); say(`frames ${JSON.stringify(frameCounts)}`); }
+    if (frame.type !== "game" || !frame.entry) return false;
+    const done = seats.push(frame.entry);
+    if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;
     return gameFinished(table, accounts.map((a) => a.accountId));
   };
   if (cfg.transport === "poll") {
@@ -392,8 +837,13 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
         return res.body;
       },
       onFrame,
+      ourIds: accounts.map((a) => a.accountId),
+      settle: async () => { await seats.drain(); await drainUpgrades(table); },
+      onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
     });
   }
+  await seats.drain();
+  await drainUpgrades(table);
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {

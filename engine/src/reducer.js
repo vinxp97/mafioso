@@ -29,16 +29,49 @@ export function reduce(view, frame) {
   const prevPhase = v.phase?.name || "";
   if (!frame || typeof frame.event !== "string") return v;
   const { event, data } = frame;
+  if (frame.t != null && Number.isFinite(Number(frame.t)) && !(Number(frame.t) < (v.clock ?? -Infinity))) v.clock = Number(frame.t);
   switch (event) {
+    case "time": case "timerInfo": {
+      // Day timer for late-day rules. Shapes vary, so keep the numbers we can read.
+      const d = data && typeof data === "object" ? data : {};
+      if (d.name && d.name !== "main") break;
+      const tm = (v.timer && v.timer.stateId === v.stateId) ? v.timer : { stateId: v.stateId };
+      const length = Number(d.delay ?? d.length ?? d.duration ?? d.total);
+      if (Number.isFinite(length) && length > 0) tm.length = length;
+      const start = Number(d.start ?? d.startTime ?? d.started);
+      if (Number.isFinite(start) && start > 0) tm.start = start;
+      if (event === "time" && Number.isFinite(Number(d.time))) {
+        const val = Number(d.time);
+        if (tm.first == null) tm.first = val;
+        tm.last = val;
+      }
+      v.timer = tm;
+      break;
+    }
     case "self": v.selfId = String(data); updateRole(v); break;
     case "players": v.players = clone(data) || {}; break;
     case "playerJoin": if (data?.id) v.players[data.id] = clone(data); break;
     case "playerLeave": if (v.players[data]) v.players[data].left = true; break;
     case "left": case "gameLeft": v.leftGame = true; break;
+    case "kicked": v.kicked = true; break;
+    // Harness-injected: this seat's own faction teammates, known to it in FJ from game start.
+    case "teammates": {
+      v.teammates = {};
+      for (const t of Array.isArray(data) ? data : []) {
+        if (!t?.id || t.id === v.selfId) continue;
+        v.teammates[t.id] = { id: t.id, name: t.name || null, role: t.role || null };
+        if (t.role) (v.reveals ||= {})[t.id] = t.role;
+        if (!v.players[t.id]) v.players[t.id] = { id: t.id, name: t.name || t.id };
+        else if (t.name && !v.players[t.id].name) v.players[t.id].name = t.name;
+      }
+      break;
+    }
     case "state": {
       const p = parsePhase(data?.name);
       const sid = data?.id ?? v.stateId;
-      if (!v.phase || v.phase.name !== p.name || sid !== v.stateId) v.meetings = {}; // meetings are per-state
+      const changed = !v.phase || v.phase.name !== p.name || sid !== v.stateId;
+      if (changed) v.meetings = {}; // meetings are per-state
+      if (changed) v.phaseStartedAt = frame.t != null && Number.isFinite(Number(frame.t)) ? Number(frame.t) : null;
       v.phase = p;
       v.stateId = sid;
       seedMeetings(v); // reconnect: history may arrive before state
@@ -59,7 +92,29 @@ export function reduce(view, frame) {
       if (data?.playerId) v.reveals[data.playerId] = data.role;
       updateRole(v);
     }
-    case "meeting": if (data?.id) v.meetings[data.id] = clone(data); break;
+    case "meeting": {
+      if (data?.id) {
+        const m = clone(data);
+        // Live servers name the faction meeting "Mafia Kill"; the engine keys on "Mafia"/"Cult".
+        // Live FJ splits the faction into "Mafia" chat ("Mafia Meeting"), "Mafia Kill" (vote) and
+        // "Mafia Action" (End Meeting? Yes/No, must act). Tag them; the chat keeps the bare name.
+        const fac = String(m.name || "").match(/^(mafia|cult)(?:\s+(kill|meeting|chat|action))?$/i);
+        if (fac) {
+          const f = fac[1][0].toUpperCase() + fac[1].slice(1).toLowerCase();
+          const kind = (fac[2] || "").toLowerCase();
+          m.rawName = m.name; m.faction = f;
+          m.factionRole = kind === "kill" ? "kill" : kind === "action" ? "action" : "chat";
+          if (m.factionRole === "chat") m.name = f;
+        }
+        v.meetings[data.id] = m;
+      }
+      // The one-shot "players" frame can be missed (sent before the stream attaches, or past the
+      // event cap). Meeting members and targets are seated players, so learn them here.
+      for (const m of Array.isArray(data?.members) ? data.members : []) if (m?.id && !v.players[m.id]) v.players[m.id] = { id: m.id };
+      // Only id-shaped targets; boolean/button options (Yes, No, Kick) are not players.
+      for (const t of Array.isArray(data?.targets) ? data.targets : []) if (typeof t === "string" && t !== "*" && !/^(yes|no|kick)$/i.test(t) && !v.players[t]) v.players[t] = { id: t };
+      break;
+    }
     case "leftMeeting": delete v.meetings[data]; break;
     case "message": case "quote":
       if (data) {
@@ -104,6 +159,9 @@ export function reduce(view, frame) {
 }
 
 export const reduceAll = (frames, view = emptyView()) => frames.reduce(reduce, view);
+/** False once this seat died, was lynched or shot (death), was kicked (playerLeave), or left the game. */
+export const selfAlive = (v) => !v?.selfId || (!v.dead?.[v.selfId] && !v.players?.[v.selfId]?.left && !v.leftGame && !v.kicked);
+
 export const isAlive = (v, id) => !!v.players[id] && !v.players[id].left && !v.dead[id];
 
 function seedMeetings(v) {

@@ -38,14 +38,18 @@ test("a seat that has not seen the plan does not inherit another seat's kill", (
   const heard = seat("p1", "Mafioso", [{ event: "message", data: { senderId: "p2", meetingId: "mMaf", content: PLAN } }]);
   const deaf = seat("p2", "Godfather");
   assert.equal(vote(decide(heard), "mMaf").data.selection, "p4");
-  assert.equal(vote(decide(deaf), "mMaf").data.selection, "p3");
+  // Not the leader and no teammate vote yet: it waits rather than deciding on its own.
+  assert.equal(vote(decide(deaf), "mMaf"), undefined);
   assert.equal(deaf.notes.plan, null);
+  // Only the first voter decides: once a teammate votes, the deaf seat copies that vote.
+  const copied = reduce(deaf, { event: "vote", data: { meetingId: "mMaf", voterId: "p1", target: "p3" } });
+  assert.equal(vote(decide(copied), "mMaf").data.selection, "p3");
 });
 
 test("night without a plan announces one kill and votes it", () => {
   const acts = decide(seat("p1", "Mafioso"));
   assert.deepEqual(acts, [
-    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p4 claim=Cop lawyer=p3 speaker=p1" } },
+    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p4 claim=Cop lawyer=p1 speaker=p1" } },
     { event: "vote", data: { meetingId: "mMaf", selection: "p3" } },
   ]);
 });
@@ -64,7 +68,7 @@ test("day vote and claim follow the plan this seat already saw", () => {
   assert.deepEqual(decide(day), [{ event: "vote", data: { meetingId: "mVil", selection: "p3" } }]);
 });
 
-test("lawyer covers the teammate who asked, otherwise the kill", () => {
+test("lawyer covers the teammate who asked, otherwise a teammate, never a town kill target", () => {
   const asked = seat("p1", "Lawyer", [
     { event: "message", data: { senderId: "p2", meetingId: "mMaf", content: "lawyer me" } },
     { event: "meeting", data: { id: "mLaw", name: "Lawyer", voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "p4"], votes: {} } },
@@ -76,7 +80,7 @@ test("lawyer covers the teammate who asked, otherwise the kill", () => {
     { event: "message", data: { senderId: "p2", meetingId: "mMaf", content: "PLAN kill=p4 lynch=p3 claim=Cop lawyer=p3 speaker=p2" } },
     { event: "meeting", data: { id: "mLaw", name: "Lawyer", voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "p4"], votes: {} } },
   ]);
-  assert.equal(vote(decide(planned), "mLaw").data.selection, "p3");
+  assert.equal(vote(decide(planned), "mLaw").data.selection, "p2");
 });
 
 test("janitor cleans the agreed kill and never skips", () => {

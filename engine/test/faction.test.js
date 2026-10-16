@@ -28,10 +28,10 @@ test("reducer builds claim board; retract clears", () => {
   assert.equal(v.claims.p2.history.length, 2);
 });
 
-test("faction: mafia allies from reveals + meeting members; village has none", () => {
+test("faction: mafia allies from reveals only, never meeting members; village has none", () => {
   const v = reduceAll([...mafiaBase("Night 1"), mtg("mMaf", "Mafia", ["p2", "p3", "p4"], { members: [{ id: "p1" }, { id: "p4" }] })]);
   assert.equal(myFaction(v), "Mafia");
-  assert.deepEqual([...allies(v)].sort(), ["p2", "p4"]);
+  assert.deepEqual([...allies(v)].sort(), ["p2"]);
   const town = reduceAll([{ event: "self", data: "p1" }, { event: "roleReveal", data: { playerId: "p1", role: "Cop" } },
     { event: "message", data: { senderId: "p2", content: "I'm cop" } }, { event: "roleReveal", data: { playerId: "p3", role: "Mafioso" } }]);
   assert.equal(allies(town).size, 0, "claims never make allies");
