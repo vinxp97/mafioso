@@ -313,7 +313,11 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
   ).filter((action) => validateAction(view, action).ok);
   if (allowSpeech && !actions.some((action) => isPublicSpeak(view, action))) {
     if (model) {
-      const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal: speechGoal });
+      const outGoal = (sched.reasons || []).includes("sheriff out")
+        ? "Out yourself as Sheriff now and say who you will shoot or why you are holding the shot."
+        : null;
+      const goal = [outGoal, speechGoal].filter(Boolean).join(" ") || null;
+      const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal });
       if (generated.action && validateAction(view, generated.action).ok) actions.push(generated.action);
     }
     if (!actions.some((action) => isPublicSpeak(view, action))) {

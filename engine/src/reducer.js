@@ -38,7 +38,9 @@ export function reduce(view, frame) {
     case "state": {
       const p = parsePhase(data?.name);
       const sid = data?.id ?? v.stateId;
-      if (!v.phase || v.phase.name !== p.name || sid !== v.stateId) v.meetings = {}; // meetings are per-state
+      const changed = !v.phase || v.phase.name !== p.name || sid !== v.stateId;
+      if (changed) v.meetings = {}; // meetings are per-state
+      if (changed) v.phaseStartedAt = frame.t != null && Number.isFinite(Number(frame.t)) ? Number(frame.t) : null;
       v.phase = p;
       v.stateId = sid;
       seedMeetings(v); // reconnect: history may arrive before state
@@ -59,7 +61,14 @@ export function reduce(view, frame) {
       if (data?.playerId) v.reveals[data.playerId] = data.role;
       updateRole(v);
     }
-    case "meeting": if (data?.id) v.meetings[data.id] = clone(data); break;
+    case "meeting": {
+      if (data?.id) v.meetings[data.id] = clone(data);
+      // The one-shot "players" frame can be missed (sent before the stream attaches, or past the
+      // event cap). Meeting members and targets are seated players, so learn them here.
+      for (const m of Array.isArray(data?.members) ? data.members : []) if (m?.id && !v.players[m.id]) v.players[m.id] = { id: m.id };
+      for (const t of Array.isArray(data?.targets) ? data.targets : []) if (typeof t === "string" && t !== "*" && !v.players[t]) v.players[t] = { id: t };
+      break;
+    }
     case "leftMeeting": delete v.meetings[data]; break;
     case "message": case "quote":
       if (data) {

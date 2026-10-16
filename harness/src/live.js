@@ -172,6 +172,45 @@ export function createBotTable(accounts) {
   };
 }
 
+/**
+ * Per-seat async queues. Entries for one accountId run strictly in order; different seats run
+ * concurrently. A failing entry is reported and does not stop that seat's queue.
+ */
+export function createSeatQueues(handler, { onError } = {}) {
+  const tails = new Map();
+  return {
+    push(entry) {
+      const id = entry?.accountId ?? "_";
+      const next = (tails.get(id) || Promise.resolve())
+        .then(() => handler(entry))
+        .catch((err) => { if (onError) onError(err, id); });
+      tails.set(id, next);
+      return next;
+    },
+    drain() { return Promise.all([...tails.values()]); },
+    get size() { return tails.size; },
+  };
+}
+
+export async function seedSelfIds(client, table, ids, { sleep = defaultSleep, tries = 20, log = () => {} } = {}) {
+  let missing = ids;
+  for (let i = 0; i < tries && missing.length; i++) {
+    let list = [];
+    try { list = await client.api("GET", "/dev/accounts"); } catch (e) { log(`seed-self error ${e?.message || e}`); break; }
+    const rows = Array.isArray(list) ? list : Array.isArray(list?.accounts) ? list.accounts : null;
+    if (!rows) break; // endpoint missing (e.g. a mock): let the stream's own "self" frame set it
+    const byId = new Map(rows.map((a) => [a.id || a.accountId, a]));
+    for (const id of missing) {
+      const playerId = byId.get(id)?.playerId;
+      if (playerId) table.views[id] = engineReduce(table.views[id] ?? emptyView(), { event: "self", data: String(playerId) });
+    }
+    missing = ids.filter((id) => !table.views[id]?.selfId);
+    if (missing.length) await sleep(1000);
+  }
+  log(`seeded selfId for ${ids.length - missing.length}/${ids.length} seats`);
+  return missing;
+}
+
 export function gameFinished(table, accountIds) {
   return accountIds.length > 0 && accountIds.every((id) => table.views[id]?.finished);
 }
@@ -204,30 +243,72 @@ export function bindSeatComplete(complete, promptText) {
  * Public chat waits on this seat's scheduler. Votes and night actions do not.
  * Sends only when dryRun is false. send() is expected to validate again.
  */
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now } = {}) {
+const QUIET_EVENTS = new Set(["time", "clearTimer", "timerInfo"]);
+const LLM_TIMEOUT_MS = 45_000;
+const TICK_DECIDE_MS = 5_000;
+function withTimeout(p, ms) {
+  let t;
+  return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`model call timed out after ${ms}ms`)), ms); })]).finally(() => clearTimeout(t));
+}
+
+/** Our own send log, so the 8s cooldown and 3-per-minute cap hold before the server echoes our line back. */
+function localSpeechOk(table, id, clock) {
+  const t = clock ?? Date.now();
+  const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000);
+  if (mine.length >= 3) return false;
+  return !mine.length || t - Math.max(...mine) >= 8_000;
+}
+
+export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
   const view = table.views[id];
+  // Clock ticks carry no decision; deciding on each one serialises thousands of model calls.
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
+  // Ticks still wake a seat every few seconds so a silent day can open, without a model call per tick.
+  if (QUIET_EVENTS.has(entry?.event)) {
+    const last = table.lastTick?.[id];
+    if (clock == null || (last != null && clock - last < TICK_DECIDE_MS)) return [];
+    (table.lastTick ||= {})[id] = clock;
+  }
   const promptText = table.byId.get(id)?.promptText;
-  const bound = complete ? bindSeatComplete(complete, promptText) : null;
-  const plan = bound
-    ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
-    : rulesSeatActions(view, { rng, now: clock });
+  const seatComplete = complete ? bindSeatComplete(complete, promptText) : null;
+  const bound = seatComplete ? (input) => withTimeout(seatComplete(input), LLM_TIMEOUT_MS) : null;
+  let plan;
+  try {
+    plan = bound
+      ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
+      : rulesSeatActions(view, { rng, now: clock });
+  } catch (err) {
+    if (onError) onError(err, id);
+    plan = rulesSeatActions(view, { rng, now: clock });
+  }
   const stamp = speechStamp(view);
   const added = [];
+  const sch = plan.schedule;
+  if (onSchedule && sch && sch.meetingId && view.phase?.phase !== "Night") {
+    const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
+    if (table.lastSchedule?.[id] !== key) {
+      (table.lastSchedule ||= {})[id] = key;
+      onSchedule(id, sch);
+    }
+  }
   for (const action of plan.actions) {
     if (!validateAction(view, action).ok) continue;
     const key = isPublicSpeak(view, action)
       ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
       : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}`;
     if (isPublicSpeak(view, action) && table.speechStamp[id] === stamp) continue;
+    if (isPublicSpeak(view, action) && !localSpeechOk(table, id, clock)) continue;
     if (table.seen.has(key)) continue;
     table.seen.add(key);
-    if (isPublicSpeak(view, action)) table.speechStamp[id] = stamp;
+    if (isPublicSpeak(view, action)) {
+      table.speechStamp[id] = stamp;
+      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
+    }
     const proposal = {
       accountId: id,
       afterSeq: entry.seq,
@@ -237,7 +318,10 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     };
     table.proposed.push(proposal);
     added.push(proposal);
-    if (!dryRun && send) await send({ accountId: id, event: action.event, data: action.data, view });
+    if (!dryRun && send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
   }
   return added;
 }
@@ -284,19 +368,26 @@ export async function* iterateSse(source) {
  * Reconnect until shouldStop or the stream handler asks to stop.
  * fetchStream throws or returns an async iterable / ReadableStream of SSE bytes.
  */
-export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity }) {
+export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => false, sleep = defaultSleep, backoff = backoffMs, maxAttempts = Infinity, onError, ourIds, settle }) {
   let attempt = 0;
   while (!shouldStop()) {
     try {
       const body = await fetchStream();
       attempt = 0;
       for await (const frame of iterateSse(body)) {
-        if (frame.type === "accounts_dropped") throw new Error("accounts_dropped");
+        if (frame.type === "accounts_dropped") {
+          const raw = JSON.stringify(frame.entry ?? {});
+          if (onError) onError(new Error(`accounts_dropped frame ${raw.slice(0, 300)}`));
+          if (!ourIds || ourIds.some((a) => raw.includes(a))) throw new Error("accounts_dropped");
+          continue;
+        }
         const stop = await onFrame(frame);
         if (stop || shouldStop()) return;
       }
+      if (settle) await settle();
       if (shouldStop()) return;
     } catch (e) {
+      if (onError) onError(e);
       if (shouldStop()) throw e;
       if (attempt >= maxAttempts) throw e;
     }
@@ -349,19 +440,33 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
   const table = createBotTable(accounts);
+  // The server sends "self" once, on join, before our stream connects, and the event buffer is capped,
+  // so seed each seat's playerId from GET /dev/accounts. Without selfId every seat decides nothing.
+  await seedSelfIds(client, table, accounts.map((a) => a.accountId), { sleep, log: say });
   const refresh = async () => {
     issuedAt = await maybeRefreshToken({
       issuedAt, now: now(), ttl: TOKEN_REFRESH_MS,
       refresh: async () => { await client.getToken(creds); },
     });
   };
-  const onFrame = async (frame) => {
-    if (frame.type !== "game" || !frame.entry) return false;
-    const added = await onGameEntry(table, frame.entry, {
+  // One serial queue per seat: a slow model call for one seat never holds up another.
+  const seats = createSeatQueues(async (entry) => {
+    const added = await onGameEntry(table, entry, {
       complete, rng, dryRun: false,
       send: (p) => client.send(p),
+      onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`),
+      onSchedule: (who, sch) => say(`sched ${who} ${sch.speak ? "speak" : "skip"} u=${sch.urgency}/${sch.threshold} path=${sch.path} reason=${sch.reason}`),
     });
-    for (const p of added) say(`send ${p.accountId} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || ""} source=${p.source} prompt=${p.promptId}`);
+    for (const p of added) say(`send ${p.accountId} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`);
+  }, { onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
+  const frameCounts = {}; let lastTrace = 0;
+  const onFrame = async (frame) => {
+    const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;
+    frameCounts[ft] = (frameCounts[ft] || 0) + 1;
+    if (Date.now() - lastTrace > 20000) { lastTrace = Date.now(); say(`frames ${JSON.stringify(frameCounts)}`); }
+    if (frame.type !== "game" || !frame.entry) return false;
+    const done = seats.push(frame.entry);
+    if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;
     return gameFinished(table, accounts.map((a) => a.accountId));
   };
   if (cfg.transport === "poll") {
@@ -392,8 +497,12 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
         return res.body;
       },
       onFrame,
+      ourIds: accounts.map((a) => a.accountId),
+      settle: () => seats.drain(),
+      onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
     });
   }
+  await seats.drain();
   const results = resultsFromTable(table);
   let store = store0;
   if (cfg.evolve && results.length) {
