@@ -371,7 +371,7 @@ function startUpgrade(table, id, ctx) {
         plan = await proposeSeatActions(view, {
           complete: model, rng: ctx.rng, now: ctx.clockOf(),
           // One call per decision at night; speech takes one generator call (engine-only scheduling).
-          llmFallback: !night, memory: night ? false : undefined, maxRetries: 0, scheduleComplete: null,
+          llmFallback: false, speechFirst: true, memory: false, maxRetries: 0, scheduleComplete: null,
         });
       } catch (err) {
         if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
