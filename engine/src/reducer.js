@@ -1,13 +1,15 @@
 // Pure reducer: reduce(view, {event, data}) -> new view. Rewritten from the
 // mutable GameState class in UM-Autobot-Player/src/state.js (same event semantics).
 import { reduceClaims } from "./claims.js";
+import { emptyNotes, applyNotes } from "./notes.js";
+import { noteFactionPlan } from "./scumPlan.js";
 const clone = (x) => (x === undefined ? x : structuredClone(x));
 
 /** @returns {import('./types.js').GameView} */
 export function emptyView() {
   return { selfId: null, players: {}, dead: {}, phase: null, meetings: {},
     messages: [], winners: null, leftGame: false, finished: false,
-    stateId: -1, history: {}, reveals: {}, role: null, claims: {} };
+    stateId: -1, history: {}, reveals: {}, role: null, claims: {}, notes: emptyNotes() };
 }
 
 export function parsePhase(name) {
@@ -73,6 +75,8 @@ export function reduce(view, frame) {
     case "finished": v.finished = true; break;
     default: break; // unknown events ignored (pure)
   }
+  applyNotes(v, frame);
+  if ((event === "message" || event === "quote") && data) noteFactionPlan(v, data);
   return v;
 }
 
