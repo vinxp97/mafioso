@@ -104,3 +104,17 @@ test("public lines always fit the chat cap, even from long or listy model output
     if (r.action) { assert.ok(r.action.data.content.length <= PUBLIC_MAX, r.action.data.content); assert.doesNotMatch(r.action.data.content, /^\s*-/); }
   }
 });
+
+test("the mafia PLAN speaker may only make the PLAN's fake claim", () => {
+  let v = reduce(emptyView(), { event: "self", data: "Hsd2JfBMtVt" });
+  v = reduce(v, { event: "players", data: players });
+  v = reduce(v, { event: "roleReveal", data: { playerId: "Hsd2JfBMtVt", role: "Lawyer" } });
+  v = reduce(v, { event: "state", data: { id: 2, name: "Night 1" } });
+  v = reduce(v, { event: "meeting", data: { id: "chat", name: "Mafia", speech: true, amMember: true } });
+  v = reduce(v, { event: "message", data: { meetingId: "chat", senderId: "Hsd2JfBMtVt", content: "PLAN kill=a0BHWAcOIlw lynch=rhyFPKXcnH claim=Cop lawyer=otU9CsNlbw speaker=Hsd2JfBMtVt" } });
+  v = reduce(v, { event: "state", data: { id: 3, name: "Day 1" } });
+  v = reduce(v, { event: "meeting", data: { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: Object.keys(players), votes: {} } });
+  assert.equal(say(v, "im cop, bea is guilty").ok, true);
+  assert.equal(say(v, "im villager btw").ok, false);
+  assert.equal(say(v, "As a villager I think").ok, false);
+});

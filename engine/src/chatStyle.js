@@ -67,10 +67,12 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
 }
 
 /** Reason to block this public line as an early claim, or null. */
-export function earlyClaimBlock(view, content, opts) {
+export function earlyClaimBlock(view, content, opts = {}) {
   const role = claimedRoleIn(content);
   if (!role) return null;
-  return claimAllowed(view, opts) ? null : `early claim (${role})`;
+  // The mafia PLAN speaker may make exactly the PLAN's fake claim, nothing else.
+  const planOk = opts.planSpeaker && opts.planRole && role === String(opts.planRole).toLowerCase();
+  return claimAllowed(view, { ...opts, planSpeaker: planOk }) ? null : `early claim (${role})`;
 }
 
 const CANNED = ["ya", "idk", "sus", "who u voting", "hm", "fair", "not sure tbh", "agreed", "wait what", "eh idk", "same", "lol", "go on", "ok but why"];
