@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, decide, validateAction, llmDecide, supplementActions } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -150,7 +150,7 @@ export function zipAccounts(accounts, prompts) {
 
 export function createBotTable(accounts) {
   return {
-    views: {}, seen: new Set(), proposed: [], lastSeq: {},
+    views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
   };
 }
@@ -174,40 +174,45 @@ export function resultsFromTable(table) {
 export function bindSeatComplete(complete, promptText) {
   if (typeof complete !== "function") return null;
   return (prompt) => complete({
-    system: prompt?.purpose === "memory" ? prompt.system : (promptText || prompt?.system),
+    system: prompt?.purpose === "memory" || prompt?.purpose === "scheduler" ? prompt.system : (promptText || prompt?.system),
     user: prompt?.user,
+    purpose: prompt?.purpose,
   });
 }
 
 /**
- * Reduce one envelope and, if this account still owes a vote, decide.
+ * Reduce one envelope and decide for this account only.
+ * Public chat waits on this seat's scheduler. Votes and night actions do not.
  * Sends only when dryRun is false. send() is expected to validate again.
  */
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng } = {}) {
+export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
   const view = table.views[id];
-  const open = decide(view, { rng });
-  if (!open.length) return [];
-  const keyOf = (a) => `${id}|${view.stateId}|${a.event}|${a.data.meetingId}`;
-  if (open.every((a) => table.seen.has(keyOf(a)))) return [];
+  const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
   const promptText = table.byId.get(id)?.promptText;
   const bound = complete ? bindSeatComplete(complete, promptText) : null;
-  const decided = bound
-    ? await llmDecide(view, { complete: bound, rng })
-    : { actions: open, source: "rules" };
+  const plan = bound
+    ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
+    : rulesSeatActions(view, { rng, now: clock });
+  const stamp = speechStamp(view);
   const added = [];
-  for (const action of supplementActions(decided.actions, open, view)) {
+  for (const action of plan.actions) {
     if (!validateAction(view, action).ok) continue;
-    if (table.seen.has(keyOf(action))) continue;
-    table.seen.add(keyOf(action));
+    const key = isPublicSpeak(view, action)
+      ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
+      : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}`;
+    if (isPublicSpeak(view, action) && table.speechStamp[id] === stamp) continue;
+    if (table.seen.has(key)) continue;
+    table.seen.add(key);
+    if (isPublicSpeak(view, action)) table.speechStamp[id] = stamp;
     const proposal = {
       accountId: id,
       afterSeq: entry.seq,
-      source: decided.source,
+      source: plan.source,
       promptId: table.byId.get(id)?.promptId,
       ...action,
     };

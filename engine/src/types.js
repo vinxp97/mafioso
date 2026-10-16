@@ -12,7 +12,8 @@
  *   leftGame:boolean, finished:boolean, stateId:number|string,
  *   history:Record<string,HistoryState>, reveals:Record<string,string>, role:string|null, claims:ClaimBoard,
  *   notes:object, ledger:{nextId:number, facts:object[]}, beliefs:{entries:object, rejected:object[], source:string, phase:string},
- *   digest:{text:string, phase:string, source:string}, memory:{due:boolean, beliefSource:string, summarizedPhase:string}}} GameView */
+ *   digest:{text:string, phase:string, source:string}, memory:{due:boolean, beliefSource:string, summarizedPhase:string},
+ *   speechHoldUntil?:number}} GameView */
 /** @typedef {Record<string,{role:string|null, kind:'claim'|'cc'|'retract', history:any[]}>} ClaimBoard */
 /** @typedef {{name?:string, meetings?:Record<string,Meeting>, roles?:Record<string,string>,
  *   dead?:Record<string,boolean>, alerts?:any[], winners?:any}} HistoryState */
