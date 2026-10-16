@@ -1,3 +1,4 @@
+import { selfAlive } from "./reducer.js";
 import { MAX_SPEECH } from "./types.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
@@ -14,6 +15,7 @@ export function legalVotes(view) {
 export function validateAction(view, action) {
   const no = (reason) => ({ ok: false, reason });
   if (!action || typeof action.data !== "object" || action.data === null) return no("malformed");
+  if ((action.event === "vote" || action.event === "speak") && !selfAlive(view)) return no("dead seat");
   const m = view.meetings[action.data.meetingId];
   if (!m) return no("unknown meeting");
   switch (action.event) {

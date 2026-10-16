@@ -1,3 +1,4 @@
+import { selfAlive } from "./reducer.js";
 // Per-seat public chat timing. One view, no shared queue.
 // Votes and night actions are not decided here. Village/public speech is.
 import { agreedPlan } from "./scumPlan.js";
@@ -131,6 +132,7 @@ function mustClaim(view, meeting) {
 /** Werewolf Arena urgency. 4 named, 3 new info, 2 vote pressure, 1 a thought, 0 nothing new. */
 export function scoreUrgency(view, { now } = {}) {
   const meeting = publicSpeechMeeting(view);
+  if (view?.selfId && !selfAlive(view)) return { urgency: 0, reasons: ["dead"] };
   if (!view?.selfId || view.finished || view.leftGame || !meeting) return { urgency: 0, reasons: ["no public chat"] };
   if (view.phase?.phase === "Night") return { urgency: 0, reasons: ["night"] };
   const reasons = [];
@@ -219,6 +221,9 @@ export function decideSpeech(view, { now } = {}) {
   const cap = speechCap(view, { now });
   const threshold = speechThreshold(rates.amendment);
   const capped = !cap.ok;
+  if (view?.selfId && !selfAlive(view)) {
+    return { speak: false, urgency: 0, reasons: ["dead"], amendment: rates.amendment, path: "dead", meetingId: null, capped, threshold, reason: "dead" };
+  }
   const speak = !!meeting && !capped && scored.urgency >= threshold && scored.urgency > 0;
   let path = "wait";
   if (!meeting || view?.phase?.phase === "Night") path = "idle";

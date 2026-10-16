@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -176,13 +176,14 @@ export function createBotTable(accounts) {
  * Per-seat async queues. Entries for one accountId run strictly in order; different seats run
  * concurrently. A failing entry is reported and does not stop that seat's queue.
  */
-export function createSeatQueues(handler, { onError } = {}) {
+export function createSeatQueues(handler, { onError, isStopped } = {}) {
+  const stopped = (id, entry) => typeof isStopped === "function" && isStopped(id, entry);
   const tails = new Map();
   return {
     push(entry) {
       const id = entry?.accountId ?? "_";
       const next = (tails.get(id) || Promise.resolve())
-        .then(() => handler(entry))
+        .then(() => (stopped(id, entry) ? undefined : handler(entry)))
         .catch((err) => { if (onError) onError(err, id); });
       tails.set(id, next);
       return next;
@@ -203,6 +204,15 @@ export async function seedSelfIds(client, table, ids, { sleep = defaultSleep, tr
     for (const id of missing) {
       const playerId = byId.get(id)?.playerId;
       if (playerId) table.views[id] = engineReduce(table.views[id] ?? emptyView(), { event: "self", data: String(playerId) });
+    }
+    // Our own seats' display names, so speech can say "Bob" even if the players frame was missed.
+    const named = ids.map((id) => byId.get(id)).filter((a) => a?.playerId && a?.name);
+    for (const id of ids) {
+      const v = (table.views[id] ||= emptyView());
+      for (const a of named) {
+        const pid = String(a.playerId);
+        if (!v.players[pid]?.name) v.players[pid] = { ...(v.players[pid] || {}), id: pid, name: String(a.name) };
+      }
     }
     missing = ids.filter((id) => !table.views[id]?.selfId);
     if (missing.length) await sleep(1000);
@@ -268,6 +278,11 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   const view = table.views[id];
   // Clock ticks carry no decision; deciding on each one serialises thousands of model calls.
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
+  // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
+  if (view.selfId && !selfAlive(view)) {
+    if (!table.stopped?.[id]) { (table.stopped ||= {})[id] = true; if (onSchedule) onSchedule(id, { speak: false, urgency: 0, threshold: 0, path: "dead", reason: "seat is dead; queue stopped", meetingId: "-" }); }
+    return [];
+  }
   // Ticks still wake a seat every few seconds so a silent day can open, without a model call per tick.
   if (QUIET_EVENTS.has(entry?.event)) {
     const last = table.lastTick?.[id];
@@ -296,7 +311,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
       onSchedule(id, sch);
     }
   }
-  for (const action of plan.actions) {
+  for (let action of plan.actions) {
     if (!validateAction(view, action).ok) continue;
     const key = isPublicSpeak(view, action)
       ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
@@ -308,6 +323,10 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     if (isPublicSpeak(view, action)) {
       table.speechStamp[id] = stamp;
       ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
+    }
+    if (isPublicSpeak(view, action)) {
+      action = humanizeSpeak(view, action);
+      if (!String(action.data?.content || "").trim()) continue;
     }
     const proposal = {
       accountId: id,
@@ -458,7 +477,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       onSchedule: (who, sch) => say(`sched ${who} ${sch.speak ? "speak" : "skip"} u=${sch.urgency}/${sch.threshold} path=${sch.path} reason=${sch.reason}`),
     });
     for (const p of added) say(`send ${p.accountId} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, 100)) : "")} source=${p.source} prompt=${p.promptId}`);
-  }, { onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
+  }, { isStopped: (id, entry) => !!table.stopped?.[id] && entry?.event !== "winners" && entry?.event !== "finished", onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`) });
   const frameCounts = {}; let lastTrace = 0;
   const onFrame = async (frame) => {
     const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;

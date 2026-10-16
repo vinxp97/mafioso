@@ -1,6 +1,8 @@
+import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
 // JSON action shape follows UM-Autobot-Player agent.js ({action, meeting, target, text}).
+import { humanizeSpeak } from "./speechNames.js";
 import { validateAction, legalVotes } from "./legal.js";
 import { decide, supplementActions } from "./decide.js";
 import { isAlive } from "./reducer.js";
@@ -213,6 +215,7 @@ export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = 
  * @returns {Promise<{action:import('./types.js').ProposedAction|null, source:string, rejections:string[], schedule:object}>}
  */
 export async function generatePublicSpeech(view, { complete, schedule, now, maxRetries = 1, goal = null } = {}) {
+  if (view?.selfId && !selfAlive(view)) return { action: null, source: "scheduler", rejections: ["dead seat"], schedule: schedule || null };
   const sched = schedule || decideSpeech(view, { now });
   const rejections = [];
   const meeting = publicSpeechMeeting(view);
@@ -228,6 +231,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     `URGENCY: ${sched.urgency} (${(sched.reasons || []).join(", ")}).`,
     amendmentLine(sched.amendment),
     goal ? `SPEECH GOAL: ${defang(goal, 220)}\nThis is the aim of the line, not the line itself.` : "",
+    "Refer to players by their NAME from LIVING, never by id.",
     "Reply with one speak JSON for that meeting only. Do not vote or wait.",
   ].filter(Boolean).join("\n");
   const base = buildBriefing(view);
@@ -275,6 +279,9 @@ function formatSpeechGoal(choice) {
  * Night and day votes are not dropped when the scheduler says wait.
  */
 export async function proposeSeatActions(view, { complete, rng, seed, now, maxRetries, memory, scheduleComplete, temperature, score } = {}) {
+  if (view?.selfId && !selfAlive(view)) {
+    return { actions: [], schedule: decideSpeech(view, { now }), source: "dead", rejections: ["dead seat"], speechGoal: null };
+  }
   const sched = await scheduleSpeech(view, { now, complete: scheduleComplete });
   const rules = rulesSeatActions(view, { rng, now, speechSchedule: { ...sched, speak: false } });
   const allowSpeech = !!sched.speak && !sched.capped && speechCap(view, { now }).ok;
@@ -325,5 +332,7 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
       if (line) actions.push(line);
     }
   }
-  return { actions, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
+  const named = actions.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
+    .filter((action) => action.event !== "speak" || String(action.data?.content || "").trim());
+  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
 }

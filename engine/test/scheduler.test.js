@@ -241,5 +241,5 @@ test("faction night speech and the day claim still follow this seat only", async
     complete: async ({ user }) => (user.includes("SCHEDULER: approved") ? "nope" : '{"action":"vote","meeting":"mVil","target":"p3"}'),
   });
   assert.ok(generated.actions.some((action) => action.event === "vote" && action.data.selection === "p3"));
-  assert.ok(generated.actions.some((action) => action.data.content === "I'm Cop. Vote p3."));
+  assert.ok(generated.actions.some((action) => action.data.content === "I'm Cop. Vote Bob."));
 });

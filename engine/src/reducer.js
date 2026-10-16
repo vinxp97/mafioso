@@ -35,6 +35,7 @@ export function reduce(view, frame) {
     case "playerJoin": if (data?.id) v.players[data.id] = clone(data); break;
     case "playerLeave": if (v.players[data]) v.players[data].left = true; break;
     case "left": case "gameLeft": v.leftGame = true; break;
+    case "kicked": v.kicked = true; break;
     case "state": {
       const p = parsePhase(data?.name);
       const sid = data?.id ?? v.stateId;
@@ -113,6 +114,9 @@ export function reduce(view, frame) {
 }
 
 export const reduceAll = (frames, view = emptyView()) => frames.reduce(reduce, view);
+/** False once this seat died, was lynched or shot (death), was kicked (playerLeave), or left the game. */
+export const selfAlive = (v) => !v?.selfId || (!v.dead?.[v.selfId] && !v.players?.[v.selfId]?.left && !v.leftGame && !v.kicked);
+
 export const isAlive = (v, id) => !!v.players[id] && !v.players[id].left && !v.dead[id];
 
 function seedMeetings(v) {
