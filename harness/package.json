@@ -3,4 +3,4 @@
   "main": "src/index.js",
   "exports": { ".": "./src/index.js" },
   "dependencies": { "mafioso-engine": "file:../engine" },
-  "scripts": { "test": "node --test test/", "lmstudio-smoke": "node scripts/lmstudio-smoke.mjs" } }
+  "scripts": { "test": "node --test", "lmstudio-smoke": "node scripts/lmstudio-smoke.mjs" } }
