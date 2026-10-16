@@ -2,7 +2,7 @@
 // UM-Autobot-Player/src/claims.js extractCertainClaims + mentions.js ROLE_ALIASES (trimmed).
 export const ROLE_ALIASES = {
   "Town Crier": ["town crier", "crier", "tc"], Oracle: ["oracle", "orc"], Caroler: ["caroler"],
-  Cop: ["cop"], Sheriff: ["sheriff"], Doctor: ["doctor", "doc"], Hooker: ["hooker", "rb"],
+  Cop: ["cop"], Journalist: ["journalist", "journo"], Sheriff: ["sheriff"], Doctor: ["doctor", "doc"], Hooker: ["hooker", "rb"],
   Janitor: ["janitor", "jan"], Mafioso: ["mafioso"], Godfather: ["godfather", "gf"],
   Tracker: ["tracker"], Watcher: ["watcher"], Villager: ["villager", "blue", "vt"],
 };
