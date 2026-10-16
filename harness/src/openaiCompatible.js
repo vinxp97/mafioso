@@ -71,6 +71,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
   const extraBody = opts.extraBody && typeof opts.extraBody === "object" ? opts.extraBody : null;
   const temperature = finiteNumber(opts.temperature);
   const maxTokens = finiteNumber(opts.maxTokens);
+  const defaultEffort = opts.reasoningEffort || undefined;
   const doFetch = opts.fetch !== undefined ? opts.fetch : globalThis.fetch?.bind(globalThis);
   if (typeof doFetch !== "function") throw new Error("fetch must be injected or available as global fetch");
 
@@ -112,7 +113,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
     return resolvedModel;
   }
 
-  function buildBody(model, system, user, json) {
+  function buildBody(model, system, user, json, callMax, effort) {
     const body = {
       model,
       messages: [
@@ -123,8 +124,11 @@ export function createOpenAICompatibleComplete(opts = {}) {
     };
     if (json) body.response_format = { type: "json_object" };
     if (temperature !== undefined) body.temperature = temperature;
-    if (maxTokens !== undefined) body.max_tokens = maxTokens;
+    const mt = callMax !== undefined ? callMax : maxTokens;
+    if (mt !== undefined) body.max_tokens = mt;
     if (extraBody) Object.assign(body, extraBody);
+    // reasoning_effort "none" turns off thinking on reasoning models (LM Studio Qwen): no hidden tokens.
+    if (effort) body.reasoning_effort = effort;
     return body;
   }
 
@@ -147,13 +151,17 @@ export function createOpenAICompatibleComplete(opts = {}) {
     return content;
   }
 
-  return async function complete({ system, user } = {}) {
+  // Per call: maxTokens caps output (short chat lines); json:false asks for plain text.
+  return async function complete({ system, user, maxTokens: callMax, json = true, reasoningEffort } = {}) {
     const model = await ensureModel();
+    const cap = finiteNumber(callMax);
+    const effort = reasoningEffort || defaultEffort;
+    if (!json) return postChat(buildBody(model, system, user, false, cap, effort));
     try {
-      return await postChat(buildBody(model, system, user, true));
+      return await postChat(buildBody(model, system, user, true, cap, effort));
     } catch (e) {
       if (!e?.responseFormatRejected) throw e;
-      return await postChat(buildBody(model, system, user, false));
+      return await postChat(buildBody(model, system, user, false, cap, effort));
     }
   };
 }

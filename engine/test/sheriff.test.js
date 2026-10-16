@@ -85,3 +85,42 @@ test("late fallback also works from a countdown timer, and not on Day 2", () => 
   const d2 = reduce(v, { event: "state", t: 600_000, data: { id: 5, name: "Day 2" } });
   assert.equal(sheriffShotReady(d2, { now: 1_200_000 }).ok, false);
 });
+
+// Game 1fo007iEq: "Shoot Gun", no read, unreadable day timer, day shorter than 6 minutes.
+const fj = (extra = [], villageVotes = {}) => reduceAll([
+  { event: "self", data: "p1" },
+  { event: "players", data: players },
+  { event: "roleReveal", data: { playerId: "p1", role: "Sheriff" } },
+  { event: "state", data: { id: 3, name: "Day 1" }, t: 0 },
+  { event: "meeting", data: { id: "gun", name: "Shoot Gun", voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "p4", "p5", "p6"], votes: {} } },
+  { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "p4", "p5", "p6", "*"], votes: villageVotes } },
+  say("p1", "tbh i'm sheriff, idk who to shoot yet", 1_000),
+  ...["p2", "p3", "p4", "p5", "p6", "p2", "p3"].map((p, i) => say(p, "melony you seem sus why quiet", 2_000 + i * 1_000)),
+  ...extra,
+]);
+
+test("1fo007iEq: late fallback fires on a short day with no read (3 minutes, no timer)", () => {
+  const v = fj();
+  assert.equal(sheriffShotReady(v, { now: 60_000 }).ok, false);
+  const late = rulesSeatActions(v, { now: 185_000 }).actions.filter((a) => a.data.meetingId === "gun");
+  assert.equal(late.length, 1);
+  assert.notEqual(late[0].data.selection, "*");
+});
+
+test("1fo007iEq: half the village voting makes it late; the gun vote is added even after a Village vote", () => {
+  const v = fj([], { p1: "p3", p2: "p3", p4: "p3", p5: "p3" });
+  const acts = rulesSeatActions(v, { now: 30_000 }).actions.filter((a) => a.data.meetingId === "gun");
+  assert.equal(acts.length, 1);
+  assert.equal(acts[0].data.selection, "p3");
+});
+
+test("1fo007iEq: a Vote Kick meeting means the day is ending: shoot now", () => {
+  const v = fj([{ event: "meeting", data: { id: "vk", name: "Vote Kick", voting: true, canVote: false, amMember: true, targets: ["Kick"], votes: {} } }]);
+  assert.equal(sheriffShotReady(v, { now: 20_000 }).ok, true);
+});
+
+test("guilty on the Sheriff gets shot immediately, before discussion or outing", () => {
+  const v = base([say("p4", "Me is mafia", 1)]);
+  const acts = rulesSeatActions(v, { now: 2 }).actions.filter((a) => a.data.meetingId === "gun");
+  assert.deepEqual(acts.map((a) => a.data.selection), ["p4"]);
+});

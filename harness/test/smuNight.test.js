@@ -49,10 +49,11 @@ test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one 
   const target = kills[0].data.selection;
   assert.ok(!mafiaIds.has(target), `kill ${target} is not a teammate`);
   for (const k of kills) assert.equal(k.data.selection, target, "kill votes match");
-  const plans = P.filter((p) => p.event === "speak" && /PLAN/.test(p.data.content));
-  assert.equal(plans.length, 1, "one PLAN for the faction");
-  assert.equal(plans[0].data.meetingId, "38S8qkzPMKC", "PLAN only in the Mafia chat");
-  assert.match(plans[0].data.content, new RegExp(`kill=${target}`));
+  const plans = P.filter((p) => p.event === "speak" && p.source !== "scum-chat" && /^kill \S+ tonight/.test(p.data.content));
+  assert.equal(plans.length, 1, "one casual plan line for the faction");
+  assert.equal(plans[0].data.meetingId, "38S8qkzPMKC", "plan only in the Mafia chat");
+  assert.ok(!plans[0].data.content.includes(target), "names, not ids");
+  for (const p of P) if (p.event === "speak") assert.doesNotMatch(p.data.content, /PLAN|\w=\S/, "no machine text in any chat");
   for (const s of seats.filter((x) => MAFIA.has(x.role))) assert.ok(P.some((p) => p.accountId === s.acc && p.data.meetingId === "MafAct01xyz" && p.data.selection === "Yes"), `${s.role} ends the meeting`);
   const lit = P.filter((p) => p.data.meetingId === "gb0jRjDsD1x");
   assert.equal(lit.length, 1, "Litigate sent once, no churn");
@@ -62,7 +63,7 @@ test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one 
   assert.equal(P.filter((p) => p.data.meetingId === "B2k03Izd6").length, 0, "nobody votes Vote Kick");
   for (const p of P) if (p.event === "vote") assert.ok(pid[p.accountId], "only our seats");
   const copies = kills.filter((k) => /delay/.test(k.source));
-  assert.equal(copies.length, 2, "two teammates copy the first vote after a delay");
+  assert.equal(copies.length, 3, "the leader votes after the night chatter, teammates copy after a delay");
 });
 
 test("vote kick is never legal for a bot", () => {
@@ -101,4 +102,28 @@ test("the PLAN never goes to a public meeting even if the engine proposed it the
   v = reduce(v, { event: "meeting", data: { id: "vil", name: "Village", speech: true, amMember: true } });
   table.views["fDR8JD4HVj"] = v;
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "PLAN kill=a lynch=b claim=Cop lawyer=c speaker=d" } }).ok, false);
+});
+
+test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", { timeout: 60000 }, async () => {
+  const { decide } = await import("mafioso-engine");
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+  const seq = {};
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { dryRun: true }); };
+  for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
+  for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
+  const mafia = seats.filter((s) => MAFIA.has(s.role));
+  for (const s of mafia) {
+    await feed(s, "state", { id: 2, name: "Night 1" });
+    for (const m of meetingsFor(s)) await feed(s, "meeting", m);
+    await feed(s, "message", { meetingId: "38S8qkzPMKC", senderId: "Hsd2JfBMtVt", content: "PLAN kill=a0BHWAcOIlw lynch=rhyFPKXcnH claim=Cop lawyer=otU9CsNlbw speaker=Hsd2JfBMtVt" });
+    await feed(s, "death", "a0BHWAcOIlw");
+    await feed(s, "state", { id: 4, name: "Night 2" });
+    for (const m of meetingsFor(s)) await feed(s, "meeting", { ...m, targets: (m.targets || []).filter((t) => t !== "a0BHWAcOIlw") });
+  }
+  const leader = table.views["9yy7vCpjSn"];
+  const acts = decide(leader);
+  const kill = acts.find((a) => a.event === "vote" && a.data.meetingId === "zbABCg9YSTU");
+  assert.ok(kill, "leader votes a kill on Night 2");
+  assert.notEqual(kill.data.selection, "a0BHWAcOIlw");
+  assert.ok(acts.some((a) => a.event === "speak" && /^kill \S+ tonight/.test(a.data.content) && !/PLAN|=/.test(a.data.content) && a.data.meetingId === "38S8qkzPMKC"), "new casual plan for Night 2");
 });

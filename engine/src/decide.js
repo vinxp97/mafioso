@@ -32,8 +32,9 @@ export function supplementActions(chosen, rules, view) {
   };
   for (const action of chosen || []) add(action);
   for (const action of rules || []) {
-    if (action.event === "speak" && String(action.data?.content || "").startsWith("PLAN ")) {
-      const plan = parsePlanLine(action.data.content);
+    const planMeeting = action.event === "speak" ? view?.meetings?.[action.data?.meetingId] : null;
+    if (planMeeting && (planMeeting.name === "Mafia" || planMeeting.name === "Cult")) {
+      const plan = parsePlanLine(action.data.content, view, view?.selfId);
       const clash = out.some((vote) => {
         if (vote.event !== "vote" || !plan) return false;
         const meeting = view?.meetings?.[vote.data.meetingId];

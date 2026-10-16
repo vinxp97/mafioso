@@ -9,8 +9,8 @@ function escapeReg(text) {
 function knownIds(view) {
   const ids = new Set(Object.keys(view?.players || {}));
   for (const m of Object.values(view?.meetings || {})) {
-    for (const t of m?.targets || []) if (typeof t === "string" && t !== NO_ONE) ids.add(t);
-    for (const mem of m?.members || []) if (mem?.id) ids.add(mem.id);
+    for (const t of Array.isArray(m?.targets) ? m.targets : []) if (typeof t === "string" && t !== NO_ONE) ids.add(t);
+    for (const mem of Array.isArray(m?.members) ? m.members : Object.values(m?.members || {})) if (mem?.id) ids.add(mem.id);
   }
   return ids;
 }

@@ -49,21 +49,21 @@ test("a seat that has not seen the plan does not inherit another seat's kill", (
 test("night without a plan announces one kill and votes it", () => {
   const acts = decide(seat("p1", "Mafioso"));
   assert.deepEqual(acts, [
-    { event: "speak", data: { meetingId: "mMaf", content: "PLAN kill=p3 lynch=p4 claim=Cop lawyer=p1 speaker=p1" } },
+    { event: "speak", data: { meetingId: "mMaf", content: "kill bob tonight, ill fake cop tmrw and push cat, lawyer go on me" } },
     { event: "vote", data: { meetingId: "mMaf", selection: "p3" } },
   ]);
 });
 
 test("day vote and claim follow the plan this seat already saw", () => {
   let v = seat("p1", "Mafioso", [{ event: "message", data: { senderId: "p1", meetingId: "mMaf", content: PLAN } }]);
-  v = reduce(v, { event: "state", data: { id: 3, name: "Day 2" } });
+  v = reduce(v, { event: "state", data: { id: 3, name: "Day 1" } });
   v = reduce(v, { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p4", "p3", "p2", "*"], votes: {} } });
   assert.deepEqual(decide(v), [
     { event: "speak", data: { meetingId: "mVil", content: "I'm Cop. Vote p3." } },
     { event: "vote", data: { meetingId: "mVil", selection: "p3" } },
   ]);
   const other = seat("p2", "Godfather", [{ event: "message", data: { senderId: "p1", meetingId: "mMaf", content: PLAN } }]);
-  let day = reduce(other, { event: "state", data: { id: 3, name: "Day 2" } });
+  let day = reduce(other, { event: "state", data: { id: 3, name: "Day 1" } });
   day = reduce(day, { event: "meeting", data: { id: "mVil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p4", "p3", "p2", "*"], votes: {} } });
   assert.deepEqual(decide(day), [{ event: "vote", data: { meetingId: "mVil", selection: "p3" } }]);
 });

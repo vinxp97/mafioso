@@ -19,7 +19,7 @@ function seat(table, acc, self, role, meetings, { day = false, night = 1 } = {})
   return out.map((e, i) => ({ accountId: acc, seq: i + 1, t: 1000 + i, ...e }));
 }
 
-test("slow model: every night action goes out at once from rules, then the model upgrades it", async () => {
+test("slow model: every town night action goes out at once from rules, with no model call", async () => {
   const table = createBotTable([{ accountId: "C" }, { accountId: "J" }]);
   const limiter = createLlmLimiter(1);
   const complete = async ({ purpose }) => {
@@ -38,21 +38,20 @@ test("slow model: every night action goes out at once from rules, then the model
   await drainUpgrades(table);
   const votes = table.proposed.filter((a) => a.data.meetingId === "mCop");
   assert.ok(votes.length >= 1);
-  assert.ok(limiter.stats.started >= 1, "model was asked");
+  assert.equal(limiter.stats.started, 0, "town nights never ask the model");
   for (const v of votes) assert.ok(["p2", "p3", "p4", "p6"].includes(v.data.selection));
 });
 
 test("queued model calls are dropped once the phase changes", async () => {
-  const table = createBotTable([{ accountId: "A" }, { accountId: "B" }]);
   const limiter = createLlmLimiter(1);
-  let calls = 0;
-  const complete = async () => { calls++; await sleep(200); return "not json"; };
-  const mk = (acc, self) => seat(table, acc, self, "Cop", [{ id: `m${acc}`, name: "Cop", voting: true, canVote: true, amMember: true, targets: ["p3", "p4"], votes: {} }], { night: 2 });
-  for (const e of [...mk("A", "p1"), ...mk("B", "p2")]) await onGameEntry(table, e, { complete, dryRun: true, fast: true, limiter, rng: () => 0 });
-  // Day comes while B's request is still queued behind A's.
-  for (const acc of ["A", "B"]) await onGameEntry(table, { accountId: acc, seq: 99, t: 5000, event: "state", data: { id: 3, name: "Day 1" } }, { dryRun: true, fast: true, limiter });
-  await drainUpgrades(table);
-  assert.ok(limiter.stats.dropped >= 1, `dropped=${limiter.stats.dropped} calls=${calls}`);
+  let state = 1;
+  const slow = () => sleep(100);
+  const a = limiter.run(slow, { isStale: () => state !== 1 });
+  const b = limiter.run(slow, { isStale: () => state !== 1 }).catch((e) => e.message);
+  state = 2;
+  await a;
+  assert.equal(await b, "stale");
+  assert.equal(limiter.stats.dropped, 1);
 });
 
 test("Night 1 Cop and Journalist pick a seeded random legal target with zero model calls", async () => {
