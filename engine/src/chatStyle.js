@@ -23,12 +23,13 @@ export function stripReasoning(text) {
   return String(text || "").replace(/<(think|thinking|reasoning)>[\s\S]*?(?:<\/\1>|$)/gi, " ").replace(/^[\s\S]*?<\/(?:think|thinking|reasoning)>/i, " ");
 }
 
-/** One sentence, no list markup, cut at a word boundary under the cap. */
+/** First line, no list markup; a line over the cap keeps its first sentence, then is cut at a word boundary. */
 export function chatShorten(text, max = PUBLIC_MAX) {
   let s = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
   s = s.split(/\n+/).map((l) => l.replace(/^\s*([-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean)[0] || "";
   s = s.replace(/\s+/g, " ").trim();
-  const sentence = s.match(/^(.+?[.!?])(\s|$)/);
+  // A whole line that fits stays whole: "im journalist. x got no report, fake cop" must not lose its point.
+  const sentence = s.length > max && s.match(/^(.+?[.!?])(\s|$)/);
   if (sentence && sentence[1].length >= 8) s = sentence[1];
   if (s.length > max) {
     const cut = s.slice(0, max + 1);
