@@ -5,6 +5,8 @@ import { ALIGNMENT } from "./faction.js";
 import { dayFraction } from "./sheriffGate.js";
 
 export const PUBLIC_MAX = 80;
+/** A model chat line is 3-12 words (SPEECH_SYSTEM); longer replies are cut to the first 12. */
+export const SPEECH_WORDS = 12;
 
 export const SPEECH_SYSTEM = [
   "You are a player in a fast Mafia chatroom. Write ONE chat line.",
@@ -16,12 +18,18 @@ export const SPEECH_SYSTEM = [
   "Reply with only the line.",
 ].join("\n");
 
-/** One sentence, no list markup, cut at a word boundary under the cap. */
+/** Drop hidden reasoning a model leaked into its reply: <think>/<thinking>/<reasoning> blocks, closed or cut off. */
+export function stripReasoning(text) {
+  return String(text || "").replace(/<(think|thinking|reasoning)>[\s\S]*?(?:<\/\1>|$)/gi, " ").replace(/^[\s\S]*?<\/(?:think|thinking|reasoning)>/i, " ");
+}
+
+/** First line, no list markup; a line over the cap keeps its first sentence, then is cut at a word boundary. */
 export function chatShorten(text, max = PUBLIC_MAX) {
-  let s = String(text || "").replace(/<think>[\s\S]*?<\/think>/gi, " ").replace(/^\s*["'`]+|["'`]+\s*$/g, "");
+  let s = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
   s = s.split(/\n+/).map((l) => l.replace(/^\s*([-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean)[0] || "";
   s = s.replace(/\s+/g, " ").trim();
-  const sentence = s.match(/^(.+?[.!?])(\s|$)/);
+  // A whole line that fits stays whole: "im journalist. x got no report, fake cop" must not lose its point.
+  const sentence = s.length > max && s.match(/^(.+?[.!?])(\s|$)/);
   if (sentence && sentence[1].length >= 8) s = sentence[1];
   if (s.length > max) {
     const cut = s.slice(0, max + 1);
@@ -98,6 +106,12 @@ export function counterclaimReason(view) {
     const r = claimedRoleIn(m.content) || lc(view?.claims?.[m.senderId]?.role);
     if (mine && r && r === mine) return { kind: "role", by: m.senderId };
     if (mentionsId(view, m.content, view.selfId) && /\b(guilty|mafia|scum)\b/i.test(String(m.content || "")) && !/\bnot\s+(guilty|mafia)/i.test(String(m.content || ""))) return { kind: "guilty", by: m.senderId };
+  }
+  // A living rival holding my unique role's claim from an earlier day still needs an answer.
+  if (/^(cop|journalist)$/.test(mine)) {
+    const rival = Object.entries(view?.claims || {}).find(([id, c]) => id !== view.selfId && c?.kind !== "retract" && lc(c?.role) === mine
+      && view.players?.[id] && !view.players[id].left && !view.dead?.[id]);
+    if (rival) return { kind: "role", by: rival[0] };
   }
   return null;
 }
@@ -197,9 +211,9 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
   // Every town role may claim under pressure (L-1 or the leading wagon late): no immediate claims.
   if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)) || underPressure(view));
-  // Journalist (Vinman's fixed rule): a guilty on me or real info (a report worth sharing); a role steal
-  // alone is not a trigger. Under pressure it claims too.
-  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view) || underPressure(view);
+  // Journalist: a rival Journalist claim (counterclaim at once: the role is unique), a guilty on me, or real
+  // info (a report worth sharing). Under pressure it claims too.
+  if (/journalist/i.test(role)) return !!(counterclaimReason(view) || journalistInfo(view) || underPressure(view));
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
 }
@@ -285,6 +299,24 @@ export function cannedReaction(view, rng = Math.random) {
   const mine = new Set((view?.messages || []).filter((m) => m.senderId === view?.selfId).map((m) => String(m.content || "").toLowerCase()));
   const named = (view?.messages || []).slice(-4).some((m) => m.senderId !== view?.selfId && view?.players?.[view.selfId]?.name && String(m.content || "").toLowerCase().includes(String(view.players[view.selfId].name).toLowerCase()));
   const pool = (named ? ["why me", "wait why me", "nah not me", "?? why"] : CANNED).filter((l) => !mine.has(l));
+  return pool.length ? pool[Math.floor(rng() * pool.length)] : null;
+}
+
+const ACCUSING = /\b(scum|mafia|maf|guilty|lying|liar|lie|sus|sussy|suspicious|vote|voting|lynch|hammer|fake|wagon|janitor|lawyer)\b/i;
+
+/**
+ * A rules reply when this seat was accused (named or voted) and no model line came out: answer, never go silent.
+ * No role words (a claim goes through the claim rules), and not a line this seat already said.
+ */
+export function accusedReply(view, meetingId, rng = Math.random) {
+  const to = addressedBy(view, meetingId);
+  // Only an accusation needs an answer: a vote on me, or a line naming me with an accusing word.
+  if (!to || (to.kind !== "vote" && !ACCUSING.test(to.text))) return null;
+  const n = String(to.name || "").toLowerCase();
+  // Once per accuser per day: a rules reply is a stopgap, not a conversation.
+  if (!n || todayLines(view).some((m) => m.senderId === view.selfId && lc(m.content).startsWith(`${n} `))) return null;
+  const mine = new Set((view?.messages || []).filter((m) => m.senderId === view?.selfId).map((m) => String(m.content || "").toLowerCase()));
+  const pool = [`${n} why me`, `${n} not me, look elsewhere`, `${n} what did i even do`, `${n} wrong guy, not me`].map((l) => l.trim()).filter((l) => !mine.has(l));
   return pool.length ? pool[Math.floor(rng() * pool.length)] : null;
 }
 
@@ -392,7 +424,7 @@ export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}
 export function cleanChatReply(raw, view, addressed) {
   let text = String(raw || "");
   try { const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "null"); if (j && typeof j === "object") text = String(j.content ?? j.text ?? j.say ?? ""); } catch { /* plain text */ }
-  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, ""));
+  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, "")).split(" ").slice(0, SPEECH_WORDS).join(" ");
   if (!text) return "";
   if (addressed?.name && !text.toLowerCase().includes(String(addressed.name).toLowerCase())) {
     text = chatShorten(`${String(addressed.name).toLowerCase()} ${text}`);

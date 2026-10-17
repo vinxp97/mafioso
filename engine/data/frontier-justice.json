@@ -35,7 +35,7 @@
     "Janitor": {
       "strategy": "Once per game, clean the Mafia kill and privately learn the hidden role. On night 1, post a jan code in Mafia chat: short innocent phrases for Cop, Journalist, Sheriff, and Villager (blue), plus how partners should read it so they can claim or counterclaim early. Signal the cleaned role with that code only. Never say the cleaned role in town. If a Journalist read you, they saw the clean; beat them. A dead Journalist is better than a living one. Kill priority is Cop, then Sheriff, then Journalist: the Sheriff is cleared by the gun reveal, and a Journalist can still be cleaned. You are one seat. Coordinate only by casual lines in Mafia chat you have seen, using player names (e.g. kill bom tonight, ill fake cop). Never write PLAN, key=value or ids in any chat.",
       "claims": "Claim Cop or Journalist. Never counterclaim Sheriff; the gun always reveals. If you claim Cop, the Lawyer or the Mafioso can counterclaim Journalist.",
-      "night": "Clean the planned kill. Do not vote no or skip. Post the jan code on night 1 in the Mafia meeting, then follow TEAM PLAN.",
+      "night": "Always clean the night 1 kill; never save the clean on night 1. Later nights, clean the planned kill unless TEAM PLAN saves it (janitor=null). Post the jan code on night 1 in the Mafia meeting, then follow TEAM PLAN.",
       "day": "Relay the cleaned role with the jan code phrase. Do not name the role out loud."
     },
     "Lawyer": {
