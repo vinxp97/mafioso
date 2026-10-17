@@ -1,6 +1,8 @@
 // Fast-chatroom public speech: short lines, early-claim discipline.
-import { memoryOf } from "./notes.js";
+import { memoryOf, JANITOR_REPORT } from "./notes.js";
 import { sanitizeChat, defang } from "./sanitize.js";
+import { ALIGNMENT } from "./faction.js";
+import { dayFraction } from "./sheriffGate.js";
 
 export const PUBLIC_MAX = 80;
 
@@ -53,6 +55,26 @@ export function pressureOn(view) {
   return Object.values(m.votes || {}).filter((t) => (Array.isArray(t) ? t.includes(view.selfId) : t === view.selfId)).length;
 }
 
+/** Pressure on this seat: L-1 (one vote short of a majority hammer), or the leading 2+ wagon late in the day. */
+export const PRESSURE = Object.freeze({ lateFraction: 0.5, minLeadingVotes: 2 });
+export function underPressure(view) {
+  const m = villageMeeting(view);
+  if (!m || view?.phase?.phase !== "Day") return false;
+  const counts = {};
+  for (const t of Object.values(m.votes || {})) {
+    const sel = Array.isArray(t) ? t[0] : t;
+    if (sel && sel !== "*") counts[sel] = (counts[sel] || 0) + 1;
+  }
+  const mine = counts[view.selfId] || 0;
+  if (!mine) return false;
+  const living = Object.keys(view.players || {}).filter((id) => !view.dead?.[id] && !view.players[id]?.left).length;
+  const hammer = Math.floor(living / 2) + 1;
+  if (mine >= hammer - 1) return true;
+  const frac = dayFraction(view);
+  const top = Math.max(0, ...Object.entries(counts).filter(([t]) => t !== view.selfId).map(([, c]) => c));
+  return (frac == null || frac >= PRESSURE.lateFraction) && mine >= PRESSURE.minLeadingVotes && mine >= top;
+}
+
 function hasGuiltyCheck(view) {
   const checks = memoryOf(view).checks || {};
   return Object.values(checks).some((c) => /mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`));
@@ -84,14 +106,60 @@ export function counterclaimReason(view) {
 export function journalistInfo(view) {
   const checks = memoryOf(view).checks || {};
   for (const [id, c] of Object.entries(checks)) {
-    if (/janitor|clean/i.test(`${c?.result || ""} ${c?.detail || ""}`)) return { kind: "janitor", target: id };
+    // Only the Janitor gets its clean result (live ":mop: You discover X's role is Y.").
+    if (/^reports?:/i.test(String(c?.detail || "")) && JANITOR_REPORT.test(String(c.detail))) return { kind: "janitor", target: id };
   }
   for (const [id, c] of Object.entries(checks)) {
     const text = `${c?.result || ""} ${c?.detail || ""}`;
     const claimedCop = /cop/i.test(String(view?.claims?.[id]?.role || ""));
     if (claimedCop && /\b(no report|no reports|nothing|did not receive|didn'?t receive|received no)\b/i.test(text)) return { kind: "fakecop", target: id };
   }
+  // A Cop claimer whose reports include a Guilty: relay it (a Loyal Lawyer cannot fake a Guilty), even
+  // when that Cop died the same night.
+  for (const [id, c] of Object.entries(checks)) {
+    const text = String(c?.detail || "");
+    if (!/cop/i.test(String(view?.claims?.[id]?.role || "")) || !/reports?:/i.test(text)) continue;
+    const m = COP_GUILTY_REPORT.exec(text);
+    const guilty = m && Object.keys(view?.players || {}).find((pid) => lc(view.players[pid]?.name || "") === lc(m[1]) && !view.dead?.[pid]);
+    if (guilty && guilty !== view.selfId) return { kind: "copguilty", target: id, guilty };
+  }
+  // A Cop claimer whose reports include a Cop result is the real Cop. Only worth outing myself for when
+  // the Cop claim is contested (otherwise it just paints two targets).
+  const copClaimers = Object.entries(view?.claims || {}).filter(([pid, c]) => /cop/i.test(String(c?.role || "")) && c.kind !== "retract" && !view.dead?.[pid]).map(([pid]) => pid);
+  if (copClaimers.length >= 2) {
+    for (const [id, c] of Object.entries(checks)) {
+      const text = `${c?.result || ""} ${c?.detail || ""}`;
+      if (copClaimers.includes(id) && /investigation|guilty|innocent/i.test(text) && /reports?:/i.test(text)) return { kind: "realcop", target: id };
+    }
+  }
   return null;
+}
+
+const COP_GUILTY_REPORT = /(?:investigation shows|investigating, you learn) that (.+?) is (?:guilty|mafia)\b/i;
+
+/**
+ * Other legitimate Journalist findings worth saying once claimed (never a claim trigger on their own).
+ * In FJ a real Journalist always has a report (its own), and a Villager never does:
+ *  - a living rival Journalist claimer with no report is a fake Journalist,
+ *  - a living Villager claimer with no report fits the claim.
+ * An unclaimed player with a Cop result is the real Cop: never outed here.
+ */
+export function journalistExtras(view) {
+  const checks = memoryOf(view).checks || {};
+  const out = [];
+  for (const [id, c] of Object.entries(checks)) {
+    if (id === view?.selfId || view.dead?.[id] || !/^no reports?$/i.test(String(c?.detail || ""))) continue;
+    const claim = lc(view?.claims?.[id]?.kind === "retract" ? "" : view?.claims?.[id]?.role || "")
+      || lc(claimedRoleIn((view.messages || []).filter((m) => m?.senderId === id && m.public !== false).map((m) => m.content).join(". ")) || "");
+    if (/journalist/.test(claim)) out.push({ kind: "fakejournalist", target: id });
+    else if (/villager|vanilla|^vt$|town/.test(claim)) out.push({ kind: "noreport", target: id });
+  }
+  // A fake Journalist first: it is the stronger call.
+  return out.sort((a, b) => (a.kind === "fakejournalist" ? 0 : 1) - (b.kind === "fakejournalist" ? 0 : 1));
+}
+
+export function journalistExtraWhat(x, nm) {
+  return x.kind === "fakejournalist" ? `${nm(x.target)} got no report, fake journalist` : `${nm(x.target)} got no report, fits villager`;
 }
 
 /** A living, outed Sheriff (any seat that publicly claimed Sheriff and is alive). */
@@ -109,14 +177,29 @@ function guiltyTarget(view) {
   return null;
 }
 
+/**
+ * Cop claim rule. "vinman" (default, Vinman's FJ rule): claim once a Sheriff has outed and is alive, or
+ * with a guilty, or when counterclaimed / called guilty. "wait": the same without the Sheriff-out trigger
+ * (an early Cop claim is a free night kill). Set per seat with view.config.copRule (the "botConfig" frame).
+ */
+export const COP_RULES = Object.freeze(["vinman", "wait"]);
+export function copRuleOf(view) {
+  return view?.config?.copRule === "wait" ? "wait" : "vinman";
+}
+
 /** May this seat claim a role in public now? Rules, not the model, decide for Cop and Journalist. */
 export function claimAllowed(view, { planSpeaker = false } = {}) {
   if (view?.phase?.phase !== "Day") return true;
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
   if (planSpeaker) return true;
-  if (/^cop$/i.test(role)) return !!(sheriffOutAlive(view) || hasGuiltyCheck(view) || counterclaimReason(view));
-  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view);
+  // FJ: the real Cop claims to deliver a guilty, or when counterclaimed or called guilty; under the default
+  // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
+  // Every town role may claim under pressure (L-1 or the leading wagon late): no immediate claims.
+  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)) || underPressure(view));
+  // Journalist (Vinman's fixed rule): a guilty on me or real info (a report worth sharing); a role steal
+  // alone is not a trigger. Under pressure it claims too.
+  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view) || underPressure(view);
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
 }
@@ -127,12 +210,42 @@ function allResults(view) {
     .map(([id, c]) => `${nm(id)} ${/mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`) ? "guilty" : "inno"}`).join(", ");
 }
 
+function journalistWhat(info, nm) {
+  if (!info) return "";
+  if (info.kind === "janitor") return `${nm(info.target)} is janitor`;
+  if (info.kind === "copguilty") return `${nm(info.target)} got a cop report, real cop, it said ${nm(info.guilty)} guilty`;
+  if (info.kind === "realcop") return `${nm(info.target)} got a cop report, real cop`;
+  return `${nm(info.target)} got no report, fake cop`;
+}
+
 /** The rules-decided claim line for Cop / Journalist (null when they should stay quiet). */
 export function roleClaimLine(view) {
-  if (view?.phase?.phase !== "Day" || !claimAllowed(view)) return null;
+  if (view?.phase?.phase !== "Day") return null;
   const role = String(view.role || "");
+  const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
+  const already = mine.some((m) => claimedRoleIn(m.content) === lc(role));
+  // An outed Journalist may share new report info (no new claim); everything else needs the claim rules.
+  const allowed = claimAllowed(view);
+  if (!allowed && !(already && /journalist/i.test(role))) return null;
   const nm = (id) => lc(nameOfId(view, id) || "");
   const cc = counterclaimReason(view);
+  // Already claimed: only new information, without repeating the claim (one claim per seat per game).
+  if (already) {
+    let info = null;
+    if (/^cop$/i.test(role)) { const res = allResults(view); info = res ? `results: ${res}` : null; }
+    if (/journalist/i.test(role)) {
+      const j = journalistInfo(view);
+      info = journalistWhat(j, nm) || null;
+      if (!info || mine.some((m) => lc(m.content).includes(lc(info)))) {
+        const x = journalistExtras(view).map((e) => journalistExtraWhat(e, nm)).find((w) => !mine.some((m) => lc(m.content).includes(lc(w))));
+        if (x) info = x;
+      }
+    }
+    // A new rival claim or a guilty on me: call it out again, once per accuser.
+    const callOut = allowed && cc && !mine.some((m) => mentionsId(view, m.content, cc.by) && /\blying\b/i.test(String(m.content || ""))) ? `${nm(cc.by)} is lying` : null;
+    const line = [callOut, info && !mine.some((m) => lc(m.content).includes(lc(info))) ? info : null].filter(Boolean).join(", ");
+    return line ? line.slice(0, 80) : null;
+  }
   const lead = cc ? `${nm(cc.by)} is lying, ` : "";
   if (/^cop$/i.test(role)) {
     const res = allResults(view);
@@ -140,8 +253,18 @@ export function roleClaimLine(view) {
   }
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
-    const what = info ? (info.kind === "janitor" ? `${nm(info.target)} is janitor` : `${nm(info.target)} got no report, fake cop`) : "";
-    return `${lead}im journalist${what ? `. ${what}` : ""}`.slice(0, 80);
+    const what = journalistWhat(info, nm);
+    const extra = journalistExtras(view)[0];
+    const more = extra ? journalistExtraWhat(extra, nm) : "";
+    if (what) return `${lead}im journalist. ${what}`.slice(0, 80);
+    if (underPressure(view)) return `${lead}im journalist${more ? `. ${more}` : ", nothing useful yet"}. not me`.slice(0, 80);
+    return `${lead}im journalist${more ? `. ${more}` : ""}`.slice(0, 80);
+  }
+  // FJ: the Sheriff outs on Day 1 (a known Sheriff is a deterrent and a test of Cop claims).
+  if (/^sheriff$/i.test(role)) return `${lead}im sheriff${cc ? ", the real one" : ""}`.slice(0, 80);
+  // Any other town role under pressure says what it is; a Villager says it has no power.
+  if (ALIGNMENT[role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()] === "Village" && underPressure(view)) {
+    return /^villager$/i.test(role) ? "im just a villager, no power role. not me" : `im ${lc(role)}. not me`;
   }
   return null;
 }

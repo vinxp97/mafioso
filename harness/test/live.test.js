@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { SYSTEM_PROMPT, validateAction } from "mafioso-engine";
 import { DevApiClient, HostNotAllowedError } from "../src/client.js";
-import { DAY_VOTE,
+import { createVirtualClock } from "../src/clock.js";
+import {
   backoffMs, createBackendComplete, driveAccounts, iterateSse, liveConfigFromEnv,
   normalizeAccounts, openTestingGame, pollOnce, redact, runLiveCli, runStreamLoop,
   streamUrl, tokenExpired, TOKEN_REFRESH_MS, withCfAccess,
@@ -189,8 +190,7 @@ test("CF header stays off the model call; lmstudio targets host.docker.internal"
 test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child prompt", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "mafioso-live-"));
   const lines = [];
-  // The day vote waits for discussion: put both seats in the last minute and shrink the stagger.
-  Object.assign(DAY_VOTE, { staggerMinMs: 5, staggerMaxMs: 20, scumExtraMs: 0 });
+  // The day vote waits for discussion: put both seats in the last minute. The 2-15s stagger runs on a virtual clock.
   const late = (accountId, seq) => [{ accountId, seq, event: "time", data: { time: 300000 } }, { accountId, seq: seq + 1, t: 1_700_000_010_000, event: "time", data: { time: 30000 } }];
   const sse = [
     ...day("A", "p1", 1), ...late("A", 5),
@@ -220,6 +220,7 @@ test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child pr
     sleep: async () => { throw new Error("reconnect"); },
     now: () => 1_700_000_000_000,
     rng: () => 0.99,
+    clock: createVirtualClock(1_700_000_000_000),
     env: {
       MAFIOSO_LIVE: "1",
       DEV_API_BASE_URL: "http://127.0.0.1:3000",

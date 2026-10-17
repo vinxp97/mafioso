@@ -7,6 +7,9 @@ export function emptyNotes() {
   return { checks: {}, cleared: [], suspects: [], deaths: [], votes: [], heard: [], plan: null };
 }
 
+/** A report only the Janitor gets: its clean result (live ":mop: You discover X's role is Y."). */
+// Not "learn that X's role is": a role Cop's ":invest: You Learn that X's Role is Y." says that (real archive text).
+export const JANITOR_REPORT = /janitor|\bclean(?:ed|s)?\b|:mop:|\bdiscover .+?'s role is/i;
 const SIDED = /^(.+?) is sided with the (Village|Mafia|Cult|Town)\b/i;
 const ROLE_LINE = /^(.+?) is (?:a |an |the )?([A-Za-z][A-Za-z ]+?)\.?$/;
 
@@ -68,6 +71,23 @@ export function parseServerInfo(view, data) {
   if (sender && sender !== "server" && sender !== "anonymous") return null;
   let text = String(data?.content || "").trim();
   // Live server wording: Cop "Your investigation shows that X is Guilty"; Journalist report lines.
+  // Live alerts carry an emoji tag (":invest:", ":journ:", ":mop:"); the FJ Cop card (LearnAlignment) says
+  // "After investigating, you learn that X is Mafia!".
+  const tag = (/^:([\w-]+):/.exec(text) || [])[1] || "";
+  text = text.replace(/^(?::[\w-]+:\s*)+/, "").replace(/^after investigating,?\s+you learn that\s+(.+?)!*$/i, "$1");
+  // Investigator variants seen in the real archive (mafia.db): a role Cop ":invest: You Learn that X's Role is Y."
+  // (also "not A, or B"), and ":invest: You learn that X is Guilty.".
+  if (!tag || tag === "invest") {
+    const roleCop = text.match(/^you learn that (.+?)'s role is (.+?)\.*$/i);
+    if (roleCop) {
+      const playerId = namedId(view, roleCop[1]);
+      if (!playerId || playerId === view.selfId) return null;
+      const detail = roleCop[2].trim();
+      const align = /^not\b/i.test(detail) ? "" : resultAlign(detail) || "";
+      return { playerId, detail, align, role: align ? detail : null, text };
+    }
+    text = text.replace(/^you learn that (.+?) is (guilty|innocent|village|mafia|cult|independent)[.!]*$/i, "$1 is $2");
+  }
   text = text.replace(/^your investigation shows that\s+/i, "").replace(/^you learn that your\s+(.+?)'s alignment is\s+/i, "$1 is ");
   const noRep = text.match(/^you learn that (.+?) received no reports\.?$/i);
   const allRep = text.match(/^you received all reports that (.+?) received:\s*(.+?)\.?$/i);
@@ -75,7 +95,7 @@ export function parseServerInfo(view, data) {
     const pid = namedId(view, (noRep || allRep)[1]);
     if (!pid || pid === view.selfId) return null;
     const detail = noRep ? "no reports" : `reports: ${allRep[2]}`;
-    return { playerId: pid, detail, align: "", role: /janitor/i.test(detail) ? "Janitor" : null, text };
+    return { playerId: pid, detail, align: "", role: JANITOR_REPORT.test(detail) ? "Janitor" : null, text };
   }
   const sided = text.match(SIDED);
   const roleLine = sided ? null : text.match(ROLE_LINE);
@@ -127,7 +147,7 @@ export function applyNotes(view, frame) {
       target: String(data.target),
       meetingId: data.meetingId ? String(data.meetingId) : "",
       phase: view.phase?.name || "",
-    }, 40);
+    }, 200);
   }
   if ((event === "message" || event === "quote") && data) {
     rememberCheck(view, data);

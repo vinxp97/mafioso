@@ -1,20 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduce, emptyView, validateAction, generatePublicSpeech, PUBLIC_MAX, claimAllowed } from "mafioso-engine";
-import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry, SCUM_CHAT, DAY_VOTE } from "../src/live.js";
+import { reduce, emptyView, validateAction, generatePublicSpeech, PUBLIC_MAX, claimAllowed, createSeededRng } from "mafioso-engine";
+import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry } from "../src/live.js";
+import { createVirtualClock } from "../src/clock.js";
 import { seats, players, meetingsFor, MAFIA } from "./fixtures/smu-night1.mjs";
 
-Object.assign(SCUM_CHAT, { minDelayMs: 10, maxDelayMs: 40, gapMs: 20 });
-Object.assign(DAY_VOTE, { staggerMinMs: 5, staggerMaxMs: 20, scumExtraMs: 5 });
 const failing = async () => { throw new Error("model down"); };
 const mafiaSeats = seats.filter((s) => MAFIA.has(s.role));
 // Night N meetings: fresh ids every night, as on the server.
 const nightMeetings = (s, n, dead) => meetingsFor(s).map((m) => ({ ...m, id: `${m.id}-n${n}`, targets: (m.targets || []).filter((t) => !dead.has(t)), votes: {} }));
 
-test("N1 -> D1 -> N2: PLAN, kill votes, Mafia Action Yes and faction chatter fire every night", { timeout: 60000 }, async () => {
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+test("N1 -> D1 -> N2: PLAN, kill votes, Mafia Action Yes and faction chatter fire every night", async () => {
+  // Real delays (SCUM_CHAT, COPY_VOTE) on a virtual clock with a seeded rng: deterministic and instant.
+  const clock = createVirtualClock(1_800_000_000_000);
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock, rng: createSeededRng(7) });
   const seq = {};
-  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { complete: failing, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: Math.random }); };
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: clock.now(), event, data }, { complete: failing, dryRun: true, fast: true, limiter: createLlmLimiter(1) }); };
   const echoed = new Set();
   const visible = {};
   const echo = async () => {
@@ -28,7 +29,7 @@ test("N1 -> D1 -> N2: PLAN, kill votes, Mafia Action Yes and faction chatter fir
       }
     }
   };
-  const settle = async () => { for (let i = 0; i < 4; i++) { await drainUpgrades(table); await echo(); for (const s of seats) await feed(s, "time", { time: 1000 }); await new Promise((r) => setTimeout(r, 60)); } };
+  const settle = async () => { for (let i = 0; i < 4; i++) { await drainUpgrades(table); await echo(); for (const s of seats) await feed(s, "time", { time: 1000 }); clock.advance(60); } };
   for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
   for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
   const dead = new Set();

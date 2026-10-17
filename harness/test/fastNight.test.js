@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyView, reduce } from "mafioso-engine";
+import { emptyView, reduce, createSeededRng } from "mafioso-engine";
 import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry } from "../src/live.js";
 
 const ids = ["p1", "p2", "p3", "p4", "p5", "p6"];
@@ -22,19 +22,22 @@ function seat(table, acc, self, role, meetings, { day = false, night = 1 } = {})
 test("slow model: every town night action goes out at once from rules, with no model call", async () => {
   const table = createBotTable([{ accountId: "C" }, { accountId: "J" }]);
   const limiter = createLlmLimiter(1);
+  // The model never answers until the test says so: if the rules vote waited on it, we would never get here.
+  let release; const gate = new Promise((r) => { release = r; });
+  let answered = false;
   const complete = async ({ purpose }) => {
-    await sleep(300);
+    await gate; answered = true;
     if (purpose === "candidates") return JSON.stringify({ options: [{ kind: "vote", meeting: "mCop", target: "p6", why: "quiet" }, { kind: "vote", meeting: "mCop", target: "p4", why: "x" }, { kind: "vote", meeting: "mCop", target: "p6", why: "y" }] });
     return '{"action":"vote","meeting":"mCop","target":"p6"}';
   };
   const cop = seat(table, "C", "p1", "Cop", [{ id: "mCop", name: "Cop", actionName: "Learn Alignment", voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "p4", "p6"], votes: {} }], { night: 2 });
-  const t0 = Date.now();
   const sent = [];
   for (const e of cop) sent.push(...await onGameEntry(table, e, { complete, dryRun: true, fast: true, limiter, rng: () => 0 }));
   const instant = sent.find((a) => a.data.meetingId === "mCop");
   assert.ok(instant, "rules vote sent");
   assert.equal(instant.source, "rules");
-  assert.ok(Date.now() - t0 < 1000, `took ${Date.now() - t0}ms`);
+  assert.equal(answered, false, "the rules vote did not wait for the model");
+  release();
   await drainUpgrades(table);
   const votes = table.proposed.filter((a) => a.data.meetingId === "mCop");
   assert.ok(votes.length >= 1);
@@ -62,7 +65,7 @@ test("Night 1 Cop and Journalist pick a seeded random legal target with zero mod
     const complete = async () => { calls++; return "{}"; };
     const frames = seat(table, "S", "p1", role, [{ id: "mInv", name: role, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "p4", "p6", "*"], votes: {} }]);
     frames.splice(3, 0, { accountId: "S", seq: 0.5, t: 1001, event: "death", data: "p3" });
-    for (const [i, e] of frames.entries()) await onGameEntry(table, { ...e, seq: i + 1 }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: Math.random });
+    for (const [i, e] of frames.entries()) await onGameEntry(table, { ...e, seq: i + 1 }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: createSeededRng(9) });
     await drainUpgrades(table);
     assert.equal(calls, 0, `${role}: no model calls`);
     const v = table.proposed.filter((a) => a.data.meetingId === "mInv");

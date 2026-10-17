@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduce, emptyView, validateAction, roleClaimLine, claimAllowed, sheriffShotReady, applySheriffRule, lineSimilarity, repeatBlock } from "mafioso-engine";
-import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry, townFollow, SCUM_CHAT } from "../src/live.js";
+import { reduce, emptyView, validateAction, roleClaimLine, claimAllowed, sheriffShotReady, applySheriffRule, lineSimilarity, repeatBlock, createSeededRng } from "mafioso-engine";
+import { createBotTable as realTable, createLlmLimiter, drainUpgrades, onGameEntry, townFollow } from "../src/live.js";
+import { createVirtualClock } from "../src/clock.js";
+// Every table here runs on a virtual clock and a seeded rng: deterministic, no wall-clock waits.
+const T0 = 1_800_000_000_000;
+let clock = createVirtualClock(T0);
+const createBotTable = (accounts, seed = 1) => { clock = createVirtualClock(T0); return realTable(accounts, { clock, rng: createSeededRng(seed) }); };
 import { seats, players, meetingsFor, MAFIA } from "./fixtures/smu-night1.mjs";
 
 const ME = "a0BHWAcOIlw"; // Ash
@@ -23,7 +28,7 @@ test("town night: no model call for town seats at night", { timeout: 30000 }, as
   let calls = 0;
   const complete = async () => { calls++; return "{}"; };
   const seq = {};
-  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: Math.random }); };
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: clock.now(), event, data }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1) }); };
   const town = seats.filter((s) => !MAFIA.has(s.role));
   for (const s of town) { await feed(s, "self", s.pid); await feed(s, "players", players); await feed(s, "roleReveal", { playerId: s.pid, role: s.role }); await feed(s, "state", { id: 4, name: "Night 2" }); for (const m of meetingsFor(s)) await feed(s, "meeting", m); }
   await drainUpgrades(table);
@@ -42,7 +47,7 @@ test("live report wording is parsed: Cop guilty/innocent, Journalist no-reports 
   assert.equal(j.notes.checks.rhyFPKXcnH.detail, "no reports");
 });
 
-test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or counterclaimed/guiltied; else quiet", () => {
+test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or counterclaimed/guiltied; else quiet (copRule vinman, the default)", () => {
   const quiet = seat("Cop", [srv("Your investigation shows that Cal is Innocent")]);
   assert.equal(roleClaimLine(quiet), null);
   assert.equal(claimAllowed(quiet), false);
@@ -50,6 +55,8 @@ test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or count
   assert.equal(roleClaimLine(g), "im cop. bea guilty");
   const sh = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
   assert.equal(roleClaimLine(sh), "im cop. cal inno");
+  const shWait = reduce(seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]), { event: "botConfig", data: { copRule: "wait" } });
+  assert.equal(roleClaimLine(shWait), null, "copRule wait: a Sheriff out alone is not a Cop trigger");
   const shDead = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
   shDead.dead = { kCMt06jKvBp: true };
   assert.equal(roleClaimLine(shDead), null, "a dead Sheriff does not trigger it");
@@ -109,17 +116,16 @@ test("one role claim per seat, and no line too similar to recent chat", async ()
   table.views.S = s;
   table.fastMode = true;
   const opts = { dryRun: true, fast: true, limiter: createLlmLimiter(1), complete: async ({ purpose }) => (purpose === "speech" ? "im sheriff, holding my shot" : "{}") };
-  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "S", seq: i + 1, t: Date.now() + i * 10000, event: "message", data: { meetingId: "vil", senderId: "rhyFPKXcnH", content: `line ${i} about bea and stuff` } }, opts);
+  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "S", seq: i + 1, t: clock.now() + i * 10000, event: "message", data: { meetingId: "vil", senderId: "rhyFPKXcnH", content: `line ${i} about bea and stuff` } }, opts);
   await drainUpgrades(table);
   const claims = table.proposed.filter((p) => p.event === "speak" && /sheriff/i.test(p.data.content));
   assert.ok(claims.length <= 1, `claims ${claims.length}`);
 });
 
-test("mafia night: chatter first, then the kill votes", { timeout: 30000 }, async () => {
-  Object.assign(SCUM_CHAT, { minDelayMs: 20, maxDelayMs: 60, gapMs: 20, killAfterMs: 300, killJitterMs: 50 });
+test("mafia night: chatter first, then the kill votes", async () => {
   const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
   const seq = {};
-  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: Math.random }); };
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: clock.now(), event, data }, { dryRun: true, fast: true, limiter: createLlmLimiter(1) }); };
   const mafia = seats.filter((s) => MAFIA.has(s.role));
   for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
   for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
@@ -169,4 +175,11 @@ test("4-3 replay: the last town seat does not hammer town on a mafia-led wagon",
   const v = seat("Villager", [msg(HAP, "eli is mafia lynch him"), msg(IVO, "yeah eli")]);
   v.notes.suspects = [HAP, IVO];
   assert.equal(townFollow(v, vilM({ [HAP]: ELI, [IVO]: ELI, [DOT]: ELI, [BEA]: CAL, [FIN]: CAL })), CAL);
+});
+
+test("Sheriff outs with a plain claim line (counterclaim adds 'the real one'); a claimed Cop calls out a later fake", () => {
+  assert.equal(roleClaimLine(seat("Sheriff")), "im sheriff");
+  assert.match(roleClaimLine(seat("Sheriff", [msg("otU9CsNlbw", "im sheriff")])) || "", /im sheriff, the real one/);
+  const cop = seat("Cop", [srv("Your investigation shows that Bea is Guilty"), { event: "message", data: { meetingId: "vil", senderId: ME, content: "im cop. bea guilty" } }, msg("kCMt06jKvBp", "im cop, ash is guilty")]);
+  assert.match(roleClaimLine(cop) || "", /ivo is lying/);
 });

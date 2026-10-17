@@ -72,3 +72,35 @@ node scripts/arena.mjs --summary --file ../../logs/replays/arena-1.jsonl
 ```
 
 One JSON object per game is written to `logs/replays/arena-<seed>.jsonl` (gitignored). `--summary` prints `summarizeMetrics` (Wilson intervals) for that file, or for the run it just played.
+
+## Self-play (`src/selfplay.js`, `scripts/selfplay.mjs`)
+
+Full Frontier Justice 9p games with no server, no network and no model. An in-process server deals FJ (reusing the arena's role list, seed mixing, plurality and win check), sends live-shaped frames (`state`, `meeting`, `vote`, `unvote`, `message`, `death`, `reveal`, `time`, `timerInfo`, `youAreBeingVoteKicked`) to the real harness table (`onGameEntry`, fast mode), and applies the table's proposals, immediate and deferred. So every seat runs the live path: `rulesSeatActions` -> `decide` (bus included) -> `shapeDayVotes`, scum faction chatter and PLAN, the Cop/Journalist claim rule, and `proposeSeatActions` (candidates -> selector, rules fallback). The model is `createOfflineComplete`. Candidate prompts get every legal target as an option, so the selector's scores choose. Speech prompts answer only when the engine already prescribes the line (the Sheriff-out aim, or the PLAN speaker's fake claim). Everything else throws, so the no-model rules line is used. Use `speech: "none"` to throw on every speech prompt.
+
+The server follows the restartq rules. Meetings resolve by plurality (a tie means no one). A night ends once every meeting is ready, and a day once the Village is ready (everyone voted, no tie). When the timer runs out, a Vote Kick window opens, and anyone who never voted in a must-vote meeting is vegged at the end. Night order: Litigate flips the Cop result, then the mafia kill, then Clean Death (once; it hides the role and the Janitor learns it), then the Cop and Journalist reports. Alert text is the live wording, emoji tags included (`:mop: You discover X's role is Y.`, `:journ: You learn that X received no reports.` / `:journ: You received all reports that X received: ...`); the engine also parses the live FJ Cop line `:invest: After investigating, you learn that X is Mafia!`. The Shoot Gun is instant, single use, reveals the shooter and is available every day. Votes on a player who dies are cleared and the meeting is re-sent. Each proposal is checked against server truth and against the engine's `validateAction` on the seat's own view, both when the table sends it and when the server applies it. One that fails at send time is an illegal action. One that was legal when sent but is overtaken before it lands (the phase ended, or its target or seat died in between) is counted as stale, not illegal. Time is a virtual clock, and randomness comes from one seeded rng per game, so the same seed always produces the same games.
+
+```bash
+cd harness
+npm run selfplay -- --games 50 --seed 1          # writes ../logs/selfplay/selfplay-seed1-n50.{json,md,records.jsonl,games.jsonl}
+npm run selfplay -- --games 50 --seed 1 --cop-rule wait   # ...-n50-wait.*: the Cop does not claim on a Sheriff out alone
+npm run selfplay -- --games 50 --seed 1 --mafia script     # ...-n50-scriptmafia.*: the old fixed mafia script
+```
+
+`--mafia adaptive` (default for self-play and for `createBotTable`, i.e. live) plays Vinman's FJ strategy from the mafia side (`engine/src/adaptiveMafia.js`), using only public play, faction chat and the Janitor's own clean result: kill priority Cop > Sheriff > Journalist by public claim, otherwise a spread over the players town trusts; fake claims vary in who and whether (about half the nights), no fake Cop once a real Cop has claimed, flipped or been verified, never a Sheriff claim; the Janitor saves its one clean for a claimed power role (or a late night) and may claim the role it cleaned; day votes join a town wagon or the most publicly suspicious townie, at most two scum on one target short of the endgame, never a revealed townie, and each scum seat holds its first vote for a delay sampled from town's measured first-vote delays (`TOWN_VOTE_DELAY_MS`, scorecard `mafia.voteTiming.townDelayQuantilesMs`; override with `createBotTable(..., { townVoteDelayMs })`), then the same 2-15s stagger as town; under pressure (L-1 or the leading wagon late) a scum seat claims Villager or an open Journalist; buses use the existing bus rule. Town claims under pressure too (Vinman's rule: no immediate claims; claim with real info or under pressure): a Cop, Journalist or other town role at L-1 or on the leading wagon late in the day claims, and a Villager says it has no power role. The town Journalist visits an unchecked Cop claimer first from Night 2 (Vinman's rule), otherwise a rival Journalist claimer, otherwise the hardest pusher on the public reads (a small bonus for a pressure claimer). It reports only what restartq actually shows it (the target's own night alerts): a Janitor, a fake or real Cop, a rival Journalist with no report ("fake journalist": a real Journalist always has its own report), or "got no report, fits villager" on a Villager claimer. Its claim triggers are unchanged; these extra findings are only said once it is out or under pressure, and an unclaimed real Cop is never outed. `--mafia script` keeps the old plan (fake Cop every day, bloc on one push). The engine itself defaults to `script` unless `view.config.mafia === "adaptive"`.
+
+`--cop-rule vinman` (default) is Vinman's FJ rule: the Cop claims once a Sheriff has outed and is alive, or with a guilty, or when counterclaimed or called guilty. `--cop-rule wait` drops the Sheriff-out trigger. The rule reaches every seat as the engine's `botConfig` frame (`view.config.copRule`; `createBotTable(..., { copRule })`). `--lawyer loyal` (default) models FJ's Loyal Lawyer per the restartq server: a Litigate on a town player is blocked, and on a teammate it sets the Cop result to Innocent, so a Cop's Guilty can never be faked. `--lawyer plain` lets a Litigate frame a town player as Guilty.
+
+The scorecard (JSON and markdown) has:
+
+- win rate by alignment
+- town ballots on scum vs an analytic random-voter baseline
+- illegal actions
+- game length
+- lynch, Sheriff and Cop accuracy
+- claims, buses, cleans and litigates
+- mafia vote timing
+- vegs by cause
+- the existing `summarizeMetrics` block
+- ranked weaknesses with evidence and an example game log
+
+`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. The seed 1, 50-game scorecard is checked in as the baseline. The jsonl files are gitignored. Town play is scored from public evidence by `engine/src/townReads.js`; see `selfplay/NOTES.md` for the before/after numbers per seed and the lessons from tuning it.

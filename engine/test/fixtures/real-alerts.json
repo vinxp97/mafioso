@@ -1,0 +1,740 @@
+{
+ "about": "Real role-result alerts from the Ultimafia game archive (mafia.db on the PC, read-only), sanitized: every player name in a name slot is replaced by a fake name (Ash, Bea, ...); report lines with free-text names (carol, law, mask, love, beer, dowse) were dropped. templateCount is how often that template occurs in the archive. expected: target (fake name) and result as written in the alert, or null when the line is not this seat's own check (system reveals, other roles' alerts, a Boastful Cop overheard publicly, player quotes).",
+ "archive": {
+  "games": 7470,
+  "alertsPerCategory": {
+   "other-system-reveal": 23615,
+   "cop-alignment": 3766,
+   "janitor": 1358,
+   "cop-role": 961,
+   "other-track": 1057,
+   "journalist-reports": 363,
+   "journalist-none": 542
+  }
+ },
+ "otherSources": {
+  "box /workspace/winlogs": 0,
+  "box /workspace/restartq/logs": 0,
+  "PC C:/Users/vince/mafioso/logs": 0,
+  "harness/test/fixtures/replays": 0
+ },
+ "fixtures": [
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Innocent!",
+   "templateCount": 2399,
+   "text": ":invest: After investigating, you learn that Ash is Innocent!",
+   "expected": {
+    "target": "Ash",
+    "result": "Innocent"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "janitor",
+   "template": ":mop: You discover P's role is <R>.",
+   "templateCount": 1358,
+   "text": ":mop: You discover Ash's role is Villager.",
+   "expected": {
+    "target": "Ash",
+    "role": "Villager"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "janitor",
+   "template": ":mop: You discover P's role is <R>.",
+   "templateCount": 1358,
+   "text": ":mop: You discover Ash's role is Oracle (Astral/Resolute).",
+   "expected": {
+    "target": "Ash",
+    "role": "Oracle (Astral/Resolute)"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "janitor",
+   "template": ":mop: You discover P's role is <R>.",
+   "templateCount": 1358,
+   "text": ":mop: You discover Ash's role is Caroler.",
+   "expected": {
+    "target": "Ash",
+    "role": "Caroler"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "janitor",
+   "template": ":mop: You discover P's role is <R>.",
+   "templateCount": 1358,
+   "text": ":mop: You discover Ash's role is Sheriff.",
+   "expected": {
+    "target": "Ash",
+    "role": "Sheriff"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Guilty!",
+   "templateCount": 1326,
+   "text": ":invest: After investigating, you learn that Ash is Guilty!",
+   "expected": {
+    "target": "Ash",
+    "result": "Guilty"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-track",
+   "template": ":track: You learn that P visited P during the night.",
+   "templateCount": 1047,
+   "text": ":track: You learn that Ash visited Bea during the night.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-track",
+   "template": ":track: You learn that P visited P during the night.",
+   "templateCount": 1047,
+   "text": ":track: You learn that Ash visited Ash during the night.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>.",
+   "templateCount": 931,
+   "text": ":invest: You Learn that Ash's Role is Bodyguard.",
+   "expected": {
+    "target": "Ash",
+    "role": "Bodyguard"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>.",
+   "templateCount": 931,
+   "text": ":invest: You Learn that Ash's Role is Villager.",
+   "expected": {
+    "target": "Ash",
+    "role": "Villager"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>.",
+   "templateCount": 931,
+   "text": ":invest: You Learn that Ash's Role is Turncoat (Humble).",
+   "expected": {
+    "target": "Ash",
+    "role": "Turncoat (Humble)"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>.",
+   "templateCount": 931,
+   "text": ":invest: You Learn that Ash's Role is Ninja.",
+   "expected": {
+    "target": "Ash",
+    "role": "Ninja"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-none",
+   "template": ":journ: You learn that P received no reports.",
+   "templateCount": 542,
+   "text": ":journ: You learn that Ash received no reports.",
+   "expected": {
+    "target": "Ash",
+    "detail": "no reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: After investigating, you learn that P is Innocent!.",
+   "templateCount": 123,
+   "text": ":journ: You received all reports that Bea received: :invest: After investigating, you learn that Ash is Innocent!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: After investigating, you learn that P is Guilty!.",
+   "templateCount": 66,
+   "text": ":journ: You received all reports that Bea received: :invest: After investigating, you learn that Ash is Guilty!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :track: You learn that P visited P during the night..",
+   "templateCount": 65,
+   "text": ":journ: You received all reports that Ash received: :track: You learn that Bea visited Cal during the night..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :track: You learn that P visited P during the night..",
+   "templateCount": 65,
+   "text": ":journ: You received all reports that Ash received: :track: You learn that Bea visited Ash during the night..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :mop: You discover P's role is <R>..",
+   "templateCount": 60,
+   "text": ":journ: You received all reports that Ash received: :mop: You discover Bea's role is Villager..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": true
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :mop: You discover P's role is <R>..",
+   "templateCount": 60,
+   "text": ":journ: You received all reports that Ash received: :mop: You discover Bea's role is Cop..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": true
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :mop: You discover P's role is <R>..",
+   "templateCount": 60,
+   "text": ":journ: You received all reports that Ash received: :mop: You discover Bea's role is Journalist..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": true
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :mop: You discover P's role is <R>..",
+   "templateCount": 60,
+   "text": ":journ: You received all reports that Ash received: :mop: You discover Bea's role is Governor..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": true
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-system-reveal",
+   "template": ":system: P's role is <R>.",
+   "templateCount": 58,
+   "text": ":system: Ash's role is Mafioso.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-system-reveal",
+   "template": ":system: P's role is <R>.",
+   "templateCount": 58,
+   "text": ":system: Ash's role is Lawyer (Loyal).",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-system-reveal",
+   "template": ":system: P's role is <R>.",
+   "templateCount": 58,
+   "text": ":system: Ash's role is Hooker.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-system-reveal",
+   "template": ":system: P's role is <R>.",
+   "templateCount": 58,
+   "text": ":system: Ash's role is Mafia.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Village!",
+   "templateCount": 24,
+   "text": ":invest: After investigating, you learn that Ash is Village!",
+   "expected": {
+    "target": "Ash",
+    "result": "Village"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>..",
+   "templateCount": 24,
+   "text": ":invest: You Learn that Ash's Role is not Mime, or Sheriff (Unwavering)..",
+   "expected": {
+    "target": "Ash",
+    "detail": "not Mime, or Sheriff (Unwavering)",
+    "role": null
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>..",
+   "templateCount": 24,
+   "text": ":invest: You Learn that Ash's Role is not Miller (Traitorous), or Sheriff (Hemophilic/Unwavering)..",
+   "expected": {
+    "target": "Ash",
+    "detail": "not Miller (Traitorous), or Sheriff (Hemophilic/Unwavering)",
+    "role": null
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>..",
+   "templateCount": 24,
+   "text": ":invest: You Learn that Ash's Role is not Lawyer (Disloyal), or Miller..",
+   "expected": {
+    "target": "Ash",
+    "detail": "not Lawyer (Disloyal), or Miller",
+    "role": null
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>..",
+   "templateCount": 24,
+   "text": ":invest: You Learn that Ash's Role is not Sheriff, or Voyeur..",
+   "expected": {
+    "target": "Ash",
+    "detail": "not Sheriff, or Voyeur",
+    "role": null
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :watch: You learn that P visited P during the night..",
+   "templateCount": 13,
+   "text": ":journ: You received all reports that Ash received: :watch: You learn that Bea visited Cal during the night..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "other-track",
+   "template": ":track: You learn that P visited another player.",
+   "templateCount": 10,
+   "text": ":track: You learn that Ash visited another player.",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Cult!",
+   "templateCount": 6,
+   "text": ":invest: After investigating, you learn that Ash is Cult!",
+   "expected": {
+    "target": "Ash",
+    "result": "Cult"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>",
+   "templateCount": 6,
+   "text": ":invest: You Learn that Ash's Role is Villager",
+   "expected": {
+    "target": "Ash",
+    "role": "Villager"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>",
+   "templateCount": 6,
+   "text": ":invest: You Learn that Ash's Role is Stalker (Proactive)",
+   "expected": {
+    "target": "Ash",
+    "role": "Stalker (Proactive)"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>",
+   "templateCount": 6,
+   "text": ":invest: You Learn that Ash's Role is Sleepwalker (Humble/Seductive)",
+   "expected": {
+    "target": "Ash",
+    "role": "Sleepwalker (Humble/Seductive)"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-role",
+   "template": ":invest: You Learn that P's Role is <R>",
+   "templateCount": 6,
+   "text": ":invest: You Learn that Ash's Role is Hunter",
+   "expected": {
+    "target": "Ash",
+    "role": "Hunter"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>..",
+   "templateCount": 5,
+   "text": ":journ: You received all reports that Bea received: :invest: You Learn that Ash's Role is Journalist (Temporary)..",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>..",
+   "templateCount": 5,
+   "text": ":journ: You received all reports that Bea received: :invest: You Learn that Ash's Role is Journalist..",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>..",
+   "templateCount": 5,
+   "text": ":journ: You received all reports that Bea received: :invest: You Learn that Ash's Role is Sleepwalker (Humble)..",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>..",
+   "templateCount": 5,
+   "text": ":journ: You received all reports that Bea received: :invest: You Learn that Ash's Role is Loudmouth (Humble)..",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Independent!",
+   "templateCount": 4,
+   "text": ":invest: After investigating, you learn that Ash is Independent!",
+   "expected": {
+    "target": "Ash",
+    "result": "Independent"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":invest: After investigating, you learn that P is Mafia!",
+   "templateCount": 3,
+   "text": ":invest: After investigating, you learn that Ash is Mafia!",
+   "expected": {
+    "target": "Ash",
+    "result": "Mafia"
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":loud: <X> overheard reading: :invest: After investigating, you learn that P is Guilty!",
+   "templateCount": 2,
+   "text": ":loud: a Cop (Boastful) is overheard reading: :invest: After investigating, you learn that Ash is Guilty!",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "cop-alignment",
+   "template": ":loud: <X> overheard reading: :invest: After investigating, you learn that P is Innocent!",
+   "templateCount": 2,
+   "text": ":loud: a Cop (Boastful) is overheard reading: :invest: After investigating, you learn that Ash is Innocent!",
+   "expected": null
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :gun2: You have received a gun!.",
+   "templateCount": 2,
+   "text": ":journ: You received all reports that Ash received: :gun2: You have received a gun!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :knife: You have received a knife!.",
+   "templateCount": 2,
+   "text": ":journ: You received all reports that Ash received: :knife: You have received a knife!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: After investigating, you learn that P is Village!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Bea received: :invest: After investigating, you learn that Ash is Village!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: After investigating, you learn that P is Independent!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Bea received: :invest: After investigating, you learn that Ash is Independent!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: You start to bleed…, :invest: After investigating, you learn that P is Village!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Bea received: You start to bleed…, :invest: After investigating, you learn that Ash is Village!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :armor: Shattering to pieces, your armor saves your life!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: :armor: Shattering to pieces, your armor saves your life!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>., :invest: You Learn that P's Role is <R>., Protip: You can click the button left of the Leave button to report another user for misconduct..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Cal received: :invest: You Learn that Ash's Role is Villager (Bulletproof/Humble)., :invest: You Learn that Bea's Role is Turncoat (Humble)., Protip: You can click the button left of the Leave button to report another user for misconduct..",
+   "expected": {
+    "target": "Cal",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :poison: You have received a syringe!, :invest: After investigating, you learn that P is Innocent!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Bea received: :poison: You have received a syringe!, :invest: After investigating, you learn that Ash is Innocent!.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :poison: You have received a syringe!, :knife: You have received a knife!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: :poison: You have received a syringe!, :knife: You have received a knife!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: Protip: You can turn off Protips in your profile settings..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: Protip: You can turn off Protips in your profile settings..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: You have received a Yuzu Orange!, You have received a Bomb!, :knife: You have received a knife!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: You have received a Yuzu Orange!, You have received a Bomb!, :knife: You have received a knife!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: Protip: You can use /item to view an item's description during a game..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: Protip: You can use /item to view an item's description during a game..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: Protip: You can use /extend during the day to increase the timer..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: Protip: You can use /extend during the day to increase the timer..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :poison: You have received a syringe!.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: :poison: You have received a syringe!.",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You Learn that P's Role is <R>.",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Bea received: :invest: You Learn that Ash's Role is Hunter.",
+   "expected": {
+    "target": "Bea",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: Protip: Click Say to use speech abilities or whisper..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: Protip: Click Say to use speech abilities or whisper..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db",
+   "category": "journalist-reports",
+   "template": ":journ: You received all reports that P received: :invest: You learn that Cottrell is Guilty..",
+   "templateCount": 1,
+   "text": ":journ: You received all reports that Ash received: :invest: You learn that Gil is Guilty..",
+   "expected": {
+    "target": "Ash",
+    "detail": "reports",
+    "janitor": false
+   }
+  },
+  {
+   "source": "mafia.db public chat (tagger extract)",
+   "category": "player-quote",
+   "template": "player chat quoting a result",
+   "templateCount": null,
+   "text": "the correct text is after investigating, you learn that Ash is innocent",
+   "sender": "player",
+   "expected": null
+  },
+  {
+   "source": "mafia.db public chat (tagger extract)",
+   "category": "player-quote",
+   "template": "player chat quoting a result",
+   "templateCount": null,
+   "text": "Ash received no reports",
+   "sender": "player",
+   "expected": null
+  },
+  {
+   "source": "mafia.db public chat (tagger extract)",
+   "category": "player-quote",
+   "template": "player chat quoting a result",
+   "templateCount": null,
+   "text": "Ash received no reports, Bea learned that Ash visited no one",
+   "sender": "player",
+   "expected": null
+  }
+ ]
+}
