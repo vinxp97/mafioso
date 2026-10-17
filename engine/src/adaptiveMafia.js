@@ -5,7 +5,7 @@
 //   - kill priority: Cop > Sheriff > Journalist (by public claim); otherwise a player town trusts, spread;
 //   - fake claims vary: who claims, whether anyone does; no fake Cop once a real Cop has flipped Cop, is
 //     verified, or is out and alive; never claim Sheriff; the Janitor claims Cop or Journalist;
-//   - the Janitor saves the single clean for a claimed power role (or a late night);
+//   - the Janitor always cleans the Night 1 kill; later it saves the clean for a claimed power role (or a late night);
 //   - the Lawyer covers the teammate town suspects most (the Cop checks its top read);
 //   - day votes blend in: the town wagon, else the publicly most suspicious townie; at most two scum on one
 //     target unless the lynch wins the game.
@@ -136,7 +136,8 @@ export function adaptiveDraft(view, base, killPool) {
   const lawPool = team.filter((id) => !/lawyer/i.test(String(roleOf(id))));
   lawPool.sort((a, b) => (reads.score[b] || 0) - (reads.score[a] || 0) || (b === speakerId) - (a === speakerId) || String(a).localeCompare(String(b)));
   const claimedPower = POWER_PRIORITY[reads.record.claims[killTarget]] > 0;
-  const lateNight = Number(view.phase?.day) >= 3;
+  const night = Number(view.phase?.day);
+  const lateNight = night >= 3;
   return {
     ...base,
     killTarget,
@@ -144,8 +145,8 @@ export function adaptiveDraft(view, base, killPool) {
     claimRole,
     speakerId,
     lawyerTarget: lawPool[0] || base.lawyerTarget,
-    // One clean: save it for a claimed power role, or spend it late.
-    janitorTarget: claimedPower || lateNight ? killTarget : null,
+    // One clean: always on Night 1 (Vinman); later, save it for a claimed power role, or spend it late.
+    janitorTarget: night === 1 || claimedPower || lateNight ? killTarget : null,
     adaptive: true,
   };
 }
