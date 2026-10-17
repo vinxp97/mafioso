@@ -10,6 +10,7 @@
 import { claimedRoleIn } from "./chatStyle.js";
 import { ALIGNMENT, alignmentOf, allies } from "./faction.js";
 import { memoryOf } from "./notes.js";
+import { NO_LYNCH_LOSES, noLynchLoses } from "./lynchMath.js";
 
 export const TOWN_READS = Object.freeze({
   ownCheck: 20, // my own Guilty (or -20 Innocent)
@@ -326,6 +327,8 @@ export function townDayPick(view, meeting) {
   // Only a claimer's own guilty: a Journalist relaying a Cop's report is not the Journalist accusing.
   const guiltyOnPower = today(view, reads.record.guilty).some((g) => !g.relay && alive(view, g.by) && POWER.has(reads.record.claims[g.target] || "") && alive(view, g.target));
   if (noOne && (contestedCop || guiltyOnPower)) {
+    // A no-lynch that loses the game is never the answer: lynch the top read instead.
+    if (noLynchLoses(view)) return top ? { target: top[0], why: `${NO_LYNCH_LOSES}: top read`, reads } : null;
     return { target: "*", why: contestedCop ? "Cop claims contested: no lynch on either claim" : "guilty on a power-role claimer: no lynch", reads };
   }
   return null;
