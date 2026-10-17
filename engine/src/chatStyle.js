@@ -5,6 +5,8 @@ import { ALIGNMENT } from "./faction.js";
 import { dayFraction } from "./sheriffGate.js";
 
 export const PUBLIC_MAX = 80;
+/** A model chat line is 3-12 words (SPEECH_SYSTEM); longer replies are cut to the first 12. */
+export const SPEECH_WORDS = 12;
 
 export const SPEECH_SYSTEM = [
   "You are a player in a fast Mafia chatroom. Write ONE chat line.",
@@ -16,9 +18,14 @@ export const SPEECH_SYSTEM = [
   "Reply with only the line.",
 ].join("\n");
 
+/** Drop hidden reasoning a model leaked into its reply: <think>/<thinking>/<reasoning> blocks, closed or cut off. */
+export function stripReasoning(text) {
+  return String(text || "").replace(/<(think|thinking|reasoning)>[\s\S]*?(?:<\/\1>|$)/gi, " ").replace(/^[\s\S]*?<\/(?:think|thinking|reasoning)>/i, " ");
+}
+
 /** One sentence, no list markup, cut at a word boundary under the cap. */
 export function chatShorten(text, max = PUBLIC_MAX) {
-  let s = String(text || "").replace(/<think>[\s\S]*?<\/think>/gi, " ").replace(/^\s*["'`]+|["'`]+\s*$/g, "");
+  let s = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
   s = s.split(/\n+/).map((l) => l.replace(/^\s*([-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean)[0] || "";
   s = s.replace(/\s+/g, " ").trim();
   const sentence = s.match(/^(.+?[.!?])(\s|$)/);
@@ -288,6 +295,24 @@ export function cannedReaction(view, rng = Math.random) {
   return pool.length ? pool[Math.floor(rng() * pool.length)] : null;
 }
 
+const ACCUSING = /\b(scum|mafia|maf|guilty|lying|liar|lie|sus|sussy|suspicious|vote|voting|lynch|hammer|fake|wagon|janitor|lawyer)\b/i;
+
+/**
+ * A rules reply when this seat was accused (named or voted) and no model line came out: answer, never go silent.
+ * No role words (a claim goes through the claim rules), and not a line this seat already said.
+ */
+export function accusedReply(view, meetingId, rng = Math.random) {
+  const to = addressedBy(view, meetingId);
+  // Only an accusation needs an answer: a vote on me, or a line naming me with an accusing word.
+  if (!to || (to.kind !== "vote" && !ACCUSING.test(to.text))) return null;
+  const n = String(to.name || "").toLowerCase();
+  // Once per accuser per day: a rules reply is a stopgap, not a conversation.
+  if (!n || todayLines(view).some((m) => m.senderId === view.selfId && lc(m.content).startsWith(`${n} `))) return null;
+  const mine = new Set((view?.messages || []).filter((m) => m.senderId === view?.selfId).map((m) => String(m.content || "").toLowerCase()));
+  const pool = [`${n} why me`, `${n} not me, look elsewhere`, `${n} what did i even do`, `${n} wrong guy, not me`].map((l) => l.trim()).filter((l) => !mine.has(l));
+  return pool.length ? pool[Math.floor(rng() * pool.length)] : null;
+}
+
 const PERSONAS = [
   { key: "terse", voice: "terse. 3-6 words. no greetings, no filler words.", openers: ["", "", "ok", "nah"] },
   { key: "joking", voice: "jokey, a bit chaotic, lol sometimes.", openers: ["lol", "lmao", "ok but", "bro"] },
@@ -392,7 +417,7 @@ export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}
 export function cleanChatReply(raw, view, addressed) {
   let text = String(raw || "");
   try { const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "null"); if (j && typeof j === "object") text = String(j.content ?? j.text ?? j.say ?? ""); } catch { /* plain text */ }
-  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, ""));
+  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, "")).split(" ").slice(0, SPEECH_WORDS).join(" ");
   if (!text) return "";
   if (addressed?.name && !text.toLowerCase().includes(String(addressed.name).toLowerCase())) {
     text = chatShorten(`${String(addressed.name).toLowerCase()} ${text}`);

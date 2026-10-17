@@ -171,12 +171,24 @@ export function zipAccounts(accounts, prompts) {
  * `rng` drives every jitter (default: Math.random). Tests pass a virtual clock and a seeded rng.
  */
 // mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive", townVoteDelayMs = null } = {}) {
+// reasoning: the model thinks before it answers (see reasoningModel); speech gets a larger token budget.
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive", townVoteDelayMs = null, reasoning = false } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule, mafia, ...(townVoteDelayMs ? { townVoteDelayMs } : {}) },
+    clock, rng, config: { copRule, mafia, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}) },
   };
+}
+
+// Models that spend hidden tokens thinking even when asked not to (Muse ignores reasoning_effort "none").
+const REASONING_MODEL_RE = /muse|glimmer|qwen3|deepseek-r|\br1\b|reason|think|gpt-oss|gpt-5|magistral/i;
+/** MAFIOSO_REASONING=1/0 forces it; otherwise the configured model name of the chosen backend decides. */
+export function reasoningModel(env = process.env) {
+  const forced = nonempty(env.MAFIOSO_REASONING);
+  if (forced) return /^(1|true|yes|on)$/i.test(forced);
+  const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
+  const model = which.startsWith("exp") ? env.EXPLABS_MODEL : which.startsWith("opencode") ? env.OPENCODE_MODEL : env.LM_STUDIO_MODEL;
+  return REASONING_MODEL_RE.test(String(model || ""));
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
 const seatView = (table) => (table?.config ? engineReduce(emptyView(), { event: "botConfig", data: table.config }) : emptyView());
@@ -653,7 +665,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     }
     const verdict = validateAction(view, action);
     if (!verdict.ok) {
-      if (isPublicSpeak(view, action)) { const r = String(verdict.reason || "?").replace(/\(.*$/, "").trim(); (table.speechRejects ||= {})[r] = ((table.speechRejects || {})[r] || 0) + 1; }
+      if (isPublicSpeak(view, action)) {
+        const r = String(verdict.reason || "?").replace(/\(.*$/, "").trim();
+        (table.speechRejects ||= {})[r] = ((table.speechRejects || {})[r] || 0) + 1;
+        table.onSpeechReject?.(id, [String(verdict.reason || "?")], source, action.data.content);
+      }
       continue;
     }
     const pub = isPublicSpeak(view, action);
@@ -820,6 +836,7 @@ function startUpgrade(table, id, ctx) {
         if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
         continue;
       }
+      if (plan.speechRejections?.length) table.onSpeechReject?.(id, plan.speechRejections, "llm");
       const now = table.views[id];
       if (!now || now.stateId !== stateId || !selfAlive(now)) { ctx.onStale?.(id); continue; }
       const sch = plan.schedule;
@@ -1220,7 +1237,9 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const opened = await openTestingGame(client, { gameId: cfg.gameId, setupId: cfg.setupId, botCount: cfg.botCount, lobbyName: cfg.lobbyName });
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
-  const table = createBotTable(accounts, { clock, rng });
+  const table = createBotTable(accounts, { clock, rng, reasoning: reasoningModel(env) });
+  say(`llm reasoning=${!!table.config.reasoning}`);
+  table.onSpeechReject = (who, reasons, source, content) => say(`speech-reject ${who} [${table.views[who]?.phase?.name || ""}] source=${source} reasons=${JSON.stringify(reasons.map((r) => String(r).slice(0, 120)))}${content ? ` line=${JSON.stringify(String(content).slice(0, SPEECH_LOG_MAX))}` : ""}`);
   // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
   if (signals) {
     for (const sig of ["SIGINT", "SIGTERM"]) {

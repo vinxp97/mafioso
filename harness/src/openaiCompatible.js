@@ -132,7 +132,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
     return body;
   }
 
-  async function postChat(body) {
+  async function postChat(body, { allowEmpty = false } = {}) {
     const { ok, status, text } = await request("POST /chat/completions", `${baseUrl}/chat/completions`, {
       method: "POST",
       headers: mergeHeaders(apiKey, extraHeaders, true),
@@ -146,6 +146,8 @@ export function createOpenAICompatibleComplete(opts = {}) {
     }
     const data = parseJson(text, "POST /chat/completions");
     const content = data?.choices?.[0]?.message?.content;
+    // Plain-text (chat line) calls: an empty reply is the caller's to judge (a reasoning model that spent its budget).
+    if (allowEmpty && (content == null || content === "")) return "";
     if (typeof content !== "string" || content.length === 0)
       throw new Error(`${label} POST /chat/completions: missing assistant message content`);
     return content;
@@ -156,7 +158,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
     const model = await ensureModel();
     const cap = finiteNumber(callMax);
     const effort = reasoningEffort || defaultEffort;
-    if (!json) return postChat(buildBody(model, system, user, false, cap, effort));
+    if (!json) return postChat(buildBody(model, system, user, false, cap, effort), { allowEmpty: true });
     try {
       return await postChat(buildBody(model, system, user, true, cap, effort));
     } catch (e) {
