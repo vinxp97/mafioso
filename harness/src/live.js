@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteWait } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -171,11 +171,11 @@ export function zipAccounts(accounts, prompts) {
  * `rng` drives every jitter (default: Math.random). Tests pass a virtual clock and a seeded rng.
  */
 // mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive" } = {}) {
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive", townVoteDelayMs = null } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule, mafia },
+    clock, rng, config: { copRule, mafia, ...(townVoteDelayMs ? { townVoteDelayMs } : {}) },
   };
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
@@ -359,7 +359,8 @@ function notesLean(view, mem, board, id, reads = null) {
 /** A public, uncontested Village-role claim (a counterclaimed role is already a suspect). */
 function claimedTown(view, mem, id) {
   const c = view?.claims?.[id];
-  return !!c?.role && c.kind !== "retract" && ALIGNMENT[c.role] === "Village" && !mem.suspects?.has?.(id);
+  // A plain Villager claim costs nothing to fake: it does not protect a wagon.
+  return !!c?.role && c.role !== "Villager" && c.kind !== "retract" && ALIGNMENT[c.role] === "Village" && !mem.suspects?.has?.(id);
 }
 
 /**
@@ -398,12 +399,12 @@ export function townFollow(view, meeting) {
 }
 
 /** Town seats: weighted pick from the top three suspects on this seat's BeliefBoard. */
-export function beliefDayPick(view, meeting, rng = Math.random) {
+export function beliefDayPick(view, meeting, rng = Math.random, skip = () => false) {
   const board = rulesBeliefBoard(view).entries;
   const mem = memoryOf(view);
   const mates = allies(view);
   const reads = townReads(view).score;
-  const pool = (meeting.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !mates.has(t) && view.players?.[t]);
+  const pool = (meeting.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !mates.has(t) && view.players?.[t] && !skip(t));
   const score = (id) => {
     const b = board[id];
     const al = b ? beliefAlign(b.role) : null;
@@ -422,14 +423,12 @@ export function beliefDayPick(view, meeting, rng = Math.random) {
 }
 
 /**
- * Adaptive mafia: don't lead the vote. Each scum seat waits for 0-2 non-teammate votes (varies by seat and
- * day, scumVoteWait), but never past late day or the Vote Kick window (no veg).
+ * Adaptive mafia vote timing: each scum seat holds its first village vote for a delay sampled from town's
+ * measured distribution (scumVoteHoldMs, from its own vote gate), never past late day or the Vote Kick
+ * window (no veg). The 2-15s stagger then applies to scum and town alike.
  */
-function scumVoteNow(view, meetingId, now) {
-  const m = view.meetings?.[meetingId];
-  const team = new Set([view.selfId, ...allies(view)]);
-  const others = Object.entries(m?.votes || {}).filter(([v, t]) => !team.has(v) && t != null && !(Array.isArray(t) && !t.length)).length;
-  if (others >= scumVoteWait(view)) return true;
+function scumVoteNow(view, meetingId, now, sinceGateMs) {
+  if (sinceGateMs >= scumVoteHoldMs(view)) return true;
   const frac = dayFraction(view, { now });
   if (frac != null && frac >= 0.85) return true;
   return Object.values(view.meetings || {}).some((x) => /vote\s*kick/i.test(String(x?.name || "")));
@@ -441,8 +440,10 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
   for (const a of actions) {
     if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
     if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
+    const gk = `${id}|${view.stateId}`;
+    (table.gateAt ||= {})[gk] ??= now;
     const scum = !!scumFaction(view);
-    if (scum && mafiaModeOf(view) === "adaptive" && !scumVoteNow(view, a.data.meetingId, now)) continue;
+    if (scum && mafiaModeOf(view) === "adaptive" && !scumVoteNow(view, a.data.meetingId, now, now - table.gateAt[gk])) continue;
     if (scum && allies(view).has(String(a.data.selection))) {
       // Bus: say it casually in faction chat (once per day), never as syntax. Skipped if no faction chat.
       const fc = Object.values(view.meetings || {}).find((m) => m?.speech && m.amMember && /^(mafia|cult)$/i.test(String(m.name || "")));
@@ -474,7 +475,7 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       if (own && own[1] >= TOWN_READS.ownRead && (!follow || (reads.score[follow] || 0) <= own[1] - TOWN_READS.ownReadMargin)) follow = own[0];
       if (follow && !trusted(follow)) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
       if (source === "rules") {
-        const pick = beliefDayPick(view, meeting, rngOf(table));
+        const pick = beliefDayPick(view, meeting, rngOf(table), trusted);
         if (pick && !trusted(pick)) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
       }
       if (trusted(String(a.data.selection))) {
@@ -484,6 +485,14 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       }
     }
     out.push(a);
+  }
+  // Vote timing: the first village vote this seat lets through today, measured from its own vote gate.
+  for (const a of out) {
+    if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) continue;
+    const gk = `${id}|${view.stateId}`;
+    if ((table.firstShaped ||= {})[gk] != null) continue;
+    table.firstShaped[gk] = now;
+    table.onDayVoteShaped?.({ id, day: view.phase?.name || "", scum: !!scumFaction(view), sinceGateMs: now - (table.gateAt?.[gk] ?? now) });
   }
   return out;
 }
@@ -557,6 +566,21 @@ function staleKillVote(view, action) {
   return !!target && String(action.data?.selection) !== String(target);
 }
 
+/**
+ * Adaptive scum: a delayed village vote picked before two teammates landed on the same target would make
+ * an all-three bloc, short of the endgame. Re-picked at send time.
+ */
+function thirdScumVote(view, action) {
+  if (action?.event !== "vote" || !scumFaction(view) || mafiaModeOf(view) !== "adaptive") return false;
+  if (!isDayVillageVote(view, action.data?.meetingId)) return false;
+  const mates = allies(view);
+  const team = [view.selfId, ...mates].filter((id) => isAlive(view, id)).length;
+  const town = Object.keys(view.players || {}).filter((id) => isAlive(view, id) && id !== view.selfId && !mates.has(id)).length;
+  if (team >= town - 1) return false;
+  const votes = view.meetings?.[action.data.meetingId]?.votes || {};
+  return Object.entries(votes).filter(([v, t]) => mates.has(v) && String(t) === String(action.data.selection)).length >= 2;
+}
+
 function deferVote(table, id, action, wait, { source, entry, send, onError }) {
   const stateId = table.views[id]?.stateId;
   const pk = `${id}|${stateId}|${action.data?.meetingId}`;
@@ -570,6 +594,12 @@ function deferVote(table, id, action, wait, { source, entry, send, onError }) {
     if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
     if (!validateAction(view, action).ok) return;
     if (staleKillVote(view, action)) return;
+    if (thirdScumVote(view, action)) {
+      // Re-pick with today's votes in view (the cap now sees both teammates); never drop it (no veg).
+      const alt = adaptiveVote(view, view.meetings[action.data.meetingId], agreedPlan(view));
+      if (alt && String(alt) !== String(action.data.selection)) action = { ...action, data: { ...action.data, selection: String(alt) } };
+      if (!validateAction(view, action).ok) return;
+    }
     const back = table.voteBackoff?.[id];
     if (back != null && back > nowOf(table)) { deferVote(table, id, action, back - nowOf(table), { source, entry, send, onError }); return; }
     table.lastVoteAt[id] = nowOf(table);
@@ -744,7 +774,8 @@ function startUpgrade(table, id, ctx) {
       // Cop / Journalist / Sheriff claims come from rules (report-driven), ahead of any model line. After
       // the claim, the same rule only adds new results (no second claim).
       if (!night) {
-        const claim = roleClaimLine(view);
+        // Adaptive scum under pressure claim like a townie would (Villager, or an open Journalist).
+        const claim = roleClaimLine(view) || (scumFaction(view) && mafiaModeOf(view) === "adaptive" ? adaptivePressureLine(view)?.line : null);
         const pm = publicSpeechMeeting(view);
         if (claim && pm) {
           const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: claim } }], { ...ctx, source: "claim-rule", clock: ctx.clockOf() });

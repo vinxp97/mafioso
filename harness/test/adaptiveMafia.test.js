@@ -41,3 +41,21 @@ test("adaptive mafia: natural-language chat only, never all three scum on one ly
   }
   assert.equal(blocDays, 0);
 });
+
+test("vote timing is measured: town and scum first-vote delays after their own gate are on the scorecard", async () => {
+  const { results, scorecard } = await runSelfplay({ games: 6, seed: 1 });
+  const vt = scorecard.mafia.voteTiming;
+  assert.equal(vt.townDelayQuantilesMs.length, 11);
+  assert.ok(results.some((r) => r.stats.voteDelays.some((d) => d.scum)) && results.some((r) => r.stats.voteDelays.some((d) => !d.scum)));
+  assert.ok(results.flatMap((r) => r.stats.voteDelays).every((d) => d.ms >= 0));
+});
+
+test("pressure claims in self-play: town roles and scum claim under pressure, with no illegal actions or vegs", async () => {
+  const { results, scorecard } = await runSelfplay({ games: 12, seed: 3 });
+  assert.equal(scorecard.illegalActions.total, 0);
+  assert.equal(scorecard.vegs, 0);
+  const claims = results.flatMap((r) => r.stats.claims);
+  assert.ok(claims.some((c) => c.role === "Villager" && c.claimed === "villager"), "a Villager says it has no power");
+  assert.ok(claims.some((c) => SCUM.has(c.role) && /villager|journalist/.test(c.claimed)), "scum claim under pressure too");
+  assert.ok(!claims.some((c) => SCUM.has(c.role) && c.claimed === "sheriff"));
+});

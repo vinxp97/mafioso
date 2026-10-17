@@ -163,7 +163,10 @@ export function townReads(view) {
     if (UNIQUE.has(role)) {
       // A unique role has one holder: a dead claimer who flipped it proves every other claimer a liar, and a
       // rival claimer who flipped mafia makes the remaining claimer credible.
-      const trueHolder = ids.find((id) => !alive(view, id) && roleName(view?.reveals?.[id]) === role);
+      // The true holder may never have claimed: any dead player who flipped the role counts.
+      const flippedRole = (id) => roleName(String(view?.reveals?.[id] || "").split(" (")[0]) === role;
+      const trueHolder = ids.find((id) => !alive(view, id) && flippedRole(id))
+        || Object.keys(view?.reveals || {}).find((id) => view?.players?.[id] && !alive(view, id) && flippedRole(id));
       // Only a claimer who stood against the rival while he was alive earns that credit (claiming a role
       // after its fake has flipped is free).
       const diedAt = (id) => phaseOrdinal((mem.deaths || []).find((d) => d.id === id)?.phase);

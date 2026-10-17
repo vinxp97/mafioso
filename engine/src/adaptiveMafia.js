@@ -13,6 +13,7 @@ import { allies, alignmentOf } from "./faction.js";
 import { townReads } from "./townReads.js";
 import { NO_ONE } from "./types.js";
 import { agreedPlan } from "./scumPlan.js";
+import { underPressure } from "./chatStyle.js";
 
 export const MAFIA_MODES = Object.freeze(["adaptive", "script"]);
 /** Engine default stays "script" (old views and tests); the harness defaults every seat to "adaptive". */
@@ -176,6 +177,20 @@ export function adaptiveClaimLine(view, plan, reads = publicReads(view)) {
   return target ? { role, target, line: `im cop. ${nameOf(view, target)} guilty` } : null;
 }
 
+/**
+ * Under pressure (L-1 or the leading wagon late) a scum seat claims like a townie would: Journalist when
+ * that claim is open (nobody outside claims it, none flipped) about half the time, else plain Villager.
+ * Never Cop (no results to show) and never Sheriff. Once per game.
+ */
+export function adaptivePressureLine(view, reads = publicReads(view)) {
+  if (view?.phase?.phase !== "Day" || !underPressure(view)) return null;
+  const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
+  if (mine.some((m) => /\b(?:im|i'?m|i am)\s+(?:just\s+)?(?:a\s+)?(cop|journalist|villager|sheriff)\b/i.test(String(m.content || "")))) return null;
+  const opts = claimOptions(view, reads);
+  if (opts.journalist && stateHash(view.stateId, view.selfId, "pressure") < 0.5) return { role: "Journalist", line: "im journalist, nothing useful yet. not me" };
+  return { role: "Villager", line: "im just a villager, no power role. not me" };
+}
+
 /** This scum seat's day vote target. */
 export function adaptiveVote(view, village, plan, reads = publicReads(view)) {
   const mates = allies(view);
@@ -200,7 +215,12 @@ export function adaptiveVote(view, village, plan, reads = publicReads(view)) {
   const claim = adaptiveClaimLine(view, plan, reads);
   if (claim && valid(claim.target)) return claim.target;
   const wagon = Object.entries(townOn).filter(([t]) => valid(t)).sort((a, b) => b[1] - a[1])[0];
-  const cap = (t) => endgame || scumOn(t) < 2;
+  // Teammates may vote on the same tick without seeing each other: with three alive, one seat (by hash, per
+  // day) never takes the team's main target, so the cap holds even then.
+  const living = [...team].filter((id) => alive(view, id)).sort();
+  const splitter = !endgame && living.length >= 3 && living[Math.floor(stateHash(view.stateId, living.join(","), "split") * living.length) % living.length] === view.selfId;
+  const main = wagon && wagon[1] >= 2 ? wagon[0] : plan?.lynchTarget;
+  const cap = (t) => endgame || (scumOn(t) < 2 && !(splitter && t === main));
   if (wagon && wagon[1] >= 2 && cap(wagon[0])) return wagon[0];
   if (plan?.lynchTarget && valid(plan.lynchTarget) && cap(plan.lynchTarget)) return plan.lynchTarget;
   const alt = pushTarget(view, reads, Object.keys(votes).length ? targets.filter((t) => !cap(t)) : []);
@@ -208,9 +228,25 @@ export function adaptiveVote(view, village, plan, reads = publicReads(view)) {
   return targets.find(valid) || null;
 }
 
-/** How many non-teammate votes this seat waits for before voting (0-2, varies by seat and day). */
-export function scumVoteWait(view) {
-  return Math.floor(stateHash(view.stateId, view.selfId, "wait") * 3);
+/**
+ * Town's first-village-vote delay after its own vote gate opens, in ms, as quantiles (0%, 10%, ..., 100%).
+ * Measured in self-play (seeds 1-3, adaptive mafia, scorecard mafia.voteTiming.townDelayQuantilesMs): every
+ * town seat lets its first vote through on the tick its gate opens, so the table is a point mass at 0; the
+ * spread in landing times comes from the shared 2-15s stagger and the tick, which scum get too. Live play
+ * (model-paced town) should measure its own and pass it as view.config.townVoteDelayMs.
+ */
+export const TOWN_VOTE_DELAY_MS = Object.freeze([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+/** Sample a quantile table at u in [0,1) by linear interpolation. */
+export function sampleQuantiles(q, u) {
+  const x = Math.min(0.999999, Math.max(0, u)) * (q.length - 1);
+  const i = Math.floor(x);
+  return q[i] + (q[Math.min(q.length - 1, i + 1)] - q[i]) * (x - i);
+}
+
+/** This scum seat's hold before its first village vote today (ms after its vote gate), drawn from town's. */
+export function scumVoteHoldMs(view, table = view?.config?.townVoteDelayMs || TOWN_VOTE_DELAY_MS) {
+  return Math.round(sampleQuantiles(table, stateHash(view?.stateId, view?.selfId, "votetime")));
 }
 
 /** Is this seat the faction's claimer today, and with which role (for the early-claim gate)? */

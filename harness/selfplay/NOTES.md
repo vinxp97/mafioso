@@ -318,3 +318,119 @@ All from public play, ordered by evidence strength, same weights on every seed:
   lynched. A rules "claim at L-1" for town power roles is the next principled town gain.
 - **Town, Day 1 with no claims:** split votes with no lynch, and mislynches built on 2-scum wagons, decide many
   games. Both a shared tie-break for the first wagon and the own-read rule moved little.
+
+# Pressure claims and matched scum vote timing (branch `pressure-claims`, off `ef51262`)
+
+Two changes. Town power roles (and Villagers) claim under pressure. Adaptive mafia vote timing now matches
+town's measured distribution instead of "wait for 0-2 town votes". All diagnosis and tuning used seeds 1-3
+only. Seeds 4-8 were run once, at the end, for both `ef51262` and this branch. The Sheriff D1 rule is unchanged.
+
+**Result: still not in the 45-65% band.** Out of sample (seeds 4-8), town beats adaptive mafia **37.2%**
+(93/250), up from 31.6% (79/250) at `ef51262`. Scum voting first is now at chance (33.7% vs 35.2%; it was
+12.1%). Town still beats the old script at 87.2%, unchanged.
+
+## Out-of-sample results, seeds 4-8 (50 games each; cop rule vinman, Loyal Lawyer)
+
+Against adaptive mafia:
+
+| Seed | Town win before → after | Lynch accuracy before → after | Scum first vote before → after (chance) | Mean vote position scum/town before → after | Vegs | Illegal |
+|---|---|---|---|---|---|---|
+| 4 | 32% → 28% | 54.8% → 51.9% | 12.6% → 33.0% (36.3%) | 0.68/0.40 → 0.53/0.48 | 0 → 0 | 0 → 0 |
+| 5 | 34% → 44% | 55.8% → 63.7% | 10.1% → 36.5% (34.8%) | 0.70/0.40 → 0.52/0.49 | 0 → 0 | 0 → 0 |
+| 6 | 30% → 28% | 48.7% → 51.4% | 8.7% → 34.0% (35.9%) | 0.67/0.41 → 0.51/0.50 | 0 → 0 | 0 → 0 |
+| 7 | 26% → 42% | 48.6% → 63.4% | 13.3% → 33.3% (34.9%) | 0.69/0.40 → 0.50/0.50 | 0 → 0 | 0 → 0 |
+| 8 | 36% → 44% | 60.5% → 62.9% | 16.0% → 31.5% (34.2%) | 0.68/0.40 → 0.52/0.49 | 0 → 0 | 0 → 0 |
+| **4-8** | **31.6% → 37.2%** | 53.7% → 58.7% | **12.1% → 33.7%** (35.2%) | | 0 | 0 |
+
+Against the old script:
+
+| Seed | 4 | 5 | 6 | 7 | 8 | 4-8 |
+|---|---|---|---|---|---|---|
+| Town win, before → after | 88 → 88% | 92 → 90% | 78 → 80% | 82 → 82% | 96 → 96% | **87.2% → 87.2%** |
+| Lynch accuracy, after | 98.3% | 98.2% | 94.8% | 96.2% | 96.7% | |
+
+Vegs and illegal actions are 0 in every run.
+
+Tuning seeds 1-3 (adaptive), for reference only: 44 / 48 / 46% at `ef51262`, and 32 / 38 / 42% now. The
+tuning seeds went down while the unseen seeds went up. Per-seed noise at 50 games is about ±7pp, so neither
+3-seed average is a reliable target. The 250-game out-of-sample set is the number to trust.
+
+Ablations on seeds 1-3 (town win per seed):
+
+| Variant | Town win |
+|---|---|
+| Final | 32 / 38 / 42% |
+| Old 0-2 vote wait instead of matched timing | 36 / 40 / 40% |
+| No pressure claims at all | 30 / 34 / 38% |
+| No scum pressure claims | 26 / 34 / 38% |
+| No 3-scum split | 30 / 32 / 40% |
+| Uncontested power claimers also trusted in town's fallback votes (dropped) | 30 / 34 / 42% |
+
+## 1. Claims under pressure
+
+- **Pressure** (`underPressure`) means either:
+  - L-1, one vote short of a majority hammer (4 votes with 9 alive, 2 with 5), or
+  - the leading wagon of 2+ votes, tied or ahead, from half the day on.
+- **Town claims**, following Vinman's rule (no immediate claims; claim only under pressure or with real info):
+  - The Cop keeps the fixed rule (a guilty, a counterclaim, or the vinman Sheriff-out trigger). Pressure is added.
+  - The Journalist keeps the fixed rule (a guilty on it, or real report info; a rival claim alone is still no
+    trigger). Pressure is added. Its line is "im journalist, nothing useful yet. not me", or its info, and it
+    calls out a rival claimer if one exists.
+  - Any other town role says "im {role}. not me". A Villager says "im just a villager, no power role. not me".
+  - One claim per seat per game.
+- **Scum under pressure** claim like a townie would: Journalist if that claim is open (nobody outside claims
+  it, none flipped), about half the time, else Villager. Never Cop or Sheriff.
+- **How town weighs a claim:**
+  - A living rival claimer makes both claims contested.
+  - Claiming a unique role that a dead player already flipped (even one who never claimed it) is +8. This
+    was a gap: only flipped *claimers* counted before.
+  - A cleaned dead claimer makes the other claimer a liar.
+  - A sole uncontested power claim gets the existing -1, and a wagon on a power claimer is not followed.
+  - A plain Villager claim costs nothing to fake, so it no longer protects a wagon (`claimedTown`).
+- **Outcome on seeds 1-3:**
+  - Scum who claimed under pressure were still lynched ~74% of the time (87/117).
+  - Town Villagers who claimed were lynched 35% of the time (44/125).
+  - Town Journalists who claimed were lynched 19% of the time (17/90).
+- **Town fallback vote:** `beliefDayPick` now skips players the evidence trusts, instead of falling back to
+  "no one".
+
+## 2. Scum vote timing from town's distribution
+
+- **Measurement:** self-play records, per seat and day, the delay from that seat's own vote gate opening to
+  its first village vote (`stats.voteDelays`; scorecard `mafia.voteTiming.townDelayQuantilesMs` and
+  `scumDelayQuantilesMs`).
+- **What it shows:** on seeds 1-3, every town seat lets its first vote through on the tick its gate opens.
+  The distribution is a point mass at 0 ms (all 11 quantiles are 0). The spread in landing times comes from the
+  shared 2-15s first-vote stagger and the 5s tick. Scum go through the same gate and the same stagger.
+- **What scum do:** each scum seat samples its hold from `TOWN_VOTE_DELAY_MS` by a per-seat, per-day hash
+  (`scumVoteHoldMs`). That hold is 0 in self-play. The 2-15s stagger and the kill copy delay are unchanged.
+  Live play, where the town is paced by the model, should measure its own table and pass it as
+  `townVoteDelayMs`.
+- **Bloc split:** with no wait, teammates can vote on the same tick without seeing each other. With three
+  scum alive, one hashed seat per day never takes the team's main target, so there is still no 3-scum bloc
+  short of the endgame (test). As a backstop, a delayed scum vote that would become the third scum vote on
+  one target is re-picked when it is sent, never dropped (an earlier drop caused one veg on seed 3).
+
+## Lessons
+
+- The late-voting tell was helping town. Removing it is right (the mafia should not be readable by timing),
+  but it costs town a few points on the tuning seeds.
+- Pressure claims are close to neutral on win rate here. They save some town (Journalist and Villager
+  claimers survive more often), but they out the Journalist to the night kill (kill priority Journalist), and
+  scum claim back.
+- Trusting any uncontested power claimer in town's fallback votes protected fake Cops. It was dropped.
+- At 50 games per seed, a 3-seed tuning average moves ±5pp on noise. Out-of-sample totals over 250 games are
+  the only number to report.
+
+## Next weakness
+
+Town loses mostly on Day 1-2, and largely without information:
+- The claimed Cop dies on Night 2 in most games, and the D1 Sheriff shot often hits town.
+- A D1 vote with no claims splits, and the 2-vote wagon wins on plurality.
+
+The next principled lever is **the Journalist's night targeting and reporting**. Today it visits the Cop claimer from N2 on. It should also visit:
+- the player who pushed hardest, or
+- a pressure claimer, to catch the Janitor's report.
+
+It should then share "X got no report" for claimed Journalists and Villagers as well as fake Cops. After that,
+**multi-day vote-pattern reads** (who never voted with town consensus) are next.
