@@ -107,6 +107,24 @@ export function parseServerInfo(view, data) {
   return { playerId, detail, align: align || "", role: alignmentOf(detail) ? detail : null, text };
 }
 
+/**
+ * One parsed night result, for the live log: { kind: "cop"|"journalist"|"janitor", targetId, target, result }, or
+ * null. Cop and Journalist come from parseServerInfo (what the notes store); the Janitor's clean from its own line.
+ */
+export function alertResult(view, data) {
+  if (data?.senderId && data.senderId !== "server" && data.senderId !== "anonymous") return null;
+  const text = String(data?.content || "").trim();
+  const clean = /^(?::mop:\s*)?you discover (.+?)'s role is (?:a |an |the )?(.+?)\.*$/i.exec(text);
+  if (clean) {
+    const targetId = namedId(view, clean[1]);
+    return targetId ? { kind: "janitor", targetId, target: view.players[targetId]?.name || clean[1], result: clean[2].trim() } : null;
+  }
+  const info = parseServerInfo(view, data);
+  if (!info) return null;
+  const kind = /^(no reports|reports:)/.test(info.detail) ? "journalist" : "cop";
+  return { kind, targetId: info.playerId, target: view.players?.[info.playerId]?.name || info.playerId, result: kind === "cop" ? info.align || info.detail : info.detail };
+}
+
 function rememberCheck(view, data) {
   const info = parseServerInfo(view, data);
   if (!info) return;
