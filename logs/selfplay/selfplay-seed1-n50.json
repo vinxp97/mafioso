@@ -1,0 +1,374 @@
+{
+  "seed": 1,
+  "games": 50,
+  "setup": "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
+  "path": "harness onGameEntry fast mode: rules -> decide (bus) -> shapeDayVotes; scum chatter; claim rule; candidates -> selector (offline enumerator, no model)",
+  "winRate": {
+    "Village": 0.1,
+    "Mafia": 0.9,
+    "draw": 0,
+    "error": 0,
+    "counts": {
+      "Village": 5,
+      "Mafia": 45,
+      "draw": 0,
+      "error": 0
+    }
+  },
+  "townVotes": {
+    "ballots": 383,
+    "cast": 377,
+    "abstained": 6,
+    "onScum": 187,
+    "share": 0.4960212201591512,
+    "randomBaseline": 0.4275356827080962,
+    "lift": 0.06848553745105496,
+    "baselineMethod": "analytic: for each final town ballot, living mafia / living players other than the voter, under the same state; averaged"
+  },
+  "lynches": {
+    "total": 65,
+    "scum": 9,
+    "accuracy": 0.13846153846153847,
+    "noLynchDays": 29
+  },
+  "illegalActions": {
+    "total": 0,
+    "byReason": {},
+    "samples": []
+  },
+  "gameLength": {
+    "meanDays": 2.46,
+    "minDays": 1,
+    "maxDays": 6,
+    "histogram": {
+      "1": 3,
+      "2": 29,
+      "3": 12,
+      "4": 5,
+      "6": 1
+    },
+    "meanVirtualMinutes": 10.267599999999998
+  },
+  "sheriff": {
+    "randomBaseline": 0.4285714285714287,
+    "shots": 38,
+    "hits": 14,
+    "accuracy": 0.3684210526315789,
+    "byDay": {
+      "Day 1": 38
+    },
+    "misses": [
+      "Cop",
+      "Cop",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Cop",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Cop",
+      "Villager",
+      "Cop",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Cop",
+      "Villager"
+    ]
+  },
+  "cop": {
+    "checks": 93,
+    "guilty": 26,
+    "wrongFromLitigate": 8,
+    "guiltyActedOnSameDay": 2,
+    "guiltyTotal": 17
+  },
+  "claims": {
+    "total": 181,
+    "byClaim": {
+      "Sheriff->sheriff": 39,
+      "Janitor->cop": 27,
+      "Cop->cop": 44,
+      "Lawyer->cop": 29,
+      "Journalist->journalist": 22,
+      "Mafioso->cop": 20
+    },
+    "fake": 181
+  },
+  "mafia": {
+    "buses": 0,
+    "kills": 99,
+    "killsByRole": {
+      "Villager": 48,
+      "Cop": 23,
+      "Journalist": 16,
+      "Sheriff": 12
+    },
+    "cleans": 50,
+    "litigates": 100,
+    "litigateOnTeammate": 100,
+    "factionChatLines": 419,
+    "voteTiming": {
+      "daysWithVotes": 94,
+      "scumVotedFirst": 29,
+      "scumFirstRate": 0.30851063829787234,
+      "scumFirstBaseline": 0.36534954407294795,
+      "meanScumPosition": 0.5197548326261195,
+      "meanTownPosition": 0.4896081349206349
+    },
+    "killVoteMoves": 76
+  },
+  "vegs": 31,
+  "vegCauses": {
+    "Litigate: PLAN names no lawyer target; Lawyer never voted": 4,
+    "Village: PLAN speaker whose PLAN lynch target died (shot) before the vote": 21,
+    "Village: vote cleared when its target died; never re-voted": 5,
+    "Village: never proposed a vote": 1
+  },
+  "vegKickWindows": 74,
+  "staleProposals": 0,
+  "lynchSteering": {
+    "days": 94,
+    "lynchDays": 65,
+    "randomLynchBaseline": 0.36915750915750895,
+    "lynchOnPlanTarget": 38,
+    "lynchDaysWithPlan": 65,
+    "mislynchOnPlanTarget": 38,
+    "mislynches": 56,
+    "meanScumVotesOnMislynch": 2.017857142857143,
+    "meanTownVotesOnMislynch": 1.0714285714285714,
+    "meanDistinctTownTargets": 2.9468085106382977,
+    "daysWithScumFakeClaim": 76,
+    "mislynchAfterScumFakeClaim": 43,
+    "lynchDaysAfterScumFakeClaim": 51
+  },
+  "publicLines": 181,
+  "harnessErrors": 0,
+  "errors": [],
+  "metrics": {
+    "games": 50,
+    "winRate": {
+      "byAlignment": {
+        "Village": {
+          "successes": 5,
+          "trials": 50,
+          "rate": 0.1,
+          "low": 0.04347512399157111,
+          "high": 0.2136049033478839
+        },
+        "Mafia": {
+          "successes": 45,
+          "trials": 50,
+          "rate": 0.9,
+          "low": 0.7863950966521162,
+          "high": 0.956524876008429
+        }
+      },
+      "byRole": {
+        "Mafioso": {
+          "successes": 45,
+          "trials": 50,
+          "rate": 0.9,
+          "low": 0.7863950966521162,
+          "high": 0.956524876008429
+        },
+        "Villager": {
+          "successes": 15,
+          "trials": 150,
+          "rate": 0.1,
+          "low": 0.06154083683597323,
+          "high": 0.15843607448060176
+        },
+        "Sheriff": {
+          "successes": 5,
+          "trials": 50,
+          "rate": 0.1,
+          "low": 0.04347512399157111,
+          "high": 0.2136049033478839
+        },
+        "Journalist": {
+          "successes": 5,
+          "trials": 50,
+          "rate": 0.1,
+          "low": 0.04347512399157111,
+          "high": 0.2136049033478839
+        },
+        "Janitor": {
+          "successes": 45,
+          "trials": 50,
+          "rate": 0.9,
+          "low": 0.7863950966521162,
+          "high": 0.956524876008429
+        },
+        "Lawyer": {
+          "successes": 45,
+          "trials": 50,
+          "rate": 0.9,
+          "low": 0.7863950966521162,
+          "high": 0.956524876008429
+        },
+        "Cop": {
+          "successes": 5,
+          "trials": 50,
+          "rate": 0.1,
+          "low": 0.04347512399157111,
+          "high": 0.2136049033478839
+        }
+      }
+    },
+    "mislynchRate": {
+      "successes": 56,
+      "trials": 65,
+      "rate": 0.8615384615384616,
+      "low": 0.7573167852534054,
+      "high": 0.9254099381231576
+    },
+    "townVoteAccuracy": {
+      "successes": 187,
+      "trials": 377,
+      "rate": 0.4960212201591512,
+      "low": 0.44584556769101763,
+      "high": 0.546277141592842
+    },
+    "nightActionUsage": {
+      "successes": 640,
+      "trials": 644,
+      "rate": 0.9937888198757764,
+      "low": 0.9841393984405056,
+      "high": 0.9975820593973364
+    },
+    "checkUsefulness": {
+      "cop": {
+        "successes": 26,
+        "trials": 93,
+        "rate": 0.27956989247311825,
+        "low": 0.19850210044898137,
+        "high": 0.3781261254374145
+      },
+      "journalist": {
+        "successes": 19,
+        "trials": 101,
+        "rate": 0.18811881188118812,
+        "low": 0.12387028698950667,
+        "high": 0.2752232026176721
+      }
+    },
+    "killPriorityAdherence": {
+      "successes": 24,
+      "trials": 98,
+      "rate": 0.24489795918367346,
+      "low": 0.1704485358593521,
+      "high": 0.3385929560260857
+    },
+    "illegal": {
+      "proposed": 0,
+      "blocked": 0,
+      "blockRate": {
+        "successes": 0,
+        "trials": 0,
+        "rate": null,
+        "low": null,
+        "high": null
+      }
+    },
+    "fallback": {
+      "candidate": 77,
+      "llm": 0,
+      "rules": 1698,
+      "rate": 0.9566197183098591,
+      "successes": 1698,
+      "trials": 1775,
+      "low": 0.946115575618555,
+      "high": 0.9651516220903361
+    },
+    "messageRate": {
+      "mean": 0.2964074074074074,
+      "low": 0.2588751326215829,
+      "high": 0.3339396821932319,
+      "n": 450
+    },
+    "speechAllowed": 181
+  },
+  "cleans": 50,
+  "weaknesses": [
+    {
+      "id": "lynch-steered-by-mafia",
+      "title": "Town lynches land on town far below random: the mafia vote bloc and fake-Cop claim pick the lynch",
+      "severity": 0.612,
+      "shortfall": 0.625,
+      "coverage": 0.98,
+      "evidence": "lynch accuracy 13.8% (9/65) vs 36.9% for a random lynch; 38/65 lynches hit the mafia PLAN's push target; on mislynches scum put 2.02 votes and town 1.07 on the lynched player; town spread over 2.95 targets a day; 43/51 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 49.6% vs random 42.8%; 29 no-lynch days"
+    },
+    {
+      "id": "vegs",
+      "title": "Seats veg (never cast a must-act vote)",
+      "severity": 0.36,
+      "shortfall": 0.62,
+      "coverage": 0.58,
+      "evidence": "31 veg kicks in 29/50 games; causes: Litigate: PLAN names no lawyer target; Lawyer never voted 4, Village: PLAN speaker whose PLAN lynch target died (shot) before the vote 21, Village: vote cleared when its target died; never re-voted 5, Village: never proposed a vote 1"
+    },
+    {
+      "id": "cop-guilty-ignored",
+      "title": "Cop guilties are not acted on",
+      "severity": 0.265,
+      "shortfall": 0.882,
+      "coverage": 0.3,
+      "evidence": "15/17 Guilty results not lynched or shot that day; 8/93 Cop results flipped by the Lawyer"
+    },
+    {
+      "id": "sheriff-misfires",
+      "title": "Sheriff shoots town at about (or worse than) random",
+      "severity": 0.227,
+      "shortfall": 0.298,
+      "coverage": 0.76,
+      "evidence": "24/38 shots hit town (Cop 6, Villager 18); accuracy 36.8% vs 42.9% random; shots by day Day 1 38"
+    },
+    {
+      "id": "town-votes-near-random",
+      "title": "Town ballots barely beat a random voter",
+      "severity": 0.1,
+      "shortfall": 0.1,
+      "coverage": 1,
+      "evidence": "187/377 final town ballots on scum (49.6%) vs random 42.8%; lift 6.8 pts"
+    },
+    {
+      "id": "mafia-vote-timing",
+      "title": "Mafia vote timing is a tell",
+      "severity": 0.06,
+      "shortfall": 0.06,
+      "coverage": 1,
+      "evidence": "scum cast the first Village vote on 29/94 days (30.9% vs 36.5% if order were random); mean vote position scum 0.52 vs town 0.49 (0 = first)"
+    }
+  ],
+  "topWeakness": {
+    "id": "lynch-steered-by-mafia",
+    "title": "Town lynches land on town far below random: the mafia vote bloc and fake-Cop claim pick the lynch",
+    "severity": 0.612,
+    "shortfall": 0.625,
+    "coverage": 0.98,
+    "evidence": "lynch accuracy 13.8% (9/65) vs 36.9% for a random lynch; 38/65 lynches hit the mafia PLAN's push target; on mislynches scum put 2.02 votes and town 1.07 on the lynched player; town spread over 2.95 targets a day; 43/51 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 49.6% vs random 42.8%; 29 no-lynch days"
+  },
+  "examples": [
+    "game 2 (seed 1); roles: Ash=Villager, Bea=Journalist, Cal=Lawyer, Dot=Villager, Eli=Janitor, Fin=Villager, Gil=Mafioso, Hap=Cop, Ivo=Sheriff",
+    "Night 1 [Mafia] Cal: kill ash tonight, ill fake cop tmrw and push bea, lawyer go on gil",
+    "Night 1 [Mafia] Cal: bea is an easy wagon",
+    "Night 1 [Mafia] Eli: ok ash it is",
+    "Night 1 [Mafia] Gil: dont all vote the same guy first",
+    "Day 1 Ash (Villager) dies: killed by the Mafia [cleaned]",
+    "Day 1 Cal: im cop. bea is guilty, vote bea",
+    "Day 1 Ivo: im sheriff.",
+    "Day 1 Bea: cal is lying, im journalist",
+    "Day 1 Hap: cal is lying, im the real cop.",
+    "Day 1 Hap (Cop) dies: shot by the Sheriff",
+    "Day 1 votes: Eli <- Bea,Ivo; Bea <- Cal,Eli,Gil",
+    "Day 1 Bea (Journalist) dies: lynched"
+  ]
+}

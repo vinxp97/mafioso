@@ -72,3 +72,29 @@ node scripts/arena.mjs --summary --file ../../logs/replays/arena-1.jsonl
 ```
 
 One JSON object per game is written to `logs/replays/arena-<seed>.jsonl` (gitignored). `--summary` prints `summarizeMetrics` (Wilson intervals) for that file, or for the run it just played.
+
+## Self-play (`src/selfplay.js`, `scripts/selfplay.mjs`)
+
+Full Frontier Justice 9p games with no server, no network and no model. An in-process server deals FJ (reusing the arena's role list, seed mixing, plurality and win check), sends live-shaped frames (`state`, `meeting`, `vote`, `unvote`, `message`, `death`, `reveal`, `time`, `timerInfo`, `youAreBeingVoteKicked`) to the real harness table (`onGameEntry`, fast mode), and applies the table's proposals, immediate and deferred. So every seat runs the live path: `rulesSeatActions` -> `decide` (bus included) -> `shapeDayVotes`, scum faction chatter and PLAN, the Cop/Journalist claim rule, and `proposeSeatActions` (candidates -> selector, rules fallback). The model is `createOfflineComplete`. Candidate prompts get every legal target as an option, so the selector's scores choose. Speech prompts answer only when the engine already prescribes the line (the Sheriff-out aim, or the PLAN speaker's fake claim). Everything else throws, so the no-model rules line is used. Use `speech: "none"` to throw on every speech prompt.
+
+The server follows the restartq rules. Meetings resolve by plurality (a tie means no one). A night ends once every meeting is ready, and a day once the Village is ready (everyone voted, no tie). When the timer runs out, a Vote Kick window opens, and anyone who never voted in a must-vote meeting is vegged at the end. Night order: Litigate flips the Cop result, then the mafia kill, then Clean Death (once; it hides the role and the Janitor learns it), then the Cop and Journalist reports. The Shoot Gun is instant, single use, reveals the shooter and is available every day. Votes on a player who dies are cleared and the meeting is re-sent. Each proposal is checked against server truth and against the engine's `validateAction` on the seat's own view. Anything that fails counts as an illegal action. Time is a virtual clock, and randomness comes from one seeded rng per game, so the same seed always produces the same games.
+
+```bash
+cd harness
+npm run selfplay -- --games 50 --seed 1          # writes ../logs/selfplay/selfplay-seed1-n50.{json,md,records.jsonl,games.jsonl}
+```
+
+The scorecard (JSON and markdown) has:
+
+- win rate by alignment
+- town ballots on scum vs an analytic random-voter baseline
+- illegal actions
+- game length
+- lynch, Sheriff and Cop accuracy
+- claims, buses, cleans and litigates
+- mafia vote timing
+- vegs by cause
+- the existing `summarizeMetrics` block
+- ranked weaknesses with evidence and an example game log
+
+`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. The seed 1, 50-game scorecard is checked in as the baseline. The jsonl files are gitignored.

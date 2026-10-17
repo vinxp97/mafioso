@@ -9,3 +9,4 @@ coverage/
 dist/
 harness/data/prompts/runtime/
 logs/replays/*.jsonl
+logs/selfplay/*.jsonl
