@@ -61,16 +61,17 @@ test("Janitor found on a hardest pusher: claims (Vinman trigger) and names the J
   assert.match(roleClaimLine(v), /^im journalist\. cal is janitor/);
 });
 
-test("extras are only legitimate info and never a claim trigger on their own", () => {
-  // Rival Journalist claimer with no report: a real Journalist always has one, so it's fake. Not a trigger.
+test("extras are only legitimate info; the rival claim (not the extra) is what triggers the counterclaim", () => {
+  // Rival Journalist claimer with no report: a real Journalist always has one, so it's fake. The rival claim
+  // itself is the trigger (unique role), and the counterclaim carries the finding.
   const rival = [say("p4", "im journalist"), srv(":journ: You learn that Dot received no reports.")];
-  const quiet = seat("Journalist", rival);
-  assert.equal(claimAllowed(quiet), false);
-  assert.equal(roleClaimLine(quiet), null);
-  assert.deepEqual(journalistExtras(quiet), [{ kind: "fakejournalist", target: "p4" }]);
-  // Once outed, it shares the finding (no repeat claim).
+  const countered = seat("Journalist", rival);
+  assert.equal(claimAllowed(countered), true);
+  assert.equal(roleClaimLine(countered), "dot is lying, im journalist. dot got no report, fake journalist");
+  assert.deepEqual(journalistExtras(countered), [{ kind: "fakejournalist", target: "p4" }]);
+  // Once outed, it calls the rival out and shares the finding (no repeat claim).
   const outed = seat("Journalist", [say("p1", "im journalist, nothing useful yet. not me"), ...rival]);
-  assert.equal(roleClaimLine(outed), "dot got no report, fake journalist");
+  assert.equal(roleClaimLine(outed), "dot is lying, dot got no report, fake journalist");
   // Under pressure it claims with the finding instead of "nothing useful yet".
   const l1 = seat("Journalist", rival, { votes: { p2: "p1", p3: "p1", p5: "p1" } });
   assert.match(roleClaimLine(l1), /im journalist\. dot got no report, fake journalist\. not me$/);

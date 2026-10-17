@@ -44,9 +44,9 @@ test("under pressure every town role claims: Journalist, Cop, and a Villager say
   assert.equal(roleClaimLine(again), null);
 });
 
-test("Journalist (fixed rule): a rival Journalist claim alone is no trigger; under pressure it claims and calls it out", () => {
+test("Journalist: a rival Journalist claim is countered at once, with or without pressure", () => {
   const pre = [{ event: "state", data: { id: 3, name: "Day 2" } }, say("p4", "im journalist, nothing useful yet")];
-  assert.equal(roleClaimLine(seat("Journalist", {}, pre)), null);
+  assert.match(roleClaimLine(seat("Journalist", {}, pre)), /^dot is lying, im journalist/);
   assert.match(roleClaimLine(seat("Journalist", on(4), pre)), /^dot is lying, im journalist/);
 });
 
