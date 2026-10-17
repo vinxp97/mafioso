@@ -48,6 +48,7 @@ export function reduce(view, frame) {
       v.timer = tm;
       break;
     }
+    case "botConfig": v.config = { ...(v.config || {}), ...(clone(data) || {}) }; break;
     case "self": v.selfId = String(data); updateRole(v); break;
     case "players": v.players = clone(data) || {}; break;
     case "playerJoin": if (data?.id) v.players[data.id] = clone(data); break;
@@ -205,6 +206,7 @@ export const HANDLED_EVENTS = Object.freeze([
   "state", "history", "reveal", "roleReveal", "meeting", "leftMeeting", "members", "message", "quote",
   "speakCooldown", "vote", "unvote", "death", "exorcised", "revival", "obituaries", "winners", "finished",
   "youAreBeingVoteKicked", "start", "isStarted", "isSpectator",
+  "botConfig", // local only: the harness sets per-seat strategy (copRule); no server event has this name
 ]);
 
 /** Server events seen on the dev stream that carry nothing a seat decides on, each with the reason. */

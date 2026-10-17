@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -170,13 +170,15 @@ export function zipAccounts(accounts, prompts) {
  * `clock` ({ now, setTimer }) drives every delay and timestamp the table makes (default: wall clock);
  * `rng` drives every jitter (default: Math.random). Tests pass a virtual clock and a seeded rng.
  */
-export function createBotTable(accounts, { clock = realClock, rng = Math.random } = {}) {
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman" } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng,
+    clock, rng, config: { copRule },
   };
 }
+/** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
+const seatView = (table) => (table?.config ? engineReduce(emptyView(), { event: "botConfig", data: table.config }) : emptyView());
 const nowOf = (table) => (table?.clock || realClock).now();
 const rngOf = (table) => table?.rng || Math.random;
 const waitOn = (table, ms) => new Promise((r) => (table?.clock || realClock).setTimer(r, ms));
@@ -212,12 +214,12 @@ export async function seedSelfIds(client, table, ids, { sleep = defaultSleep, tr
     const byId = new Map(rows.map((a) => [a.id || a.accountId, a]));
     for (const id of missing) {
       const playerId = byId.get(id)?.playerId;
-      if (playerId) table.views[id] = engineReduce(table.views[id] ?? emptyView(), { event: "self", data: String(playerId) });
+      if (playerId) table.views[id] = engineReduce(table.views[id] ?? seatView(table), { event: "self", data: String(playerId) });
     }
     // Our own seats' display names, so speech can say "Bob" even if the players frame was missed.
     const named = ids.map((id) => byId.get(id)).filter((a) => a?.playerId && a?.name);
     for (const id of ids) {
-      const v = (table.views[id] ||= emptyView());
+      const v = (table.views[id] ||= seatView(table));
       for (const a of named) {
         const pid = String(a.playerId);
         if (!v.players[pid]?.name) v.players[pid] = { ...(v.players[pid] || {}), id: pid, name: String(a.name) };
@@ -443,12 +445,21 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
         out.push({ ...a, data: { ...a.data, selection: read.target } });
         continue;
       }
+      // Never vote a player the public evidence verifies as town (a verified claimer, a revealed Sheriff).
+      const reads = townReads(view);
+      const trusted = (t) => reads.verified.includes(t) || (reads.score[t] ?? 0) <= TOWN_READS.credible;
+      const meeting = view.meetings[a.data.meetingId];
       // Town consolidates late: follow a 2+ vote leader unless this seat believes that player is town.
-      const follow = townFollow(view, view.meetings[a.data.meetingId]);
-      if (follow) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
+      const follow = townFollow(view, meeting);
+      if (follow && !trusted(follow)) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
       if (source === "rules") {
-        const pick = beliefDayPick(view, view.meetings[a.data.meetingId], rngOf(table));
-        if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+        const pick = beliefDayPick(view, meeting, rngOf(table));
+        if (pick && !trusted(pick)) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
+      }
+      if (trusted(String(a.data.selection))) {
+        const alt = (meeting?.targets || []).includes("*") ? "*" : null;
+        if (alt) out.push({ ...a, data: { ...a.data, selection: alt } });
+        continue;
       }
     }
     out.push(a);
@@ -709,6 +720,17 @@ function startUpgrade(table, id, ctx) {
           if (ctx.onAdded) ctx.onAdded(added);
           if (added.length) continue;
         }
+        // Town counter-story from the public evidence (townCounterLine), at most once per seat per day.
+        const ck = `${id}|${view.stateId}`;
+        if (pm && !(table.counterSaid ||= new Set()).has(ck)) {
+          const counter = townCounterLine(view);
+          if (counter) {
+            table.counterSaid.add(ck);
+            const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: counter } }], { ...ctx, source: "counter-rule", clock: ctx.clockOf() });
+            if (ctx.onAdded) ctx.onAdded(added);
+            if (added.length) continue;
+          }
+        }
       }
       // Filler: a cheap canned reaction instead of queueing behind a busy GPU, never when addressed.
       if (!night && ctx.limiter?.pending >= 2) {
@@ -867,7 +889,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   rng = rng ?? rngOf(table);
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
-  table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
+  table.views[id] = engineReduce(table.views[id] ?? seatView(table), entry);
   if (onChat) { const line = publicChatLogLine(table, id, entry); if (line) onChat(line); }
   if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
     for (const inj of noteSeatRole(table, id, table.views[id])) {

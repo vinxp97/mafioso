@@ -47,14 +47,16 @@ test("live report wording is parsed: Cop guilty/innocent, Journalist no-reports 
   assert.equal(j.notes.checks.rhyFPKXcnH.detail, "no reports");
 });
 
-test("Cop claims (all results) only on a guilty or when counterclaimed/guiltied; a Sheriff out alone keeps it quiet", () => {
+test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or counterclaimed/guiltied; else quiet (copRule vinman, the default)", () => {
   const quiet = seat("Cop", [srv("Your investigation shows that Cal is Innocent")]);
   assert.equal(roleClaimLine(quiet), null);
   assert.equal(claimAllowed(quiet), false);
   const g = seat("Cop", [srv("Your investigation shows that Bea is Guilty")]);
   assert.equal(roleClaimLine(g), "im cop. bea guilty");
   const sh = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
-  assert.equal(roleClaimLine(sh), null, "a Sheriff out alone is not a Cop trigger (FJ strategy)");
+  assert.equal(roleClaimLine(sh), "im cop. cal inno");
+  const shWait = reduce(seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]), { event: "botConfig", data: { copRule: "wait" } });
+  assert.equal(roleClaimLine(shWait), null, "copRule wait: a Sheriff out alone is not a Cop trigger");
   const shDead = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
   shDead.dead = { kCMt06jKvBp: true };
   assert.equal(roleClaimLine(shDead), null, "a dead Sheriff does not trigger it");

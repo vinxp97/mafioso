@@ -18,7 +18,7 @@ import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
 import { createVirtualClock } from "./clock.js";
 
 export const SELFPLAY_DIR = fileURLToPath(new URL("../../logs/selfplay", import.meta.url));
-export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed" });
+export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", lawyer: "loyal" });
 const NAMES = ["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gil", "Hap", "Ivo"];
 const T0 = 1_760_000_000_000;
 const ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -109,7 +109,7 @@ function createServer({ seed, game, opts }) {
     const acc = makeId(rng, 10); accOf[id] = acc; pidOf[acc] = id;
   });
   const clock = createVirtualClock(T0);
-  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")) });
+  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule });
   const S = {
     seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
     complete: null, limiter: createLlmLimiter(4),
@@ -453,8 +453,13 @@ async function playNight(S) {
   const victim = killTarget && S.alive.has(killTarget) && !isScum(S, killTarget) ? killTarget : null;
   const lit = byName(S, "Litigate");
   const lawyer = lit?.members[0];
-  const flipped = lit && S.alive.has(lawyer) ? lit.ballots[lawyer] : null;
-  if (flipped) S.stats.litigates.push({ day: S.day, target: S.names[flipped], targetRole: S.roles[flipped], teammate: isScum(S, flipped) });
+  const litTarget = lit && S.alive.has(lawyer) ? lit.ballots[lawyer] : null;
+  // FJ's Lawyer is Loyal (restartq Role.js): an action on a player of the other alignment is blocked. The
+  // Litigate (FlipAlignment card) sets the target's investigate appearance to the opposite alignment, so a
+  // Loyal Lawyer can only make a teammate read Innocent; a Cop's Guilty can never be faked.
+  const blocked = !!(litTarget && litTarget !== "*" && S.opts.lawyer === "loyal" && !isScum(S, litTarget));
+  const flipped = litTarget && litTarget !== "*" && !blocked ? litTarget : null;
+  if (litTarget && litTarget !== "*") S.stats.litigates.push({ day: S.day, target: S.names[litTarget], targetRole: S.roles[litTarget], teammate: isScum(S, litTarget), blocked });
   const clean = byName(S, "Clean Death");
   const janitor = clean?.members[0];
   const cleaned = !!(victim && clean && S.alive.has(janitor) && clean.ballots[janitor] === "Yes" && S.cleansLeft > 0);
@@ -633,7 +638,7 @@ export async function runSelfplay({ games = 50, seed = 1, onGame, ...rest } = {}
 const pct = (x) => (x == null ? "n/a" : `${(100 * x).toFixed(1)}%`);
 const rate = (a, b) => (b ? a / b : null);
 
-export function buildScorecard(results, { seed, games } = {}) {
+export function buildScorecard(results, { seed, games, ...rest } = {}) {
   const all = (key) => results.flatMap((r) => r.stats[key]);
   const n = results.length;
   const wins = { Village: 0, Mafia: 0, draw: 0, error: 0 };
@@ -658,7 +663,7 @@ export function buildScorecard(results, { seed, games } = {}) {
   const days = results.map((r) => r.days);
   const errors = results.filter((r) => r.error).map((r) => ({ game: r.game, error: r.error }));
   const card = {
-    seed, games: games ?? n, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
+    seed, games: games ?? n, copRule: rest.copRule || SELFPLAY_DEFAULTS.copRule, lawyer: rest.lawyer || SELFPLAY_DEFAULTS.lawyer, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
     path: "harness onGameEntry fast mode: rules -> decide (bus) -> shapeDayVotes; scum chatter; claim rule; candidates -> selector (offline enumerator, no model)",
     winRate: { Village: rate(wins.Village, n), Mafia: rate(wins.Mafia, n), draw: rate(wins.draw, n), error: rate(wins.error, n), counts: wins },
     townVotes: {
@@ -671,7 +676,9 @@ export function buildScorecard(results, { seed, games } = {}) {
     illegalActions: { total: illegalList.length, byReason: countBy(illegalList, (x) => x.reason.replace(/\(.*\)|[A-Za-z0-9_-]{6,}$/g, "").trim()), samples: illegalList.slice(0, 10) },
     gameLength: { meanDays: mean(days), minDays: Math.min(...days), maxDays: Math.max(...days), histogram: countBy(days, (d) => String(d)), meanVirtualMinutes: mean(results.map((r) => r.minutes)) },
     sheriff: { randomBaseline: mean(shots.map((x) => x.baseline)), shots: shots.length, hits: shots.filter((s) => s.hit).length, accuracy: rate(shots.filter((s) => s.hit).length, shots.length), byDay: countBy(shots, (s) => `Day ${s.day}`), misses: shots.filter((s) => !s.hit).map((s) => `${s.targetRole}`) },
-    cop: { checks: checks.length, guilty: checks.filter((c) => c.result === "Guilty").length, wrongFromLitigate: checks.filter((c) => !c.correct).length, guiltyActedOnSameDay: guilty.filter((g) => g.actedOn).length, guiltyTotal: guilty.length },
+    cop: { checks: checks.length, guilty: checks.filter((c) => c.result === "Guilty").length, wrongFromLitigate: checks.filter((c) => !c.correct).length, guiltyActedOnSameDay: guilty.filter((g) => g.actedOn).length, guiltyTotal: guilty.length,
+      guiltyActedOnSameDayCopAlive: guilty.filter((g) => g.actedOn && g.copAlive).length, guiltyCopAlive: guilty.filter((g) => g.copAlive).length,
+      innocentOnScum: checks.filter((c) => c.result === "Innocent" && c.litigated).length },
     claims: { total: claims.length, byClaim: countBy(claims, (c) => `${c.role}->${c.claimed}`), fake: claims.filter((c) => !c.truthful).length },
     mafia: {
       buses: all("buses").length, kills: all("kills").length, killsByRole: countBy(all("kills"), (k) => k.role),
@@ -800,7 +807,7 @@ const countSummary = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(
 export function scorecardMarkdown(card) {
   const L = [];
   L.push(`# Self-play scorecard: ${card.games} games, seed ${card.seed}`, "");
-  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, "");
+  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, `Cop rule: ${card.copRule}; Lawyer: ${card.lawyer}`, "");
   L.push("| Metric | Value |", "|---|---|");
   L.push(`| Village win rate | ${pct(card.winRate.Village)} (${card.winRate.counts.Village}) |`);
   L.push(`| Mafia win rate | ${pct(card.winRate.Mafia)} (${card.winRate.counts.Mafia}) |`);
@@ -813,7 +820,7 @@ export function scorecardMarkdown(card) {
   L.push(`| Illegal actions | ${card.illegalActions.total} |`);
   L.push(`| Game length | mean ${fmt(card.gameLength.meanDays)} days (min ${card.gameLength.minDays}, max ${card.gameLength.maxDays}); ${countSummary(card.gameLength.histogram)} |`);
   L.push(`| Sheriff shots | ${card.sheriff.hits}/${card.sheriff.shots} hit scum (${pct(card.sheriff.accuracy)} vs ${pct(card.sheriff.randomBaseline)} random) |`);
-  L.push(`| Cop checks | ${card.cop.checks}, ${card.cop.guilty} Guilty, ${card.cop.wrongFromLitigate} flipped by Lawyer; Guilty acted on same day ${card.cop.guiltyActedOnSameDay}/${card.cop.guiltyTotal} |`);
+  L.push(`| Cop checks | ${card.cop.checks}, ${card.cop.guilty} Guilty, ${card.cop.wrongFromLitigate} flipped by Lawyer; Guilty acted on same day ${card.cop.guiltyActedOnSameDay}/${card.cop.guiltyTotal} (Cop alive that day: ${card.cop.guiltyActedOnSameDayCopAlive}/${card.cop.guiltyCopAlive}) |`);
   L.push(`| Public claims | ${card.claims.total} (${countSummary(card.claims.byClaim)}) |`);
   L.push(`| Mafia kills | ${card.mafia.kills} (${countSummary(card.mafia.killsByRole)}) |`);
   L.push(`| Janitor cleans / Lawyer litigates (on teammate) | ${card.mafia.cleans} / ${card.mafia.litigates} (${card.mafia.litigateOnTeammate}) |`);
@@ -841,7 +848,9 @@ export function scorecardMarkdown(card) {
 /** Write scorecard JSON + markdown and per-game records (JSONL, the summarizeMetrics format). */
 export async function writeSelfplay({ results, scorecard }, { outDir = SELFPLAY_DIR } = {}) {
   await mkdir(outDir, { recursive: true });
-  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}`;
+  const rule = scorecard.copRule && scorecard.copRule !== SELFPLAY_DEFAULTS.copRule ? `-${scorecard.copRule}` : "";
+  const law = scorecard.lawyer && scorecard.lawyer !== SELFPLAY_DEFAULTS.lawyer ? `-${scorecard.lawyer}lawyer` : "";
+  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}${rule}${law}`;
   const json = join(outDir, `${base}.json`);
   const md = join(outDir, `${base}.md`);
   const jsonl = join(outDir, `${base}.records.jsonl`);
