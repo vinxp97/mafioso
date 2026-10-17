@@ -91,6 +91,15 @@ export function journalistInfo(view) {
     const claimedCop = /cop/i.test(String(view?.claims?.[id]?.role || ""));
     if (claimedCop && /\b(no report|no reports|nothing|did not receive|didn'?t receive|received no)\b/i.test(text)) return { kind: "fakecop", target: id };
   }
+  // A Cop claimer whose reports include a Cop result is the real Cop. Only worth outing myself for when
+  // the Cop claim is contested (otherwise it just paints two targets).
+  const copClaimers = Object.entries(view?.claims || {}).filter(([pid, c]) => /cop/i.test(String(c?.role || "")) && c.kind !== "retract" && !view.dead?.[pid]).map(([pid]) => pid);
+  if (copClaimers.length >= 2) {
+    for (const [id, c] of Object.entries(checks)) {
+      const text = `${c?.result || ""} ${c?.detail || ""}`;
+      if (copClaimers.includes(id) && /investigation|guilty|innocent/i.test(text) && /reports?:/i.test(text)) return { kind: "realcop", target: id };
+    }
+  }
   return null;
 }
 
@@ -115,7 +124,9 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
   if (planSpeaker) return true;
-  if (/^cop$/i.test(role)) return !!(sheriffOutAlive(view) || hasGuiltyCheck(view) || counterclaimReason(view));
+  // FJ: the real Cop claims when counterclaimed or called guilty (or to deliver a guilty), not just because
+  // a Sheriff is out: an early Cop claim is a free night kill.
+  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view));
   if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view);
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
@@ -133,6 +144,20 @@ export function roleClaimLine(view) {
   const role = String(view.role || "");
   const nm = (id) => lc(nameOfId(view, id) || "");
   const cc = counterclaimReason(view);
+  // Already claimed: only new information, without repeating the claim (one claim per seat per game).
+  const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
+  if (mine.some((m) => claimedRoleIn(m.content) === lc(role))) {
+    let info = null;
+    if (/^cop$/i.test(role)) { const res = allResults(view); info = res ? `results: ${res}` : null; }
+    if (/journalist/i.test(role)) {
+      const j = journalistInfo(view);
+      info = !j ? null : j.kind === "janitor" ? `${nm(j.target)} is janitor` : j.kind === "realcop" ? `${nm(j.target)} got a cop report, real cop` : `${nm(j.target)} got no report, fake cop`;
+    }
+    // A new rival claim or a guilty on me: call it out again, once per accuser.
+    const callOut = cc && !mine.some((m) => mentionsId(view, m.content, cc.by) && /\blying\b/i.test(String(m.content || ""))) ? `${nm(cc.by)} is lying` : null;
+    const line = [callOut, info && !mine.some((m) => lc(m.content).includes(lc(info))) ? info : null].filter(Boolean).join(", ");
+    return line ? line.slice(0, 80) : null;
+  }
   const lead = cc ? `${nm(cc.by)} is lying, ` : "";
   if (/^cop$/i.test(role)) {
     const res = allResults(view);
@@ -140,9 +165,12 @@ export function roleClaimLine(view) {
   }
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
-    const what = info ? (info.kind === "janitor" ? `${nm(info.target)} is janitor` : `${nm(info.target)} got no report, fake cop`) : "";
+    const what = !info ? "" : info.kind === "janitor" ? `${nm(info.target)} is janitor`
+      : info.kind === "realcop" ? `${nm(info.target)} got a cop report, real cop` : `${nm(info.target)} got no report, fake cop`;
     return `${lead}im journalist${what ? `. ${what}` : ""}`.slice(0, 80);
   }
+  // FJ: the Sheriff outs on Day 1 (a known Sheriff is a deterrent and a test of Cop claims).
+  if (/^sheriff$/i.test(role)) return `${lead}im sheriff${cc ? ", the real one" : ""}`.slice(0, 80);
   return null;
 }
 

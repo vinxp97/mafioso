@@ -347,7 +347,9 @@ function nightScum(view, faction) {
   }
   for (const meeting of roleMeetings(view)) {
     if (isLawyerRole(view.role)) {
-      const selection = lawyerSelection(meeting, plan, view);
+      // PLAN target, else the default teammate rule (Mafioso first); with no teammate to cover, pass ("*")
+      // rather than skip the vote (Litigate is a must-vote meeting: a skipped vote is a veg).
+      const selection = lawyerSelection(meeting, plan, view) || ((meeting.targets || []).includes(NO_ONE) ? NO_ONE : null);
       if (selection && unvoted(meeting, view.selfId)) out.push({ event: "vote", data: { meetingId: meeting.id, selection } });
     }
     if (view.role === "Janitor") {

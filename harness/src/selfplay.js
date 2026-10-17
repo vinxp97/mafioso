@@ -117,6 +117,16 @@ function createServer({ seed, game, opts }) {
     gunUsed: false, cleansLeft: 1, pastMeetings: new Set(), cursor: 0, winner: null, events: [], errors: [],
     stats: emptyStats(), trace: emptyTraceFor(seed, game), mseq: 0,
   };
+  // Stamp each proposal with what the server would have said the moment the seat sent it. A proposal
+  // that was legal when sent but is overtaken before it is applied (its target or sender died in the
+  // same instant) is a network race the server drops, not an illegal action.
+  const stamps = new WeakMap();
+  const push = table.proposed.push.bind(table.proposed);
+  table.proposed.push = (...items) => {
+    for (const p of items) if (p && typeof p === "object") stamps.set(p, serverVerdict(S, p) ?? "ok");
+    return push(...items);
+  };
+  S.stampOf = (p) => stamps.get(p) || null;
   const byName = Object.fromEntries(ids.map((id) => [names[id].toLowerCase(), accOf[id]]));
   S.complete = createOfflineComplete({ speech: opts.speech, viewByName: (n) => table.views[byName[String(n).toLowerCase()]] || null });
   return S;
@@ -223,36 +233,51 @@ async function pump(S) {
   }
 }
 
-async function applyProposal(S, p) {
+/** Server truth plus engine validation for one proposal, now. null when legal. */
+function serverVerdict(S, p) {
   const pid = S.pidOf[p.accountId];
   const view = S.table.views[p.accountId];
-  if (!pid) return illegal(S, p, pid, "unknown account");
-  if (p.event !== "vote" && p.event !== "unvote" && p.event !== "speak") return illegal(S, p, pid, `unsupported event ${p.event}`);
-  if (!S.alive.has(pid)) return illegal(S, p, pid, "dead seat acted");
+  if (!pid) return "unknown account";
+  if (p.event !== "vote" && p.event !== "unvote" && p.event !== "speak") return `unsupported event ${p.event}`;
+  if (!S.alive.has(pid)) return "dead seat acted";
   const m = S.meetings.get(p.data?.meetingId);
-  if (!m && S.pastMeetings.has(p.data?.meetingId)) { S.stats.stale += 1; return; } // phase already over: server drops it
-  if (!m || m.closed) return illegal(S, p, pid, `unknown meeting ${p.data?.meetingId}`);
-  if (!m.members.includes(pid)) return illegal(S, p, pid, `not a member of ${m.name}`);
+  if (!m && S.pastMeetings.has(p.data?.meetingId)) return "stale:phase over";
+  if (!m || m.closed) return `unknown meeting ${p.data?.meetingId}`;
+  if (!m.members.includes(pid)) return `not a member of ${m.name}`;
   const engine = validateAction(view, { event: p.event, data: p.data });
-  if (!engine.ok) return illegal(S, p, pid, `engine: ${engine.reason}`);
+  if (!engine.ok) return `engine: ${engine.reason}`;
   if (p.event === "speak") {
-    if (!m.speech) return illegal(S, p, pid, `cannot speak in ${m.name}`);
-    const content = String(p.data.content || "");
-    if (!content.trim()) return illegal(S, p, pid, "empty content");
-    return speak(S, pid, m, content, p);
+    if (!m.speech) return `cannot speak in ${m.name}`;
+    if (!String(p.data.content || "").trim()) return "empty content";
+    return null;
   }
-  if (!m.voting) return illegal(S, p, pid, `cannot vote in ${m.name}`);
+  if (!m.voting) return `cannot vote in ${m.name}`;
+  if (p.event === "unvote") return m.instant ? "unvote not allowed" : null;
+  const sel = p.data.selection;
+  if (m.kick && !m.kickers.includes(pid)) return "cannot vote in Vote Kick (not voted everywhere)";
+  if (!m.targets.includes(sel)) return `selection not in targets (${m.name})`;
+  if (m.ballots[pid] != null && m.ballots[pid] !== sel && m.instant) return "vote locked";
+  return null;
+}
+
+async function applyProposal(S, p) {
+  const pid = S.pidOf[p.accountId];
+  const why = serverVerdict(S, p);
+  if (why) {
+    const atSend = S.stampOf(p);
+    // Phase already over, or legal when sent and overtaken since: the server drops it (a race).
+    if (why.startsWith("stale:") || atSend === "ok" || atSend?.startsWith?.("stale:")) { S.stats.stale += 1; (S.stats.staleWhy ||= {})[why.replace(/\(.*|[A-Za-z0-9_-]{6,}$/g, "").trim()] = ((S.stats.staleWhy || {})[why.replace(/\(.*|[A-Za-z0-9_-]{6,}$/g, "").trim()] || 0) + 1; return; }
+    return illegal(S, p, pid, atSend || why);
+  }
+  const m = S.meetings.get(p.data.meetingId);
+  if (p.event === "speak") return speak(S, pid, m, String(p.data.content), p);
   if (p.event === "unvote") {
-    if (m.instant) return illegal(S, p, pid, "unvote not allowed");
     delete m.ballots[pid];
     await deliverMany(S, viewersOf(S, m), "unvote", { meetingId: m.id, voterId: pid, target: p.data.selection });
     return;
   }
   const sel = p.data.selection;
-  if (m.kick && !m.kickers.includes(pid)) return illegal(S, p, pid, "cannot vote in Vote Kick (not voted everywhere)");
-  if (!m.targets.includes(sel)) return illegal(S, p, pid, `selection not in targets (${m.name})`);
   if (m.ballots[pid] === sel) return;
-  if (m.ballots[pid] != null && m.instant) return illegal(S, p, pid, "vote locked");
   const first = m.ballots[pid] == null;
   if (!first && m.name === "Mafia Kill") S.stats.killVoteMoves.push({ day: S.day, seat: S.names[pid], from: S.names[m.ballots[pid]] || m.ballots[pid], to: S.names[sel] || sel, source: p.source });
   m.ballots[pid] = sel;
@@ -332,6 +357,7 @@ async function runPhase(S, ms, { endEarly, timer = "main" } = {}) {
     await settle(S.table); await pump(S);
     await deliverMany(S, living(S), "time", { name: timer, time: left });
     await settle(S.table); await pump(S);
+    if (S.opts.onTick) S.opts.onTick(S, left);
     if (endEarly && endEarly()) break;
   }
 }

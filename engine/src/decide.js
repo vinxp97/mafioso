@@ -66,6 +66,16 @@ function decideBase(view, opts = {}) {
   const scum = scumDecisions(view);
   if (scum) {
     const out = scum.filter((action) => validateAction(view, action).ok);
+    // Every living seat casts a day vote. When the PLAN's lynch target is gone (shot, or no longer a
+    // target) the PLAN gives no vote: fall back to the ordinary hostile pick instead of never voting.
+    if (view.phase?.phase === "Day") {
+      const vil = legalVotes(view).find((lv) => lv.name === "Village" && (lv.myVote == null || (Array.isArray(lv.myVote) && !lv.myVote.length)));
+      if (vil && !out.some((a) => a.event === "vote" && a.data?.meetingId === vil.meetingId)) {
+        const pick = pickHostileTarget(view, vil.targets, allies(view), enemies(view));
+        const a = pick == null ? null : { event: "vote", data: { meetingId: vil.meetingId, selection: pick } };
+        if (a && validateAction(view, a).ok) out.push(a);
+      }
+    }
     if (view.phase?.phase === "Night" && view.role !== "Janitor" && !isLawyerRole(view.role)) {
       const night = proposeNightAction(view, { ...opts, rng: opts.rng ?? (() => 0) });
       const covered = night && out.some((action) => action.data.meetingId === night.data.meetingId);

@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 import { validateAction } from "./legal.js";
 import { isAlive } from "./reducer.js";
 import { memoryOf } from "./notes.js";
+import { ALIGNMENT } from "./faction.js";
+import { townReads } from "./townReads.js";
 
 const DEFAULT_MAP = createRequire(import.meta.url)("../data/night-actions.json");
 const KILL_MEETING = /^(mafia|cult)$/i;
@@ -85,6 +87,27 @@ export function pickAsked(view, ids) {
 }
 
 /**
+ * Town investigators follow the public reads (townReads): the Journalist visits an unvisited Cop claimer
+ * from Night 2 (a fake Cop gets no report), the Cop checks the most suspicious unchecked player.
+ */
+function readPick(view, spec, night, ids, memory) {
+  const role = String(view.role || "");
+  if (!/^(cop|journalist)$/i.test(role) || ALIGNMENT[role] !== "Village") return null;
+  const reads = townReads(view);
+  const fresh = ids.filter((id) => !memory.checks[id] && !memory.cleared.has(id));
+  const best = (list) => list.map((id) => [id, reads.score[id] || 0]).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0];
+  if (/journalist/i.test(role) && night > 1) {
+    const cops = fresh.filter((id) => reads.record.claims[id] === "Cop");
+    if (cops.length) return best(cops)[0];
+  }
+  if (/^cop$/i.test(role)) {
+    const top = best(fresh);
+    if (top && top[1] > 0) return top[0];
+  }
+  return null;
+}
+
+/**
  * Propose a night vote for the bot's role. Returns a validated ProposedAction or null.
  * opts: {role?, meetingName?, map?, rng?, lastTargetId?}
  */
@@ -107,6 +130,7 @@ export function proposeNightAction(view, opts = {}) {
     const memory = memoryOf(view);
     const ranked = rankNightTargets(ids, memory);
     if (pick && ranked.length && !ranked.includes(pick) && (memory.cleared.has(pick) || memory.checks[pick])) pick = null;
+    if (!pick) pick = readPick(view, spec, night, ids, memory);
     if (!pick) {
       const bag = ranked.length ? ranked : ids;
       pick = bag[Math.floor((opts.rng ?? Math.random)() * bag.length) % bag.length];

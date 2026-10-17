@@ -21,6 +21,7 @@ test("every self-play game terminates in a win state with zero illegal actions",
     assert.ok(r.winner === "Village" || r.winner === "Mafia", `game ${r.game} ended ${r.winner}`);
     assert.ok(r.days >= 1 && r.days <= 8, `game ${r.game} length ${r.days}`);
     assert.deepEqual(r.stats.illegal, [], `game ${r.game} illegal: ${JSON.stringify(r.stats.illegal)}`);
+    assert.deepEqual(r.stats.vegs, [], `game ${r.game}: every living seat votes, no veg kicks: ${JSON.stringify(r.stats.vegs)}`);
     assert.equal(r.harnessErrors, 0);
   }
   assert.equal(scorecard.illegalActions.total, 0);

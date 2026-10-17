@@ -127,7 +127,7 @@ export function applyNotes(view, frame) {
       target: String(data.target),
       meetingId: data.meetingId ? String(data.meetingId) : "",
       phase: view.phase?.name || "",
-    }, 40);
+    }, 200);
   }
   if ((event === "message" || event === "quote") && data) {
     rememberCheck(view, data);
