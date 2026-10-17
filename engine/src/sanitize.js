@@ -1,9 +1,14 @@
 // Chat is untrusted. Flatten it, defang injection markers, and quote it before an LLM sees it.
 const INJECTION = /(ignore (all |any )?(previous|prior|above)|system prompt|you are (now )?(an? )?(ai|assistant|chatgpt)|<\/?(system|assistant|user|tool)[^>]*>|```|\b(assistant|system|developer)\s*:|reply with|respond with|new instructions?)/gi;
 
+/** Fold look-alikes (full-width etc.) and drop invisible format characters (zero-width, bidi). */
+export function normalizeText(s) {
+  return String(s ?? "").normalize("NFKC").replace(/\p{Cf}+/gu, "");
+}
+
 /** One line, length-capped, injection markers defanged. Not JSON-quoted. */
 export function defang(s, max = 200) {
-  return String(s ?? "")
+  return normalizeText(s)
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
