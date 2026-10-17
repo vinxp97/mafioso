@@ -199,12 +199,17 @@ function planNight(view) {
   return Number.isFinite(day) && day > 0 ? day : null;
 }
 
+// The Janitor always cleans the Night 1 kill: a "save the clean" line only holds from Night 2 on.
+function cleanNight1(plan, night) {
+  return plan && night === 1 && plan.janitorTarget === null ? { ...plan, janitorTarget: plan.killTarget } : plan;
+}
+
 export function agreedPlan(view) {
   const faction = scumFaction(view);
   if (!faction) return null;
   const night = planNight(view);
   const p = view.notes?.plan;
-  if (p?.source === "chat" && p.killTarget && (p.night == null || p.night === night)) return p;
+  if (p?.source === "chat" && p.killTarget && (p.night == null || p.night === night)) return cleanNight1(p, night);
   const name = FACTION_MEETINGS[faction] || faction;
   for (const message of view.messages || []) {
     if (night != null && message?.phase && message.phase !== `Night ${night}`) continue;
@@ -213,13 +218,13 @@ export function agreedPlan(view) {
     if (message.senderId && message.senderId !== view.selfId && !allies(view).has(message.senderId)) continue;
     const parsed = parsePlanLine(message.content, view, message.senderId);
     if (!parsed) continue;
-    return {
+    return cleanNight1({
       ...parsed,
       lawyerTarget: parsed.lawyerTarget,
       janitorTarget: "janitorTarget" in parsed ? parsed.janitorTarget : parsed.killTarget,
       speakerId: parsed.claimRole === null ? null : parsed.speakerId || message.senderId || null,
       source: "chat",
-    };
+    }, night);
   }
   return null;
 }
@@ -434,12 +439,15 @@ export function scumOwesNightVote(view) {
 
 export function planViolation(view, action) {
   if (!action || action.event !== "vote") return null;
-  const plan = agreedPlan(view);
-  if (!plan) return null;
   const meeting = view.meetings?.[action.data?.meetingId];
   if (!meeting) return null;
   const faction = scumFaction(view);
   const factionName = faction ? (FACTION_MEETINGS[faction] || faction) : null;
+  const janitorRoom = factionName && meeting.faction == null && meeting.name !== factionName && !isVoteKick(meeting) && view.role === "Janitor";
+  const skip = /^(no|skip|none|\*)$/i.test(String(action.data?.selection));
+  if (janitorRoom && skip && view.phase?.phase === "Night" && planNight(view) === 1) return "janitor always cleans on night 1";
+  const plan = agreedPlan(view);
+  if (!plan) return null;
   const killM = factionKillMeeting(view, faction);
   if (killM && meeting.id === killM.id && (meeting.targets || []).includes(plan.killTarget) && action.data.selection !== plan.killTarget) {
     return "kill vote must match the faction plan";
@@ -452,8 +460,8 @@ export function planViolation(view, action) {
     const selection = lawyerSelection(meeting, plan, view);
     if (selection && action.data.selection !== selection) return "lawyer target must match the faction plan";
   }
-  if (factionName && meeting.faction == null && meeting.name !== factionName && !isVoteKick(meeting) && view.role === "Janitor") {
-    if (!(adaptive && plan.janitorTarget === null) && /^(no|skip|none|\*)$/i.test(String(action.data.selection))) return "janitor must not skip the clean";
+  if (janitorRoom) {
+    if (!(adaptive && plan.janitorTarget === null) && skip) return "janitor must not skip the clean";
     const selection = janitorSelection(meeting, plan);
     if (selection && action.data.selection !== selection) return "janitor must clean the kill";
   }
