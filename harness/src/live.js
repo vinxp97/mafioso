@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -970,6 +970,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? seatView(table), entry);
   if (onChat) { const line = publicChatLogLine(table, id, entry); if (line) onChat(line); }
+  if (entry?.event === "message" && table.onAlert) { const r = alertResult(table.views[id], entry.data); if (r) table.onAlert(id, r); }
   if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
     for (const inj of noteSeatRole(table, id, table.views[id])) {
       if (table.views[inj.accountId]) table.views[inj.accountId] = engineReduce(table.views[inj.accountId], { event: "teammates", data: inj.data });
@@ -1239,6 +1240,8 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
   const table = createBotTable(accounts, { clock, rng, reasoning: reasoningModel(env) });
   say(`llm reasoning=${!!table.config.reasoning}`);
+  // One line per parsed Cop / Journalist / Janitor result, so live alert parsing can be checked against the game.
+  table.onAlert = (who, r) => say(`alert ${who} [${table.views[who]?.phase?.name || ""}] kind=${r.kind} target=${JSON.stringify(String(r.target).slice(0, 30))} result=${JSON.stringify(String(r.result).slice(0, 160))}`);
   table.onSpeechReject = (who, reasons, source, content) => say(`speech-reject ${who} [${table.views[who]?.phase?.name || ""}] source=${source} reasons=${JSON.stringify(reasons.map((r) => String(r).slice(0, 120)))}${content ? ` line=${JSON.stringify(String(content).slice(0, SPEECH_LOG_MAX))}` : ""}`);
   // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
   if (signals) {
