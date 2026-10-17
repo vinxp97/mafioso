@@ -17,11 +17,11 @@ export const DEFAULT_LOG_DIR = fileURLToPath(new URL("../../logs/replays", impor
 
 const ILLEGAL_RE = /malformed|unknown meeting|cannot vote|selection not in targets|vote locked|unvote not allowed|cannot speak|empty content|content too long|unsupported event/i;
 
-function alignOf(role) {
+export function alignOf(role) {
   return ALIGNMENT[role] || "unknown";
 }
 
-function shuffle(list, rng) {
+export function shuffle(list, rng) {
   const out = [...list];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -32,14 +32,14 @@ function shuffle(list, rng) {
   return out;
 }
 
-function mixSeed(seed, text) {
+export function mixSeed(seed, text) {
   let hash = (Number(seed) >>> 0) || 1;
   const s = String(text);
   for (let i = 0; i < s.length; i++) hash = Math.imul(hash ^ s.charCodeAt(i), 16777619);
   return hash >>> 0;
 }
 
-function plurality(votes) {
+export function plurality(votes) {
   const counts = new Map();
   for (const vote of votes) {
     if (!vote || vote === "*") continue;
@@ -274,9 +274,13 @@ async function rounds(game, complete, seed) {
 }
 
 function winnerOf(game) {
-  const live = living(game);
-  const mafia = live.filter((id) => alignOf(game.roles[id]) === "Mafia").length;
-  const town = live.filter((id) => alignOf(game.roles[id]) === "Village").length;
+  return winnerFor(game.roles, living(game));
+}
+
+/** FJ win check on the living: no mafia is a Village win; mafia at or above town is a Mafia win. */
+export function winnerFor(roles, live) {
+  const mafia = live.filter((id) => alignOf(roles[id]) === "Mafia").length;
+  const town = live.filter((id) => alignOf(roles[id]) === "Village").length;
   if (mafia === 0 && town === 0) return "draw";
   if (mafia === 0) return "Village";
   if (mafia >= town) return "Mafia";
