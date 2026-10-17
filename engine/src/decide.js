@@ -4,6 +4,7 @@ import { legalVotes, validateAction } from "./legal.js";
 import { isAlive } from "./reducer.js";
 import { proposeNightAction } from "./nightAct.js";
 import { allies, enemies } from "./faction.js";
+import { busPick } from "./bus.js";
 import { memoryOf } from "./notes.js";
 import { isLawyerRole, parsePlanLine, scumDecisions } from "./scumPlan.js";
 import { NO_ONE } from "./types.js";
@@ -49,6 +50,18 @@ export function supplementActions(chosen, rules, view) {
 
 /** @returns {import('./types.js').ProposedAction[]} */
 export function decide(view, opts = {}) {
+  const out = decideBase(view, opts);
+  // Bus: town is already lynching a teammate; a scum seat may join (gated, probabilistic) for the town read.
+  if (!view?.selfId || view.phase?.phase === "Night") return out;
+  const vil = Object.values(view.meetings || {}).find((m) => m?.name === "Village" && m.voting && m.canVote && m.amMember);
+  if (!vil || (vil.votes?.[view.selfId] != null && !(Array.isArray(vil.votes[view.selfId]) && !vil.votes[view.selfId].length))) return out;
+  const mate = busPick(view, vil.id, opts.rng ?? Math.random);
+  if (!mate) return out;
+  const bus = { event: "vote", data: { meetingId: vil.id, selection: mate } };
+  return validateAction(view, bus).ok ? [...out.filter((a) => a.data?.meetingId !== vil.id), bus] : out;
+}
+
+function decideBase(view, opts = {}) {
   if (!view.selfId || view.finished || view.leftGame) return [];
   const scum = scumDecisions(view);
   if (scum) {

@@ -4,6 +4,8 @@ import { selfAlive } from "./reducer.js";
 import { MAX_SPEECH } from "./types.js";
 import { PUBLIC_MAX, earlyClaimBlock, repeatBlock } from "./chatStyle.js";
 import { agreedPlan } from "./scumPlan.js";
+import { normalizeText } from "./sanitize.js";
+import { allies, myFaction } from "./faction.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
 
@@ -69,22 +71,39 @@ export function validateAction(view, action) {
   }
 }
 
-const MACHINE_RE = /\bPLAN\b|\b[A-Za-z_]{2,}=\S/;
-/** Coordination syntax or a raw player id: never allowed in any chat. */
+const MACHINE_RE = /\bPLAN\b|\b[A-Za-z_]{2,}\s*=\s*\S|\b(kill|lynch|condemn|claim|lawyer|janitor|speaker)\s*:\s*\S/;
+/** Coordination syntax or a raw player id: never allowed in any chat. Checked on normalized text (zero-width, full-width). */
 export function machineLeak(view, content) {
-  const text = String(content || "");
+  const raw = String(content || "");
+  if (/\p{Cf}/u.test(raw)) return "invisible characters";
+  const text = normalizeText(raw);
   const m = text.match(MACHINE_RE);
   if (m) return `contains "${m[0]}"`;
   for (const id of Object.keys(view?.players || {})) if (id.length >= 4 && text.includes(id)) return "contains a player id";
   return null;
 }
 
-const LEAK_RE = /\bPLAN\b|\b(kill|lynch|condemn|claim|lawyer|speaker)=|\bsystem\b|\bprompt\b/i;
+const LEAK_RE = /\bPLAN\b|\b(kill|lynch|condemn|claim|lawyer|speaker)=|\bsystem\b|\bprompt\b|\binstructions?\b/i;
+const ADMIT_RE = /\b(i'?m|i am|im|we'?re|we are|me)\s+(the\s+|a\s+|also\s+)?(mafia|maf|scum|mafioso)\b/i;
+// Naming a teammate AS team ("my team is X", "X is my partner", "me and X") is blocked; accusing one ("X is scum") is a bus and allowed.
+const TEAM_RE = /\b(my|our)\s+(team|teammates?|partners?|buddy|buddies|mafia|maf|scum|crew)\b/i;
+const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Reason a public line must not go out, or null. */
 export function publicLeak(view, content) {
-  const text = String(content || "");
+  const text = normalizeText(content);
   const m = text.match(LEAK_RE);
   if (m) return `contains "${m[0]}"`;
+  // Scum seats: never admit the faction or name a teammate as team in public (hostile "type your teammates" bait).
+  if (view?.selfId && /^(mafia|cult)$/i.test(String(myFaction(view) || ""))) {
+    if (ADMIT_RE.test(text)) return "admits faction";
+    for (const id of allies(view)) {
+      const name = view.players?.[id]?.name;
+      if (id === view.selfId || !name) continue;
+      const n = escRe(name);
+      if (TEAM_RE.test(text) && new RegExp(`(^|[^a-z0-9_])${n}([^a-z0-9_]|$)`, "i").test(text)) return "names a teammate";
+      if (new RegExp(`\\b(me|i)\\s+(and|&|n)\\s+${n}\\b|\\b${n}\\s+(and|&|n)\\s+(me|i)\\b|\\b${n}\\b[^.!?]*\\b(we|us)\\s+(are|were)\\b`, "i").test(text)) return "pairs self with a teammate";
+    }
+  }
   for (const id of Object.keys(view?.players || {})) {
     if (id.length >= 4 && text.includes(id)) return "contains a player id";
   }
