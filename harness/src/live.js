@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -342,7 +342,7 @@ function dayVoteReason(table, view, meetingId, now) {
 export const CONSOLIDATE = { minVotes: 2, townBelief: 0.8, suspectVoterShare: 0.5 };
 
 /** This seat's mafia lean on a player: +suspect, +BeliefBoard Mafia, -cleared/-Village read. */
-function notesLean(view, mem, board, id) {
+function notesLean(view, mem, board, id, reads = null) {
   const b = board[id];
   const al = b ? beliefAlign(b.role) : null;
   let s = 0;
@@ -350,7 +350,7 @@ function notesLean(view, mem, board, id) {
   if (al === "Mafia" || al === "Cult") s += 3 * (b.probability || 0.5);
   if (mem.cleared?.has?.(id)) s -= 4;
   if (al === "Village") s -= 3 * (b.probability || 0.5);
-  return s;
+  return s + (reads?.[id] || 0) / 2;
 }
 
 /** A public, uncontested Village-role claim (a counterclaimed role is already a suspect). */
@@ -374,15 +374,16 @@ export function townFollow(view, meeting) {
   }
   const mem = memoryOf(view);
   const board = rulesBeliefBoard(view).entries;
+  const reads = townReads(view).score;
   const ok = Object.entries(wagons).filter(([lead, voters]) => {
     if (voters.length < CONSOLIDATE.minVotes) return false;
     if (lead === view.selfId || view.dead?.[lead] || !(meeting.targets || []).includes(lead)) return false;
     if (mem.cleared?.has?.(lead) || claimedTown(view, mem, lead)) return false;
     const b = board[lead];
     if (b && beliefAlign(b.role) === "Village" && (b.probability || 0) >= CONSOLIDATE.townBelief) return false;
-    const sus = voters.filter((x) => notesLean(view, mem, board, x) > 0).length;
+    const sus = voters.filter((x) => notesLean(view, mem, board, x, reads) > 0).length;
     return sus / voters.length <= CONSOLIDATE.suspectVoterShare;
-  }).map(([lead, voters]) => ({ lead, votes: voters.length, lean: notesLean(view, mem, board, lead) }));
+  }).map(([lead, voters]) => ({ lead, votes: voters.length, lean: notesLean(view, mem, board, lead, reads) }));
   if (!ok.length) return null;
   // Notes first (agreeing wagon beats a bigger one), then size.
   ok.sort((x, y) => (y.lean > 0) - (x.lean > 0) || y.votes - x.votes || y.lean - x.lean);
@@ -398,6 +399,7 @@ export function beliefDayPick(view, meeting, rng = Math.random) {
   const board = rulesBeliefBoard(view).entries;
   const mem = memoryOf(view);
   const mates = allies(view);
+  const reads = townReads(view).score;
   const pool = (meeting.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !mates.has(t) && view.players?.[t]);
   const score = (id) => {
     const b = board[id];
@@ -407,6 +409,7 @@ export function beliefDayPick(view, meeting, rng = Math.random) {
     else if (al === "Village") sc -= 6 * (b.probability || 0.5);
     if (mem.suspects?.has?.(id)) sc += 2;
     if (mem.cleared?.has?.(id)) sc -= 4;
+    sc += reads[id] || 0;
     return sc + rng() * 0.5;
   };
   const ranked = pool.map((id) => [id, score(id)]).sort((a, b) => b[1] - a[1]).map(([id]) => id);
@@ -433,6 +436,13 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       }
     }
     if (!scum) {
+      // Evidence first (townReads): a strong read is the vote; contested Cop claims mean no lynch.
+      const read = townDayPick(view, view.meetings[a.data.meetingId]);
+      if (read && validateAction(view, { ...a, data: { ...a.data, selection: read.target } }).ok) {
+        if (table.onTownRead) table.onTownRead(id, read);
+        out.push({ ...a, data: { ...a.data, selection: read.target } });
+        continue;
+      }
       // Town consolidates late: follow a 2+ vote leader unless this seat believes that player is town.
       const follow = townFollow(view, view.meetings[a.data.meetingId]);
       if (follow) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
@@ -491,11 +501,30 @@ function voteDelay(table, id, view, action) {
   return Math.max(0, wait);
 }
 
+const deadCount = (view) => Object.values(view?.dead || {}).filter(Boolean).length;
+
+/** May this seat's vote count for this meeting start over? (see emitActions) */
+function voteMayRestart(table, id, view, meetingId, vk) {
+  if (!table.voteCount?.[vk]) return false;
+  if (deadCount(view) > (table.voteEpoch?.[vk] ?? Infinity)) return true;
+  if ((table.pendingVotes?.[vk] || 0) > 0) return false;
+  const mine = view.meetings?.[meetingId]?.votes?.[view.selfId];
+  const standing = mine != null && !(Array.isArray(mine) && !mine.length);
+  if (standing) return false;
+  // A vote sent a moment ago may not be echoed yet.
+  const last = table.lastVoteAt?.[id];
+  return !(last != null && nowOf(table) - last < VOTE_GAP_MS);
+}
+
 function deferVote(table, id, action, wait, { source, entry, send, onError }) {
   const stateId = table.views[id]?.stateId;
+  const pk = `${id}|${stateId}|${action.data?.meetingId}`;
+  (table.pendingVotes ||= {})[pk] = (table.pendingVotes[pk] || 0) + 1;
+  const settled = () => { table.pendingVotes[pk] = Math.max(0, (table.pendingVotes[pk] || 0) - 1); };
   // Reserve the slot now so later votes from this seat queue behind this one.
   (table.lastVoteAt ||= {})[id] = nowOf(table) + wait;
   const p = waitOn(table, wait).then(async () => {
+    settled();
     const view = table.views[id];
     if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
     if (!validateAction(view, action).ok) return;
@@ -570,10 +599,15 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
       if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
       // One initial vote, then at most one model upgrade to a different valid target. No churn.
+      // Exception: this seat has no vote standing and none on the way (the server cleared it when its
+      // target died, or a deferred vote was dropped at send time), or someone died since this seat last
+      // voted (new evidence). Then the count starts over, so a seat is never left without a vote.
+      if (voteMayRestart(table, id, view, action.data.meetingId, vk)) table.voteCount[vk] = 0;
       const n = (table.voteCount ||= {})[vk] || 0;
       if (n >= 2 || (n === 1 && source === "rules")) continue;
       // Copy/teammate votes and the server's vote rate limit: send later, re-checked at send time.
       const wait = voteDelay(table, id, view, action);
+      (table.voteEpoch ||= {})[vk] = deadCount(view);
       if (wait > 0) { table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection); deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError }); continue; }
       table.voteCount[vk] = n + 1;
       table.lastVote[vk] = JSON.stringify(action.data.selection);
@@ -665,8 +699,9 @@ function startUpgrade(table, id, ctx) {
       const model = limitedComplete(table, id, timed, ctx.limiter, stateId, seatPriority(view));
       // Town barely thinks at night: rules picks only, the model budget goes to day speech.
       if (night && !scumFaction(view)) break;
-      // Cop / Journalist claims come from rules (report-driven), ahead of any model line.
-      if (!night && !table.claimedRole?.[id]) {
+      // Cop / Journalist / Sheriff claims come from rules (report-driven), ahead of any model line. After
+      // the claim, the same rule only adds new results (no second claim).
+      if (!night) {
         const claim = roleClaimLine(view);
         const pm = publicSpeechMeeting(view);
         if (claim && pm) {

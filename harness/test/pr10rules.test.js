@@ -47,14 +47,14 @@ test("live report wording is parsed: Cop guilty/innocent, Journalist no-reports 
   assert.equal(j.notes.checks.rhyFPKXcnH.detail, "no reports");
 });
 
-test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or counterclaimed/guiltied; else quiet", () => {
+test("Cop claims (all results) only on a guilty or when counterclaimed/guiltied; a Sheriff out alone keeps it quiet", () => {
   const quiet = seat("Cop", [srv("Your investigation shows that Cal is Innocent")]);
   assert.equal(roleClaimLine(quiet), null);
   assert.equal(claimAllowed(quiet), false);
   const g = seat("Cop", [srv("Your investigation shows that Bea is Guilty")]);
   assert.equal(roleClaimLine(g), "im cop. bea guilty");
   const sh = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
-  assert.equal(roleClaimLine(sh), "im cop. cal inno");
+  assert.equal(roleClaimLine(sh), null, "a Sheriff out alone is not a Cop trigger (FJ strategy)");
   const shDead = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
   shDead.dead = { kCMt06jKvBp: true };
   assert.equal(roleClaimLine(shDead), null, "a dead Sheriff does not trigger it");
@@ -173,4 +173,11 @@ test("4-3 replay: the last town seat does not hammer town on a mafia-led wagon",
   const v = seat("Villager", [msg(HAP, "eli is mafia lynch him"), msg(IVO, "yeah eli")]);
   v.notes.suspects = [HAP, IVO];
   assert.equal(townFollow(v, vilM({ [HAP]: ELI, [IVO]: ELI, [DOT]: ELI, [BEA]: CAL, [FIN]: CAL })), CAL);
+});
+
+test("Sheriff outs with a plain claim line (counterclaim adds 'the real one'); a claimed Cop calls out a later fake", () => {
+  assert.equal(roleClaimLine(seat("Sheriff")), "im sheriff");
+  assert.match(roleClaimLine(seat("Sheriff", [msg("otU9CsNlbw", "im sheriff")])) || "", /im sheriff, the real one/);
+  const cop = seat("Cop", [srv("Your investigation shows that Bea is Guilty"), { event: "message", data: { meetingId: "vil", senderId: ME, content: "im cop. bea guilty" } }, msg("kCMt06jKvBp", "im cop, ash is guilty")]);
+  assert.match(roleClaimLine(cop) || "", /ivo is lying/);
 });
