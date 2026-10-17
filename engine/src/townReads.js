@@ -19,6 +19,8 @@ export const TOWN_READS = Object.freeze({
   janitorReport: 8, // a Journalist says X is the Janitor
   fakeCopReport: 7, // a Journalist says Cop claimer X got no report
   realCopReport: -6, // a Journalist says Cop claimer X got a report
+  fakeJournalistReport: 7, // a Journalist says rival Journalist claimer X got no report
+  noReport: -0.5, // a Journalist says (Villager claimer) X got no report: fits, weakly
   otherCopWhenReal: 4, // the other Cop claimer when one is confirmed by report
   credibleCop: -4, // their guilty flipped mafia
   contested: 1.5, // one of two+ living claimers of a unique role
@@ -59,6 +61,7 @@ const LIAR = /\b(lying|liar|lies|fake)\b/i;
 const NO_REPORT = /\b(got no report|no reports?|received no)\b/i;
 const GOT_REPORT = /\b(got a (?:cop )?report|real cop)\b/i;
 const JANITOR = /\bis (?:the )?janitor\b/i;
+const FAKE_JOURNALIST = /\bfake journ(?:alist|o)?\b/i;
 const RELAY = /\b(?:report said|it said|their report)\b/i;
 
 /** Night N < Day N < Night N+1: an ordinal for comparing phases ("" sorts last). */
@@ -94,19 +97,27 @@ export function publicRecord(view) {
   const guilty = []; // { by, target, phase }
   const inno = [];
   const liar = []; // { by, target }
-  const reports = []; // { by, target, kind: "fakecop"|"realcop"|"janitor" }
+  const reports = []; // { by, target, kind: "fakecop"|"fakejournalist"|"noreport"|"realcop"|"janitor" }
   const claimedAt = {}; // id -> phase ordinal of the first claim
   for (const m of publicLines(view)) {
     const by = m.senderId;
     const text = String(m.content || "");
     const claimed = roleName(claimedRoleIn(text) || (view.claims?.[by]?.kind !== "retract" ? view.claims?.[by]?.role : null));
     if (claimed && claimed !== "Villager" && !claims[by]) { claims[by] = claimed; claimedAt[by] = phaseOrdinal(m.phase); }
-    for (const seg of text.split(/[.;!?,]+/)) {
+    const segs = text.split(/[.;!?,]+/);
+    for (const [si, seg] of segs.entries()) {
       const ids = namesIn(view, seg).filter((id) => id !== by);
       if (!ids.length) continue;
       const target = ids[0];
       if (claims[by] === "Journalist" && JANITOR.test(seg)) reports.push({ by, target, kind: "janitor" });
-      else if (claims[by] === "Journalist" && NO_REPORT.test(seg)) reports.push({ by, target, kind: "fakecop" });
+      else if (claims[by] === "Journalist" && NO_REPORT.test(seg)) {
+        // FJ: a real Journalist always has a report, a Villager never does. Only a Cop or Journalist claim is
+        // exposed by "no report"; on anyone else it just fits.
+        const said = `${seg} ${segs[si + 1] || ""}`; // "x got no report, fake journalist"
+        const kind = FAKE_JOURNALIST.test(said) || claims[target] === "Journalist" ? "fakejournalist"
+          : /fake cop/i.test(said) || claims[target] === "Cop" ? "fakecop" : "noreport";
+        reports.push({ by, target, kind });
+      }
       else if (claims[by] === "Journalist" && GOT_REPORT.test(seg)) reports.push({ by, target, kind: "realcop" });
       if (claims[by] === "Journalist" && RELAY.test(seg) && GUILTY.test(seg)) { guilty.push({ by, target, phase: m.phase || "", relay: true }); continue; }
       if (LIAR.test(seg)) liar.push({ by, target });
@@ -202,6 +213,8 @@ export function townReads(view) {
     const k = contested.Journalist?.includes(r.by) ? 0.5 : 1;
     if (r.kind === "janitor") add(r.target, W.janitorReport * k, "Journalist: Janitor");
     if (r.kind === "fakecop") add(r.target, W.fakeCopReport * k, "Journalist: Cop claim got no report");
+    if (r.kind === "fakejournalist") add(r.target, W.fakeJournalistReport * k, "Journalist: rival Journalist claim got no report");
+    if (r.kind === "noreport") add(r.target, W.noReport * k, "Journalist: got no report (fits a Villager)");
     if (r.kind === "realcop") {
       add(r.target, W.realCopReport * k, "Journalist: Cop claim got a report");
       for (const other of byRole.Cop || []) if (other !== r.target) add(other, W.otherCopWhenReal * k, "other Cop claim vs a confirmed Cop");

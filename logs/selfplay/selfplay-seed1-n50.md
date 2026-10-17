@@ -6,29 +6,29 @@ Cop rule: vinman; Lawyer: loyal; Mafia: adaptive
 
 | Metric | Value |
 |---|---|
-| Village win rate | 32.0% (16) |
-| Mafia win rate | 68.0% (34) |
+| Village win rate | 34.0% (17) |
+| Mafia win rate | 66.0% (33) |
 | Draw / error | 0 / 0 |
-| Town ballots on scum | 74.9% (287/383) |
+| Town ballots on scum | 74.7% (289/387) |
 | Random-vote baseline | 43.7% |
-| Lift over random | 31.2 pts |
-| Town abstains (no vote / no one) | 10 |
-| Lynch accuracy | 66.7% (48/72), 32 no-lynch days |
+| Lift over random | 31.0 pts |
+| Town abstains (no vote / no one) | 9 |
+| Lynch accuracy | 66.7% (52/78), 27 no-lynch days |
 | Illegal actions | 0 |
-| Game length | mean 2.54 days (min 1, max 4); 1 7, 2 15, 3 22, 4 6 |
+| Game length | mean 2.52 days (min 1, max 4); 1 7, 2 15, 3 23, 4 5 |
 | Sheriff shots | 15/38 hit scum (39.5% vs 42.9% random) |
-| Cop checks | 92, 26 Guilty, 17 flipped by Lawyer; Guilty acted on same day 17/21 (Cop alive that day: 6/7) |
-| Public claims | 216 (Sheriff->sheriff 40, Villager->villager 44, Janitor->cop 15, Cop->cop 41, Journalist->journalist 22, Lawyer->villager 13, Mafioso->villager 12, Mafioso->journalist 7, Lawyer->journalist 5, Mafioso->cop 5, Janitor->villager 6, Janitor->journalist 4, Lawyer->cop 2) |
-| Mafia kills | 127 (Cop 40, Sheriff 35, Villager 38, Journalist 14) |
-| Janitor cleans / Lawyer litigates (on teammate) | 24 / 103 (103) |
+| Cop checks | 92, 26 Guilty, 17 flipped by Lawyer; Guilty acted on same day 19/21 (Cop alive that day: 8/8) |
+| Public claims | 219 (Sheriff->sheriff 40, Villager->villager 41, Janitor->cop 15, Cop->cop 41, Journalist->journalist 24, Lawyer->villager 17, Mafioso->villager 13, Mafioso->journalist 6, Lawyer->journalist 5, Mafioso->cop 5, Janitor->villager 6, Janitor->journalist 4, Lawyer->cop 2) |
+| Mafia kills | 126 (Cop 39, Sheriff 35, Villager 36, Journalist 16) |
+| Janitor cleans / Lawyer litigates (on teammate) | 23 / 100 (100) |
 | Buses (scum voting scum) | 0 |
 | Mafia kill votes moved after the first vote | 0 |
 | First-vote delay after own gate, ms (0/50/90/100%) | town 0/0/0/0, scum 0/0/0/0 |
-| Scum first Village vote | 46/104 (44.2% vs 36.5% random) |
-| Faction chat lines / public lines | 430 / 311 |
-| Lynches on the mafia PLAN target | 3/21 (random lynch would hit scum 36.3%) |
+| Scum first Village vote | 37/105 (35.2% vs 36.4% random) |
+| Faction chat lines / public lines | 424 / 327 |
+| Lynches on the mafia PLAN target | 3/21 (random lynch would hit scum 36.1%) |
 | Veg kicks | 0 (none) |
-| Stale proposals (phase over) | 158 |
+| Stale proposals (phase over) | 167 |
 | Harness onError calls | 0 |
 
 ## Top weakness
@@ -53,10 +53,10 @@ Day 1 Hap (Villager) dies: shot by the Sheriff
 ## All weaknesses, ranked
 
 - Sheriff shoots town at about (or worse than) random (severity 0.175 = shortfall 0.23 x coverage 0.76): 23/38 shots hit town (Villager 21, Journalist 2); accuracy 39.5% vs 42.9% random; shots by day Day 1 38
-- Mafia vote timing is a tell (severity 0.161 = shortfall 0.161 x coverage 1): scum cast the first Village vote on 46/104 days (44.2% vs 36.5% if order were random); mean vote position scum 0.47 vs town 0.52 (0 = first)
-- Cop guilties are not acted on (severity 0.076 = shortfall 0.19 x coverage 0.4): 4/21 Guilty results not lynched or shot that day; 17/92 Cop results flipped by the Lawyer
-- Town lynches land on town far below random: the mafia vote bloc and fake-Cop claim pick the lynch (severity 0 = shortfall 0 x coverage 0.84): lynch accuracy 66.7% (48/72) vs 36.3% for a random lynch; 3/21 lynches hit the mafia PLAN's push target; on mislynches scum put 1.67 votes and town 1.58 on the lynched player; town spread over 2.06 targets a day; 8/47 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 74.9% vs random 43.7%; 32 no-lynch days
-- Town ballots barely beat a random voter (severity 0 = shortfall 0 x coverage 1): 287/383 final town ballots on scum (74.9%) vs random 43.7%; lift 31.2 pts
+- Cop guilties are not acted on (severity 0.038 = shortfall 0.095 x coverage 0.4): 2/21 Guilty results not lynched or shot that day; 17/92 Cop results flipped by the Lawyer
+- Mafia vote timing is a tell (severity 0.036 = shortfall 0.036 x coverage 1): scum cast the first Village vote on 37/105 days (35.2% vs 36.4% if order were random); mean vote position scum 0.51 vs town 0.49 (0 = first)
+- Town lynches land on town far below random: the mafia vote bloc and fake-Cop claim pick the lynch (severity 0 = shortfall 0 x coverage 0.86): lynch accuracy 66.7% (52/78) vs 36.1% for a random lynch; 3/21 lynches hit the mafia PLAN's push target; on mislynches scum put 1.65 votes and town 1.54 on the lynched player; town spread over 2.03 targets a day; 9/51 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 74.7% vs random 43.7%; 27 no-lynch days
+- Town ballots barely beat a random voter (severity 0 = shortfall 0 x coverage 1): 289/387 final town ballots on scum (74.7%) vs random 43.7%; lift 31.0 pts
 
 ## Existing metrics (summarizeMetrics)
 
@@ -66,92 +66,92 @@ Day 1 Hap (Villager) dies: shot by the Sheriff
   "winRate": {
     "byAlignment": {
       "Village": {
-        "successes": 16,
+        "successes": 17,
         "trials": 50,
-        "rate": 0.32,
-        "low": 0.20758044093999403,
-        "high": 0.45810557136276076
+        "rate": 0.34,
+        "low": 0.2243676963506106,
+        "high": 0.47846431458517147
       },
       "Mafia": {
-        "successes": 34,
+        "successes": 33,
         "trials": 50,
-        "rate": 0.68,
-        "low": 0.5418944286372394,
-        "high": 0.792419559060006
+        "rate": 0.66,
+        "low": 0.5215356854148285,
+        "high": 0.7756323036493895
       }
     },
     "byRole": {
       "Mafioso": {
-        "successes": 34,
+        "successes": 33,
         "trials": 50,
-        "rate": 0.68,
-        "low": 0.5418944286372394,
-        "high": 0.792419559060006
+        "rate": 0.66,
+        "low": 0.5215356854148285,
+        "high": 0.7756323036493895
       },
       "Villager": {
-        "successes": 48,
+        "successes": 51,
         "trials": 150,
-        "rate": 0.32,
-        "low": 0.25064412359702404,
-        "high": 0.39834548649543466
+        "rate": 0.34,
+        "low": 0.2690321465825542,
+        "high": 0.4189586179440758
       },
       "Sheriff": {
-        "successes": 16,
+        "successes": 17,
         "trials": 50,
-        "rate": 0.32,
-        "low": 0.20758044093999403,
-        "high": 0.45810557136276076
+        "rate": 0.34,
+        "low": 0.2243676963506106,
+        "high": 0.47846431458517147
       },
       "Journalist": {
-        "successes": 16,
+        "successes": 17,
         "trials": 50,
-        "rate": 0.32,
-        "low": 0.20758044093999403,
-        "high": 0.45810557136276076
+        "rate": 0.34,
+        "low": 0.2243676963506106,
+        "high": 0.47846431458517147
       },
       "Janitor": {
-        "successes": 34,
+        "successes": 33,
         "trials": 50,
-        "rate": 0.68,
-        "low": 0.5418944286372394,
-        "high": 0.792419559060006
+        "rate": 0.66,
+        "low": 0.5215356854148285,
+        "high": 0.7756323036493895
       },
       "Lawyer": {
-        "successes": 34,
+        "successes": 33,
         "trials": 50,
-        "rate": 0.68,
-        "low": 0.5418944286372394,
-        "high": 0.792419559060006
+        "rate": 0.66,
+        "low": 0.5215356854148285,
+        "high": 0.7756323036493895
       },
       "Cop": {
-        "successes": 16,
+        "successes": 17,
         "trials": 50,
-        "rate": 0.32,
-        "low": 0.20758044093999403,
-        "high": 0.45810557136276076
+        "rate": 0.34,
+        "low": 0.2243676963506106,
+        "high": 0.47846431458517147
       }
     }
   },
   "mislynchRate": {
-    "successes": 24,
-    "trials": 72,
+    "successes": 26,
+    "trials": 78,
     "rate": 0.3333333333333333,
-    "low": 0.2353448606571184,
-    "high": 0.4482061192800137
+    "low": 0.23872517005631883,
+    "high": 0.4435879812017211
   },
   "townVoteAccuracy": {
-    "successes": 287,
-    "trials": 383,
-    "rate": 0.7493472584856397,
-    "low": 0.7036117273594277,
-    "high": 0.7901304141269067
+    "successes": 289,
+    "trials": 387,
+    "rate": 0.7467700258397932,
+    "low": 0.701163492392542,
+    "high": 0.7875255314984664
   },
   "nightActionUsage": {
-    "successes": 630,
-    "trials": 689,
-    "rate": 0.9143686502177069,
-    "low": 0.8911087228874948,
-    "high": 0.9330334764261725
+    "successes": 620,
+    "trials": 680,
+    "rate": 0.9117647058823529,
+    "low": 0.8880671654755277,
+    "high": 0.9308359255326824
   },
   "checkUsefulness": {
     "cop": {
@@ -162,19 +162,19 @@ Day 1 Hap (Villager) dies: shot by the Sheriff
       "high": 0.38188920894005085
     },
     "journalist": {
-      "successes": 29,
-      "trials": 108,
-      "rate": 0.26851851851851855,
-      "low": 0.19394781819614243,
-      "high": 0.3589913386113424
+      "successes": 30,
+      "trials": 107,
+      "rate": 0.2803738317757009,
+      "low": 0.2040167905416766,
+      "high": 0.3719546858715112
     }
   },
   "killPriorityAdherence": {
     "successes": 68,
-    "trials": 124,
-    "rate": 0.5483870967741935,
-    "low": 0.4606534174133777,
-    "high": 0.6332127419588452
+    "trials": 123,
+    "rate": 0.5528455284552846,
+    "low": 0.4647023677965987,
+    "high": 0.6377876670184777
   },
   "illegal": {
     "proposed": 0,
@@ -188,21 +188,21 @@ Day 1 Hap (Villager) dies: shot by the Sheriff
     }
   },
   "fallback": {
-    "candidate": 10,
+    "candidate": 11,
     "llm": 0,
-    "rules": 1895,
-    "rate": 0.994750656167979,
-    "successes": 1895,
-    "trials": 1905,
-    "low": 0.990363728702267,
-    "high": 0.9971461830683063
+    "rules": 1900,
+    "rate": 0.9942438513867086,
+    "successes": 1900,
+    "trials": 1911,
+    "low": 0.9897217289918345,
+    "high": 0.9967828466346822
   },
   "messageRate": {
-    "mean": 0.4922222222222223,
-    "low": 0.43507062229398513,
-    "high": 0.5493738221504595,
+    "mean": 0.505925925925926,
+    "low": 0.448371856894632,
+    "high": 0.56347999495722,
     "n": 450
   },
-  "speechAllowed": 311
+  "speechAllowed": 327
 }
 ```

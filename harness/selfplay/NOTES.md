@@ -1,3 +1,57 @@
+# Overnight wrap-up for Vinman
+
+All of this is local: nothing was pushed or merged, no games were played on any server, and dev, QA, prod
+and ultimafia.com weren't touched. The Sheriff Day-1 rule is unchanged. Every number comes from the offline
+FJ 9p self-play (`npm run selfplay`, 50 games per seed, restartq rules, no model).
+
+**The branches are stacked.** Each one is cut from the one before it, so merging the tip
+(`journalist-targets`) brings in all of them:
+
+test-hardening (13fef7e) → selfplay (afb97c1) → selfplay-improve (1d9b237) → cop-guilty (8a265e3) →
+adaptive-mafia (ef51262) → pressure-claims (905ad52) → journalist-targets (tip of this branch)
+
+The intended base is main at **ba9b729 (PR #12)**. That commit isn't in this local clone, though (it was
+never fetched). Here the stack sits on 7dbbcb6, and local `origin/main` is the stale bbc7b11 (PR #9). So
+check the stack against ba9b729, by rebasing or with a test merge, before merging.
+
+| Branch | SHA | What it contains | Key numbers |
+|---|---|---|---|
+| test-hardening | 13fef7e | Deterministic harness tests: a virtual clock and a seeded rng injected into the bot table, plus protocol replay fixtures. | No wall-clock races; the suites are repeatable. |
+| selfplay | afb97c1 | Offline FJ 9p simulator on the live harness path, with a scorecard and tests. | Baseline (script mafia): mafia won 90-94%, lynch accuracy 14-17%, 31-40 vegs per 50 games. |
+| selfplay-improve | 1d9b237 | Every living seat always casts a legal day vote (vote-kick/veg bug); town reads come from public evidence. | Seeds 1-4: town 46-56% (was 6-10%), lynch accuracy about 15% → 77%, vegs about 35 → 0. |
+| cop-guilty | 8a265e3 | `copRule` vinman (default) or wait, the Loyal Lawyer, and acting on credible Cop guilties. | Town vs script, seeds 1-4: 44/32/38/44% → 92/88/86/88%. Guilties acted on: about 37-68% → 68-73%. |
+| adaptive-mafia | ef51262 | `--mafia adaptive\|script`. Adaptive mafia plays your FJ strategy from public information only. Town gets vote-company and verified-innocent reads. | Seeds 1-4: town 44/48/46/32% vs adaptive, 92/86/92/88% vs script. Unseen seeds 5-8: 34/30/26/36%. |
+| pressure-claims | 905ad52 | Town (and adaptive scum) claim at L-1 or on the late leading wagon. Scum time their votes from town's measured delays, with no 3-scum bloc. | Seeds 4-8 vs adaptive: 31.6% → 37.2%. Scum voted first 12.1% → 33.7% (chance 35.2%). Vs script 87.2%. |
+| journalist-targets | tip | Journalist visits pushers and pressure claimers when no Cop claimer is unchecked, and reports only what it really sees. Live alert wording is now parsed. | Seeds 4-8 vs adaptive: 37.2% → 36.4% (flat, within noise). Vs script 87.2% → 93.2%. 0 illegal actions, 0 vegs. |
+
+**Adaptive mafia is the live default** (`createBotTable`) until you choose. `--mafia script` brings back the
+old plan. The engine itself still defaults to script unless `view.config.mafia === "adaptive"`.
+
+**Where it stands:** on unseen seeds, town wins about **36% against adaptive mafia**. That is still below the
+45-65% band, and I didn't add handicaps to close the gap. Against the old script town wins about 93%, so the
+script is too easy to be a useful benchmark. Lynch accuracy against adaptive mafia is about 58% (the random
+first lynch is about 37%).
+
+**Risks for live play:**
+- **Base mismatch.** See above: test the stack against ba9b729 before merging.
+- **Live alert wording.** restartq tags alerts with an emoji (`:invest:`, `:journ:`, `:mop:`). The FJ Cop card
+  says "After investigating, you learn that X is Mafia!", and the Janitor gets "You discover X's role is Y".
+  Before this branch the engine parsed none of these, so on live the Cop's, Journalist's and Janitor's own
+  results were probably never recorded. It's fixed and unit-tested against the restartq strings, but it hasn't
+  been checked against a real live log. Confirm it on the first approved dev game.
+- **Adaptive mafia changes live mafia behaviour**: varied fake claims, the Janitor saving its clean,
+  at most two scum on one wagon, and rules-driven pressure claims (scum claim Villager or an open Journalist).
+- **Scum vote timing.** `TOWN_VOTE_DELAY_MS` was measured offline, where town votes the moment its gate
+  opens (all 0 ms). A model-paced live town is slower, so scum would vote first unnaturally often. Pass
+  `townVoteDelayMs` from real live delays before relying on it.
+- **Sheriff Day-1 rule (unchanged).** On seeds 4-8 vs adaptive mafia, 97 of 190 Day-1 shots (51%) hit scum
+  (the random rate is 43%). The other 49% killed a townie, sometimes the Journalist.
+- **Self-play isn't live.** There's no model speech, and the chat is rules lines. Live speech and timing will
+  differ.
+- **"Fits villager".** The Journalist's "X got no report, fits villager" gives a small town credit (-0.5),
+  but every Villager and almost every scum gets no report, so a fake-Villager scum gets that credit too. The
+  weight is kept deliberately small.
+
 # Self-play: vote-kick fix and town reads (branch `selfplay-improve`, off `afb97c1`)
 
 Command, per seed: `cd harness && npm run selfplay -- --games 50 --seed N`. 9p Frontier Justice, offline,
@@ -434,3 +488,95 @@ The next principled lever is **the Journalist's night targeting and reporting**.
 
 It should then share "X got no report" for claimed Journalists and Villagers as well as fake Cops. After that,
 **multi-day vote-pattern reads** (who never voted with town consensus) are next.
+
+# Journalist targets and legitimate reports (branch `journalist-targets`, off `905ad52`)
+
+Goal: keep your Journalist rule as it is. On N2 it visits the Cop claimer first. It claims if a Cop claimer
+got no report, if it checked the Janitor, or if mafia call it guilty (pressure claims stay too). Beyond that,
+when no Cop claimer is left unchecked, it should visit the hardest pushers and the pressure claimers. It says
+what it learns in public only when that matters, and only when the info is legitimate. Town uses those
+reports. I tuned only on seeds 1-3, and the report below uses seeds 4-8.
+
+## What an FJ Journalist actually sees (restartq)
+
+`ReceiveReports` runs after the night resolves and builds a `ReportsInfo`. That info is every alert queued
+that night to the target that is non-global, has recipients, and isn't `:system:`
+(`Information.getReportsFromAlerts`). The live lines are `:journ: You learn that X received no reports.` and
+`:journ: You received all reports that X received: <alerts>.`. In FJ the only alerts a target can have are:
+
+- **Real Cop:** its result, `:invest: After investigating, you learn that Y is Mafia!` (`LearnAlignment` card).
+- **Janitor, on the night it cleans:** `:mop: You discover Y's role is Z.` (`CleanDeath` card).
+- **Real Journalist:** its own `:journ:` report, so a real Journalist is never "no reports".
+- **Villager, Mafioso, Lawyer, Sheriff:** nothing.
+
+So "no report" on a Cop or Journalist claim proves the claim is fake. On a Villager claim it only fits. A
+report seen on an unclaimed pusher means that player is the Janitor (clean night) or the real Cop.
+
+**Bugs this check found:**
+1. The Journalist's Janitor detection matched `janitor|clean` in the report text. Neither the simulator's
+   Janitor line nor the live one contains either word, so a Journalist that visited the Janitor never called
+   it.
+2. `parseServerInfo` didn't accept the emoji tags or the FJ Cop wording, so live Cop, Journalist and Janitor
+   results were most likely never recorded.
+
+Both are fixed (`JANITOR_REPORT` in `notes.js`; `cleanedRoles` accepts "discover"). The simulator now sends
+the live wording for the Janitor and the Journalist. It keeps "Your investigation shows that X is
+Guilty/Innocent" for the Cop, and the engine parses both forms.
+
+## Changes
+
+- **Targeting** (`nightAct.readPick` / `journalistTarget`, Night 2+):
+  1. an unchecked Cop claimer (unchanged, first);
+  2. else a rival Journalist claimer;
+  3. else the highest public-read score among unchecked players, with +0.5 for a pressure claimer
+     (Villager or another unverified claim).
+  If nobody scores above 0, the default pick is used. On seed 1, N3+ visits moved from mostly Villagers
+  (13 Villager / 11 scum) to mostly scum (3 / 20).
+- **Public reports** (`chatStyle.journalistExtras`):
+  - "X got no report, fake journalist" on a living rival Journalist claimer;
+  - "X got no report, fits villager" on a living Villager claimer.
+  These are not claim triggers. They're said once the Journalist is already out (an outed Journalist may
+  post new findings without re-claiming) or as part of a pressure claim, replacing "nothing useful yet". An
+  unclaimed player with a Cop result is never outed, and an unclaimed player with no report isn't mentioned.
+- **Town** (`townReads.publicRecord`): a Journalist's "no report" is now split by what it implies:
+  - `fakejournalist`: +7, halved if the Journalist claim is contested;
+  - `fakecop`: +7, as before;
+  - `noreport` on anyone else: -0.5, because a Villager and most scum alike get no report.
+  Before, every "no report" counted as a fake Cop.
+
+## Results (50 games per seed; before = `905ad52`, re-run from a worktree; cop rule vinman, Loyal Lawyer)
+
+| Seeds 4-8 | Mafia | Town win (per seed) | Total | Lynch accuracy (mean) | Vegs | Illegal |
+|---|---|---|---|---|---|---|
+| before | adaptive | 28 / 44 / 28 / 42 / 44% | 37.2% (93/250) | 58.7% | 0 | 0 |
+| after | adaptive | 26 / 40 / 26 / 44 / 46% | **36.4%** (91/250) | 57.9% | 0 | 0 |
+| before | script | 88 / 90 / 80 / 82 / 96% | 87.2% (218/250) | 96.8% | 0 | 0 |
+| after | script | 90 / 98 / 86 / 92 / 100% | **93.2%** (233/250) | 96.3% | 0 | 0 |
+
+Tuning seeds 1-3 vs adaptive went 32 / 38 / 42% → 34 / 42 / 36%, so the mean is unchanged at 37.3%.
+
+**Honest read:** against adaptive mafia this is flat. -0.8pp is well within the ±7pp noise of 50 games per
+seed. The band (45-65%) is **not** reached. Games against adaptive mafia last about 2.3 days, so a Journalist
+that pays off from Night 2 rarely gets to speak before the game is decided. Even so, the Journalist called
+the Janitor in 12 of 150 tuning games (it never did before), shared "fits villager" in 6 and "fake
+journalist" in 2. Against the script the gain is real (+6pp): the script cleans every game, and Janitor
+detection now works.
+
+## Tests
+
+- `engine/test/journalistTargets.test.js`, 7 tests:
+  - live wording parses (emoji tags, the FJ Cop card, reports, the Janitor's clean);
+  - targeting priority: Cop claimer, then rival Journalist, then pusher, then pressure claimer, else null;
+  - a Janitor report on a pusher triggers the claim;
+  - the extras aren't triggers, are said once out or under pressure, and never out an unclaimed Cop;
+  - town parsing and weights.
+- `harness/test/journalistTargets.test.js`: 20 self-play games with 0 illegal actions and 0 vegs, Night 2+
+  visits beyond Cop claimers, and every "got no report" / "is janitor" line from the real Journalist matches
+  a visit it actually made with that outcome.
+
+## Next weakness
+
+Town vs adaptive mafia is still about 36% on unseen seeds, with lynch accuracy about 58%. Games end by about
+Day 2.3, so Day 1 decides most of them: the Sheriff's Day-1 shot (51% on scum) and the first lynch. Night-2+
+information comes too late to matter much.
+

@@ -472,7 +472,7 @@ async function playNight(S) {
   const cleaned = !!(victim && clean && S.alive.has(janitor) && clean.ballots[janitor] === "Yes" && S.cleansLeft > 0);
   const reports = {}; // pid -> [text] alerts this night
   const add = (pid, text) => (reports[pid] ||= []).push(text);
-  if (cleaned) { S.cleansLeft -= 1; S.stats.cleans += 1; add(janitor, `You learn that ${S.names[victim]}'s role is ${S.roles[victim]}.`); }
+  if (cleaned) { S.cleansLeft -= 1; S.stats.cleans += 1; add(janitor, `:mop: You discover ${S.names[victim]}'s role is ${S.roles[victim]}.`); }
   const cop = byName(S, "Cop");
   const copId = cop?.members[0];
   const copTarget = cop && S.alive.has(copId) ? cop.ballots[copId] : null;
@@ -487,7 +487,8 @@ async function playNight(S) {
   const joTarget = jo && S.alive.has(joId) ? jo.ballots[joId] : null;
   if (joTarget) {
     const got = reports[joTarget] || [];
-    add(joId, got.length ? `You received all reports that ${S.names[joTarget]} received: ${got.join(" ")}` : `You learn that ${S.names[joTarget]} received no reports.`);
+    // Live wording (restartq CleanDeath / ReceiveReports + ReportsInfo), emoji tags included.
+    add(joId, got.length ? `:journ: You received all reports that ${S.names[joTarget]} received: ${got.join(" ")}.` : `:journ: You learn that ${S.names[joTarget]} received no reports.`);
     S.stats.journalistChecks.push({ day: S.day, target: S.names[joTarget], targetRole: S.roles[joTarget], sawReport: got.length > 0 });
     S.trace.checks.push({ actorRole: "Journalist", targetRole: S.roles[joTarget], sawReport: got.length > 0 });
   }
