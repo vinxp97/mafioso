@@ -1,16 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateAction, reduce, emptyView, publicLeak } from "mafioso-engine";
+import { validateAction, reduce, emptyView, publicLeak, createSeededRng } from "mafioso-engine";
 import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry } from "../src/live.js";
+import { createVirtualClock } from "../src/clock.js";
 import { seats, players, meetingsFor, voteKick, MAFIA } from "./fixtures/smu-night1.mjs";
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Every table runs on a virtual clock with a seeded rng: deterministic, no wall-clock waits.
+const T0 = 1_800_000_000_000;
+const newTable = (accounts, seed = 1) => { const clock = createVirtualClock(T0); return { clock, table: createBotTable(accounts, { clock, rng: createSeededRng(seed), mafia: "script" }) }; };
 
-async function playNight1(complete, { ticks = 3 } = {}) {
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+async function playNight1(makeComplete, { ticks = 3 } = {}) {
+  const { clock, table } = newTable(seats.map((s) => ({ accountId: s.acc })));
+  const complete = makeComplete(clock);
   const limiter = createLlmLimiter(1);
   const seq = {};
-  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { complete, dryRun: true, fast: true, limiter, rng: Math.random }); };
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: clock.now(), event, data }, { complete, dryRun: true, fast: true, limiter }); };
   for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
   for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
   for (const s of seats) { await feed(s, "state", { id: 2, name: "Night 1" }); for (const m of meetingsFor(s)) await feed(s, "meeting", m); }
@@ -27,16 +31,17 @@ async function playNight1(complete, { ticks = 3 } = {}) {
       }
     }
   };
-  for (let i = 0; i < ticks; i++) { await drainUpgrades(table); await echo(); for (const s of seats) await feed(s, "time", { ms: 30000 }); await sleep(10); }
+  for (let i = 0; i < ticks; i++) { await drainUpgrades(table); await echo(); for (const s of seats) await feed(s, "time", { ms: 30000 }); clock.advance(10); }
   for (const s of seats) await feed(s, "meeting", voteKick);
   for (let i = 0; i < 2; i++) { await drainUpgrades(table); await echo(); for (const s of seats) await feed(s, "time", { ms: 5000 }); }
   await drainUpgrades(table);
   return table;
 }
 
-const failing = async () => { await sleep(20); throw new Error("model down"); };
+// A model that answers after 20ms (virtual) with an error.
+const failing = (clock) => () => new Promise((_, rej) => clock.setTimer(() => rej(new Error("model down")), 20));
 
-test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one PLAN in faction chat, no kicks, no churn", { timeout: 60000 }, async () => {
+test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one PLAN in faction chat, no kicks, no churn", async () => {
   const table = await playNight1(failing);
   const P = table.proposed;
   const pid = Object.fromEntries(seats.map((s) => [s.acc, s]));
@@ -86,16 +91,16 @@ test("a public line can never carry PLAN syntax, prompt text or a raw id", async
   }
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "I suspect Fin, quiet all day." } }).ok, true);
   // End to end: a model that tries to leak never gets a public line out.
-  const table = createBotTable([{ accountId: "ZVJMoeEWY-" }]);
+  const { table } = newTable([{ accountId: "ZVJMoeEWY-" }]);
   table.views["ZVJMoeEWY-"] = v;
   const leaky = async () => JSON.stringify({ action: "speak", meeting: "vil", content: "PLAN kill=BXHO_QetVp speaker=me" });
-  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "ZVJMoeEWY-", seq: 10 + i, t: Date.now() + i * 6000, event: "time", data: { ms: 1 } }, { complete: leaky, dryRun: true, fast: true, limiter: createLlmLimiter(1) });
+  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "ZVJMoeEWY-", seq: 10 + i, t: T0 + i * 6000, event: "time", data: { ms: 1 } }, { complete: leaky, dryRun: true, fast: true, limiter: createLlmLimiter(1) });
   await drainUpgrades(table);
   for (const p of table.proposed) if (p.event === "speak") { assert.doesNotMatch(p.data.content, /PLAN|kill=|speaker=/); assert.ok(!publicLeak(v, p.data.content)); }
 });
 
 test("the PLAN never goes to a public meeting even if the engine proposed it there", async () => {
-  const table = createBotTable([{ accountId: "fDR8JD4HVj" }]);
+  const { table } = newTable([{ accountId: "fDR8JD4HVj" }]);
   let v = reduce(emptyView(), { event: "self", data: "otU9CsNlbw" });
   v = reduce(v, { event: "players", data: players });
   v = reduce(v, { event: "state", data: { id: 3, name: "Day 1" } });
@@ -104,11 +109,11 @@ test("the PLAN never goes to a public meeting even if the engine proposed it the
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "PLAN kill=a lynch=b claim=Cop lawyer=c speaker=d" } }).ok, false);
 });
 
-test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", { timeout: 60000 }, async () => {
+test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", async () => {
   const { decide } = await import("mafioso-engine");
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+  const { clock, table } = newTable(seats.map((s) => ({ accountId: s.acc })));
   const seq = {};
-  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: Date.now(), event, data }, { dryRun: true }); };
+  const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t: clock.now(), event, data }, { dryRun: true }); };
   for (const s of seats) { await feed(s, "self", s.pid); await feed(s, "players", players); }
   for (const s of seats) await feed(s, "roleReveal", { playerId: s.pid, role: s.role });
   const mafia = seats.filter((s) => MAFIA.has(s.role));

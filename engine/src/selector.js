@@ -1,12 +1,13 @@
 // ActionSelector for one seat. Hard rules drop options, then a scorer ranks the rest.
 // `score` is the learned-policy seam: replace ruleScore later. Nothing here trains.
+import { adaptiveVote, mafiaModeOf } from "./adaptiveMafia.js";
 import { beliefAlign } from "./beliefs.js";
 import { allies, FACTION_MEETINGS } from "./faction.js";
 import { busCheck, busPick } from "./bus.js";
 import { validateAction } from "./legal.js";
 import { isKillMeeting, mustActMeeting } from "./nightAct.js";
 import {
-  agreedPlan, isLawyerRole, janitorSelection, lawyerSelection, scumFaction, scumOwesNightVote,
+  agreedPlan, factionKillMeeting, isLawyerRole, janitorSelection, lawyerSelection, scumFaction, scumOwesNightVote,
 } from "./scumPlan.js";
 import { NO_ONE } from "./types.js";
 
@@ -77,8 +78,9 @@ function wantedTarget(view, meeting, plan) {
   if (!meeting || !plan) return null;
   const faction = scumFaction(view);
   const factionName = faction ? (FACTION_MEETINGS[faction] || faction) : null;
-  if (factionName && meeting.name === factionName) return plan.killTarget;
-  if (meeting.name === "Village" && view.phase?.phase !== "Night") return plan.lynchTarget;
+  // The faction kill vote: a combined "Mafia" meeting or the live split "Mafia Kill" meeting.
+  if ((factionName && meeting.name === factionName) || factionKillMeeting(view)?.id === meeting.id) return plan.killTarget;
+  if (meeting.name === "Village" && view.phase?.phase !== "Night") return mafiaModeOf(view) === "adaptive" ? adaptiveVote(view, meeting, plan) : plan.lynchTarget;
   if (isLawyerRole(view.role) && personalMeeting(meeting)) {
     const selection = lawyerSelection(meeting, plan);
     return selection && allies(view).has(selection) ? selection : null;
@@ -109,8 +111,9 @@ export function rejectCandidate(view, candidate) {
   }
   if (lawyerRoom && !allies(view).has(target)) return "lawyer only litigates teammates";
   if (view.role === "Janitor" && personalMeeting(meeting)) {
-    if (/^(no|skip|none|\*)$/i.test(target)) return "janitor must not skip the clean";
     const plan = agreedPlan(view);
+    const saving = mafiaModeOf(view) === "adaptive" && plan && plan.janitorTarget === null;
+    if (!saving && /^(no|skip|none|\*)$/i.test(target)) return "janitor must not skip the clean";
     const wanted = plan ? janitorSelection(meeting, plan) : null;
     if (wanted && target !== wanted) return "janitor must clean the plan";
   }

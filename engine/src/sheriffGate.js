@@ -4,6 +4,7 @@
 import { NO_ONE } from "./types.js";
 import { memoryOf } from "./notes.js";
 import { beliefAlign } from "./beliefs.js";
+import { sheriffReadTarget, townReads } from "./townReads.js";
 
 export const SHERIFF_RULES = Object.freeze({ minOtherMessages: 6, minElapsedMs: 120_000, lateFraction: 0.85, lateElapsedMs: 180_000, lateRemainingMs: 60_000, lateVoteShare: 0.5 });
 const POWER_ROLES = new Set(["Cop", "Journalist", "Sheriff", "Doctor"]);
@@ -52,6 +53,11 @@ export function copGuiltyTarget(view) {
 
 /** Best target: the Cop's guilty (the FJ test), else the strongest Mafia read on the BeliefBoard, else a suspect. */
 export function sheriffShotTarget(view) {
+  // Evidence first: a proven liar, a Journalist-exposed fake Cop, a claimer two players call a liar.
+  const ids = Object.keys(view?.players || {}).filter((id) => living(view, id));
+  const read = sheriffReadTarget(view, ids);
+  if (read) return { target: read.target, why: `read: ${read.why}` };
+  // Then test a Cop claimer's guilty (unless the target claims a power role).
   const guilty = copGuiltyTarget(view);
   if (guilty) return { target: guilty, why: "cop guilty" };
   const reads = Object.entries(view?.beliefs?.entries || {})
@@ -80,6 +86,10 @@ export function dayFraction(view, { now } = {}) {
 
 /** Late in the day with no read: whoever the village is voting most, else the first living non-claimer. */
 export function sheriffLateTarget(view) {
+  // Any positive public read beats the biggest wagon (a mafia bloc can build the biggest wagon).
+  const reads = townReads(view).score;
+  const best = Object.entries(reads).filter(([id, s]) => s > 0 && living(view, id) && !POWER_ROLES.has(claimedRole(view, id))).sort((a, b) => b[1] - a[1])[0];
+  if (best) return best[0];
   const counts = {};
   for (const m of Object.values(view?.meetings || {})) {
     if (isGunMeeting(m) || !m?.voting) continue;
