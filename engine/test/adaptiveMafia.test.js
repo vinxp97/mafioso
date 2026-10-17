@@ -193,12 +193,21 @@ test("town: a standing vote on a revealed townie (the Sheriff after a shot) is s
   assert.equal(townReads(v).score.p2, TOWN_READS.votedRevealedTown);
 });
 
-test("scum vote wait: 0-2 outside votes, varying by seat", async () => {
-  const { scumVoteWait } = await import("../src/index.js");
-  const waits = new Set();
+test("scum vote timing: the hold is sampled from town's measured first-vote delays (config can override)", async () => {
+  const { scumVoteHoldMs, sampleQuantiles, TOWN_VOTE_DELAY_MS } = await import("../src/index.js");
+  assert.equal(TOWN_VOTE_DELAY_MS.length, 11);
+  assert.equal(sampleQuantiles([0, 10, 20], 0.5), 10);
+  assert.equal(sampleQuantiles([0, 10, 20], 0.25), 5);
+  const v = scum([], { phase: "Day 1", sid: 7 });
+  const h = scumVoteHoldMs(v);
+  assert.ok(h >= TOWN_VOTE_DELAY_MS[0] && h <= TOWN_VOTE_DELAY_MS[10]);
+  const table = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+  const holds = new Set();
   for (const self of ["p1", "p2", "p3"]) for (let sid = 1; sid <= 6; sid++) {
-    const w = scumVoteWait(scum([], { phase: "Day 1", self, sid }));
-    assert.ok([0, 1, 2].includes(w)); waits.add(w);
+    const x = scumVoteHoldMs(scum([], { phase: "Day 1", self, sid }), table);
+    assert.ok(x >= 0 && x <= 10000); holds.add(x);
   }
-  assert.ok(waits.size >= 2);
+  assert.ok(holds.size >= 5, "holds vary by seat and day");
+  v.config = { ...v.config, townVoteDelayMs: [4000, 4000, 4000, 4000, 4000, 4000, 4000, 4000, 4000, 4000, 4000] };
+  assert.equal(scumVoteHoldMs(v), 4000);
 });

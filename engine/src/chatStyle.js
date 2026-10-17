@@ -1,6 +1,8 @@
 // Fast-chatroom public speech: short lines, early-claim discipline.
 import { memoryOf } from "./notes.js";
 import { sanitizeChat, defang } from "./sanitize.js";
+import { ALIGNMENT } from "./faction.js";
+import { dayFraction } from "./sheriffGate.js";
 
 export const PUBLIC_MAX = 80;
 
@@ -51,6 +53,26 @@ export function pressureOn(view) {
   const m = villageMeeting(view);
   if (!m) return 0;
   return Object.values(m.votes || {}).filter((t) => (Array.isArray(t) ? t.includes(view.selfId) : t === view.selfId)).length;
+}
+
+/** Pressure on this seat: L-1 (one vote short of a majority hammer), or the leading 2+ wagon late in the day. */
+export const PRESSURE = Object.freeze({ lateFraction: 0.5, minLeadingVotes: 2 });
+export function underPressure(view) {
+  const m = villageMeeting(view);
+  if (!m || view?.phase?.phase !== "Day") return false;
+  const counts = {};
+  for (const t of Object.values(m.votes || {})) {
+    const sel = Array.isArray(t) ? t[0] : t;
+    if (sel && sel !== "*") counts[sel] = (counts[sel] || 0) + 1;
+  }
+  const mine = counts[view.selfId] || 0;
+  if (!mine) return false;
+  const living = Object.keys(view.players || {}).filter((id) => !view.dead?.[id] && !view.players[id]?.left).length;
+  const hammer = Math.floor(living / 2) + 1;
+  if (mine >= hammer - 1) return true;
+  const frac = dayFraction(view);
+  const top = Math.max(0, ...Object.entries(counts).filter(([t]) => t !== view.selfId).map(([, c]) => c));
+  return (frac == null || frac >= PRESSURE.lateFraction) && mine >= PRESSURE.minLeadingVotes && mine >= top;
 }
 
 function hasGuiltyCheck(view) {
@@ -145,8 +167,11 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   if (planSpeaker) return true;
   // FJ: the real Cop claims to deliver a guilty, or when counterclaimed or called guilty; under the default
   // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
-  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)));
-  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view);
+  // Every town role may claim under pressure (L-1 or the leading wagon late): no immediate claims.
+  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)) || underPressure(view));
+  // Journalist (Vinman's fixed rule): a guilty on me or real info (a report worth sharing); a role steal
+  // alone is not a trigger. Under pressure it claims too.
+  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view) || underPressure(view);
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
 }
@@ -193,10 +218,14 @@ export function roleClaimLine(view) {
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
     const what = journalistWhat(info, nm);
-    return `${lead}im journalist${what ? `. ${what}` : ""}`.slice(0, 80);
+    return `${lead}im journalist${what ? `. ${what}` : underPressure(view) ? ", nothing useful yet. not me" : ""}`.slice(0, 80);
   }
   // FJ: the Sheriff outs on Day 1 (a known Sheriff is a deterrent and a test of Cop claims).
   if (/^sheriff$/i.test(role)) return `${lead}im sheriff${cc ? ", the real one" : ""}`.slice(0, 80);
+  // Any other town role under pressure says what it is; a Villager says it has no power.
+  if (ALIGNMENT[role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()] === "Village" && underPressure(view)) {
+    return /^villager$/i.test(role) ? "im just a villager, no power role. not me" : `im ${lc(role)}. not me`;
+  }
   return null;
 }
 

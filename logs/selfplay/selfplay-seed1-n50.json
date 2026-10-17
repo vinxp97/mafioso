@@ -7,32 +7,32 @@
   "setup": "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
   "path": "harness onGameEntry fast mode: rules -> decide (bus) -> shapeDayVotes; scum chatter; claim rule; candidates -> selector (offline enumerator, no model)",
   "winRate": {
-    "Village": 0.44,
-    "Mafia": 0.56,
+    "Village": 0.32,
+    "Mafia": 0.68,
     "draw": 0,
     "error": 0,
     "counts": {
-      "Village": 22,
-      "Mafia": 28,
+      "Village": 16,
+      "Mafia": 34,
       "draw": 0,
       "error": 0
     }
   },
   "townVotes": {
-    "ballots": 423,
-    "cast": 406,
-    "abstained": 17,
-    "onScum": 313,
-    "share": 0.770935960591133,
-    "randomBaseline": 0.4221792165141917,
-    "lift": 0.3487567440769413,
+    "ballots": 393,
+    "cast": 383,
+    "abstained": 10,
+    "onScum": 287,
+    "share": 0.7493472584856397,
+    "randomBaseline": 0.43737411413651633,
+    "lift": 0.3119731443491233,
     "baselineMethod": "analytic: for each final town ballot, living mafia / living players other than the voter, under the same state; averaged"
   },
   "lynches": {
-    "total": 88,
-    "scum": 60,
-    "accuracy": 0.6818181818181818,
-    "noLynchDays": 24
+    "total": 72,
+    "scum": 48,
+    "accuracy": 0.6666666666666666,
+    "noLynchDays": 32
   },
   "illegalActions": {
     "total": 0,
@@ -40,24 +40,24 @@
     "samples": []
   },
   "gameLength": {
-    "meanDays": 2.52,
+    "meanDays": 2.54,
     "minDays": 1,
     "maxDays": 4,
     "histogram": {
       "1": 7,
-      "2": 16,
-      "3": 21,
+      "2": 15,
+      "3": 22,
       "4": 6
     },
-    "meanVirtualMinutes": 9.321399999999999
+    "meanVirtualMinutes": 9.085400000000002
   },
   "sheriff": {
     "randomBaseline": 0.4285714285714287,
-    "shots": 39,
-    "hits": 20,
-    "accuracy": 0.5128205128205128,
+    "shots": 38,
+    "hits": 15,
+    "accuracy": 0.39473684210526316,
     "byDay": {
-      "Day 1": 39
+      "Day 1": 38
     },
     "misses": [
       "Villager",
@@ -68,84 +68,121 @@
       "Villager",
       "Villager",
       "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
+      "Villager",
       "Journalist",
       "Villager",
       "Villager",
-      "Villager",
-      "Villager",
       "Journalist",
-      "Villager",
-      "Villager",
-      "Villager",
-      "Villager",
       "Villager"
     ]
   },
   "cop": {
-    "checks": 95,
-    "guilty": 25,
-    "wrongFromLitigate": 15,
-    "guiltyActedOnSameDay": 15,
-    "guiltyTotal": 23,
-    "guiltyActedOnSameDayCopAlive": 5,
+    "checks": 92,
+    "guilty": 26,
+    "wrongFromLitigate": 17,
+    "guiltyActedOnSameDay": 17,
+    "guiltyTotal": 21,
+    "guiltyActedOnSameDayCopAlive": 6,
     "guiltyCopAlive": 7,
-    "innocentOnScum": 15
+    "innocentOnScum": 17
   },
   "claims": {
-    "total": 120,
+    "total": 216,
     "byClaim": {
       "Sheriff->sheriff": 40,
-      "Janitor->cop": 17,
-      "Cop->cop": 42,
-      "Journalist->journalist": 13,
-      "Mafioso->cop": 6,
+      "Villager->villager": 44,
+      "Janitor->cop": 15,
+      "Cop->cop": 41,
+      "Journalist->journalist": 22,
+      "Lawyer->villager": 13,
+      "Mafioso->villager": 12,
+      "Mafioso->journalist": 7,
+      "Lawyer->journalist": 5,
+      "Mafioso->cop": 5,
+      "Janitor->villager": 6,
+      "Janitor->journalist": 4,
       "Lawyer->cop": 2
     },
-    "fake": 120
+    "fake": 216
   },
   "mafia": {
-    "buses": 6,
-    "kills": 126,
+    "buses": 0,
+    "kills": 127,
     "killsByRole": {
-      "Cop": 42,
-      "Sheriff": 31,
-      "Villager": 39,
+      "Cop": 40,
+      "Sheriff": 35,
+      "Villager": 38,
       "Journalist": 14
     },
-    "cleans": 21,
-    "litigates": 97,
-    "litigateOnTeammate": 97,
-    "factionChatLines": 415,
+    "cleans": 24,
+    "litigates": 103,
+    "litigateOnTeammate": 103,
+    "factionChatLines": 430,
     "voteTiming": {
-      "daysWithVotes": 112,
-      "scumVotedFirst": 19,
-      "scumFirstRate": 0.16964285714285715,
-      "scumFirstBaseline": 0.3523065476190474,
-      "meanScumPosition": 0.6865741938451102,
-      "meanTownPosition": 0.393809245679994
+      "townDelayQuantilesMs": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "scumDelayQuantilesMs": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "daysWithVotes": 104,
+      "scumVotedFirst": 46,
+      "scumFirstRate": 0.4423076923076923,
+      "scumFirstBaseline": 0.3647206959706957,
+      "meanScumPosition": 0.47395813571112366,
+      "meanTownPosition": 0.5157506215337541
     },
     "killVoteMoves": 0
   },
   "vegs": 0,
   "vegCauses": {},
-  "vegKickWindows": 22,
-  "staleProposals": 197,
+  "vegKickWindows": 30,
+  "staleProposals": 158,
   "lynchSteering": {
-    "days": 112,
-    "lynchDays": 88,
-    "randomLynchBaseline": 0.3508658008658004,
-    "lynchOnPlanTarget": 4,
-    "lynchDaysWithPlan": 20,
-    "mislynchOnPlanTarget": 4,
-    "mislynches": 28,
-    "meanScumVotesOnMislynch": 1.8571428571428572,
-    "meanTownVotesOnMislynch": 1.5,
-    "meanDistinctTownTargets": 1.9464285714285714,
-    "daysWithScumFakeClaim": 25,
-    "mislynchAfterScumFakeClaim": 4,
-    "lynchDaysAfterScumFakeClaim": 16
+    "days": 104,
+    "lynchDays": 72,
+    "randomLynchBaseline": 0.3625661375661372,
+    "lynchOnPlanTarget": 3,
+    "lynchDaysWithPlan": 21,
+    "mislynchOnPlanTarget": 3,
+    "mislynches": 24,
+    "meanScumVotesOnMislynch": 1.6666666666666667,
+    "meanTownVotesOnMislynch": 1.5833333333333333,
+    "meanDistinctTownTargets": 2.0576923076923075,
+    "daysWithScumFakeClaim": 66,
+    "mislynchAfterScumFakeClaim": 8,
+    "lynchDaysAfterScumFakeClaim": 47
   },
-  "publicLines": 204,
+  "publicLines": 311,
   "harnessErrors": 0,
   "errors": [],
   "metrics": {
@@ -153,115 +190,115 @@
     "winRate": {
       "byAlignment": {
         "Village": {
-          "successes": 22,
+          "successes": 16,
           "trials": 50,
-          "rate": 0.44,
-          "low": 0.3116198721023535,
-          "high": 0.5769421319985648
+          "rate": 0.32,
+          "low": 0.20758044093999403,
+          "high": 0.45810557136276076
         },
         "Mafia": {
-          "successes": 28,
+          "successes": 34,
           "trials": 50,
-          "rate": 0.56,
-          "low": 0.4230578680014353,
-          "high": 0.6883801278976466
+          "rate": 0.68,
+          "low": 0.5418944286372394,
+          "high": 0.792419559060006
         }
       },
       "byRole": {
         "Mafioso": {
-          "successes": 28,
+          "successes": 34,
           "trials": 50,
-          "rate": 0.56,
-          "low": 0.4230578680014353,
-          "high": 0.6883801278976466
+          "rate": 0.68,
+          "low": 0.5418944286372394,
+          "high": 0.792419559060006
         },
         "Villager": {
-          "successes": 66,
+          "successes": 48,
           "trials": 150,
-          "rate": 0.44,
-          "low": 0.3630436095097045,
-          "high": 0.5199529271877817
+          "rate": 0.32,
+          "low": 0.25064412359702404,
+          "high": 0.39834548649543466
         },
         "Sheriff": {
-          "successes": 22,
+          "successes": 16,
           "trials": 50,
-          "rate": 0.44,
-          "low": 0.3116198721023535,
-          "high": 0.5769421319985648
+          "rate": 0.32,
+          "low": 0.20758044093999403,
+          "high": 0.45810557136276076
         },
         "Journalist": {
-          "successes": 22,
+          "successes": 16,
           "trials": 50,
-          "rate": 0.44,
-          "low": 0.3116198721023535,
-          "high": 0.5769421319985648
+          "rate": 0.32,
+          "low": 0.20758044093999403,
+          "high": 0.45810557136276076
         },
         "Janitor": {
-          "successes": 28,
+          "successes": 34,
           "trials": 50,
-          "rate": 0.56,
-          "low": 0.4230578680014353,
-          "high": 0.6883801278976466
+          "rate": 0.68,
+          "low": 0.5418944286372394,
+          "high": 0.792419559060006
         },
         "Lawyer": {
-          "successes": 28,
+          "successes": 34,
           "trials": 50,
-          "rate": 0.56,
-          "low": 0.4230578680014353,
-          "high": 0.6883801278976466
+          "rate": 0.68,
+          "low": 0.5418944286372394,
+          "high": 0.792419559060006
         },
         "Cop": {
-          "successes": 22,
+          "successes": 16,
           "trials": 50,
-          "rate": 0.44,
-          "low": 0.3116198721023535,
-          "high": 0.5769421319985648
+          "rate": 0.32,
+          "low": 0.20758044093999403,
+          "high": 0.45810557136276076
         }
       }
     },
     "mislynchRate": {
-      "successes": 28,
-      "trials": 88,
-      "rate": 0.3181818181818182,
-      "low": 0.23022439863763888,
-      "high": 0.4213496157523544
+      "successes": 24,
+      "trials": 72,
+      "rate": 0.3333333333333333,
+      "low": 0.2353448606571184,
+      "high": 0.4482061192800137
     },
     "townVoteAccuracy": {
-      "successes": 313,
-      "trials": 406,
-      "rate": 0.770935960591133,
-      "low": 0.7276320659187996,
-      "high": 0.8091606852318889
+      "successes": 287,
+      "trials": 383,
+      "rate": 0.7493472584856397,
+      "low": 0.7036117273594277,
+      "high": 0.7901304141269067
     },
     "nightActionUsage": {
-      "successes": 616,
-      "trials": 682,
-      "rate": 0.9032258064516129,
-      "low": 0.8787252695931983,
-      "high": 0.9232091712456193
+      "successes": 630,
+      "trials": 689,
+      "rate": 0.9143686502177069,
+      "low": 0.8911087228874948,
+      "high": 0.9330334764261725
     },
     "checkUsefulness": {
       "cop": {
-        "successes": 25,
-        "trials": 95,
-        "rate": 0.2631578947368421,
-        "low": 0.18506401390488098,
-        "high": 0.3596620933212263
+        "successes": 26,
+        "trials": 92,
+        "rate": 0.2826086956521739,
+        "low": 0.20075548814347022,
+        "high": 0.38188920894005085
       },
       "journalist": {
-        "successes": 32,
-        "trials": 114,
-        "rate": 0.2807017543859649,
-        "low": 0.20640600067746484,
-        "high": 0.3692956191240314
+        "successes": 29,
+        "trials": 108,
+        "rate": 0.26851851851851855,
+        "low": 0.19394781819614243,
+        "high": 0.3589913386113424
       }
     },
     "killPriorityAdherence": {
-      "successes": 67,
+      "successes": 68,
       "trials": 124,
-      "rate": 0.5403225806451613,
-      "low": 0.4527104848592219,
-      "high": 0.6255113146176308
+      "rate": 0.5483870967741935,
+      "low": 0.4606534174133777,
+      "high": 0.6332127419588452
     },
     "illegal": {
       "proposed": 0,
@@ -275,56 +312,56 @@
       }
     },
     "fallback": {
-      "candidate": 3,
+      "candidate": 10,
       "llm": 0,
-      "rules": 2006,
-      "rate": 0.9985067197610752,
-      "successes": 2006,
-      "trials": 2009,
-      "low": 0.9956185618170185,
-      "high": 0.9994920320816768
+      "rules": 1895,
+      "rate": 0.994750656167979,
+      "successes": 1895,
+      "trials": 1905,
+      "low": 0.990363728702267,
+      "high": 0.9971461830683063
     },
     "messageRate": {
-      "mean": 0.3379629629629629,
-      "low": 0.2822816658761663,
-      "high": 0.3936442600497595,
+      "mean": 0.4922222222222223,
+      "low": 0.43507062229398513,
+      "high": 0.5493738221504595,
       "n": 450
     },
-    "speechAllowed": 204
+    "speechAllowed": 311
   },
-  "cleans": 21,
+  "cleans": 24,
   "weaknesses": [
+    {
+      "id": "sheriff-misfires",
+      "title": "Sheriff shoots town at about (or worse than) random",
+      "severity": 0.175,
+      "shortfall": 0.23,
+      "coverage": 0.76,
+      "evidence": "23/38 shots hit town (Villager 21, Journalist 2); accuracy 39.5% vs 42.9% random; shots by day Day 1 38"
+    },
     {
       "id": "mafia-vote-timing",
       "title": "Mafia vote timing is a tell",
-      "severity": 0.586,
-      "shortfall": 0.586,
+      "severity": 0.161,
+      "shortfall": 0.161,
       "coverage": 1,
-      "evidence": "scum cast the first Village vote on 19/112 days (17.0% vs 35.2% if order were random); mean vote position scum 0.69 vs town 0.39 (0 = first)"
+      "evidence": "scum cast the first Village vote on 46/104 days (44.2% vs 36.5% if order were random); mean vote position scum 0.47 vs town 0.52 (0 = first)"
     },
     {
       "id": "cop-guilty-ignored",
       "title": "Cop guilties are not acted on",
-      "severity": 0.16,
-      "shortfall": 0.348,
-      "coverage": 0.46,
-      "evidence": "8/23 Guilty results not lynched or shot that day; 15/95 Cop results flipped by the Lawyer"
-    },
-    {
-      "id": "sheriff-misfires",
-      "title": "Sheriff shoots town at about (or worse than) random",
-      "severity": 0.095,
-      "shortfall": 0.122,
-      "coverage": 0.78,
-      "evidence": "19/39 shots hit town (Villager 17, Journalist 2); accuracy 51.3% vs 42.9% random; shots by day Day 1 39"
+      "severity": 0.076,
+      "shortfall": 0.19,
+      "coverage": 0.4,
+      "evidence": "4/21 Guilty results not lynched or shot that day; 17/92 Cop results flipped by the Lawyer"
     },
     {
       "id": "lynch-steered-by-mafia",
       "title": "Town lynches land on town far below random: the mafia vote bloc and fake-Cop claim pick the lynch",
       "severity": 0,
       "shortfall": 0,
-      "coverage": 0.9,
-      "evidence": "lynch accuracy 68.2% (60/88) vs 35.1% for a random lynch; 4/20 lynches hit the mafia PLAN's push target; on mislynches scum put 1.86 votes and town 1.50 on the lynched player; town spread over 1.95 targets a day; 4/16 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 77.1% vs random 42.2%; 24 no-lynch days"
+      "coverage": 0.84,
+      "evidence": "lynch accuracy 66.7% (48/72) vs 36.3% for a random lynch; 3/21 lynches hit the mafia PLAN's push target; on mislynches scum put 1.67 votes and town 1.58 on the lynched player; town spread over 2.06 targets a day; 8/47 lynch days with a scum fake claim ended in a mislynch; town ballots on scum 74.9% vs random 43.7%; 32 no-lynch days"
     },
     {
       "id": "town-votes-near-random",
@@ -332,16 +369,25 @@
       "severity": 0,
       "shortfall": 0,
       "coverage": 1,
-      "evidence": "313/406 final town ballots on scum (77.1%) vs random 42.2%; lift 34.9 pts"
+      "evidence": "287/383 final town ballots on scum (74.9%) vs random 43.7%; lift 31.2 pts"
     }
   ],
   "topWeakness": {
-    "id": "mafia-vote-timing",
-    "title": "Mafia vote timing is a tell",
-    "severity": 0.586,
-    "shortfall": 0.586,
-    "coverage": 1,
-    "evidence": "scum cast the first Village vote on 19/112 days (17.0% vs 35.2% if order were random); mean vote position scum 0.69 vs town 0.39 (0 = first)"
+    "id": "sheriff-misfires",
+    "title": "Sheriff shoots town at about (or worse than) random",
+    "severity": 0.175,
+    "shortfall": 0.23,
+    "coverage": 0.76,
+    "evidence": "23/38 shots hit town (Villager 21, Journalist 2); accuracy 39.5% vs 42.9% random; shots by day Day 1 38"
   },
-  "examples": []
+  "examples": [
+    "game 0 (seed 1); roles: Ash=Mafioso, Bea=Villager, Cal=Sheriff, Dot=Journalist, Eli=Janitor, Fin=Villager, Gil=Lawyer, Hap=Villager, Ivo=Cop",
+    "Night 1 [Mafia] Eli: kill ivo tonight, no fake claims tmrw, lay low and lean fin, lawyer go on ash, save the clean",
+    "Night 1 [Mafia] Eli: sounds good",
+    "Night 1 [Mafia] Ash: ok im in",
+    "Night 1 [Mafia] Gil: if pressed i fakeclaim villager",
+    "Day 1 Ivo (Cop) dies: killed by the Mafia",
+    "Day 1 Cal: im sheriff",
+    "Day 1 Hap (Villager) dies: shot by the Sheriff"
+  ]
 }

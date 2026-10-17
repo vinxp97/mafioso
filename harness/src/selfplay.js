@@ -96,6 +96,7 @@ function emptyStats() {
   return {
     townBallots: [], // final Village ballots by town seats: { day, voter, target, onScum, baseline, abstain }
     voteOrder: [], // per day: first-vote order with alignments
+    voteDelays: [], // per seat-day: first village vote let through, ms after that seat's vote gate opened
     lynches: [], noLynchDays: 0,
     shots: [], kills: [], cleans: 0, litigates: [], copChecks: [], journalistChecks: [],
     claims: [], buses: [], vegs: [], scumChat: 0, publicLines: 0, cannedOrRules: 0,
@@ -115,6 +116,7 @@ function createServer({ seed, game, opts }) {
   });
   const clock = createVirtualClock(T0);
   const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, mafia: opts.mafia });
+  table.onDayVoteShaped = ({ id, scum, sinceGateMs }) => S.stats.voteDelays.push({ day: S.day, seat: names[pidOf[id]], scum, ms: sinceGateMs });
   const S = {
     seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
     complete: null, limiter: createLlmLimiter(4),
@@ -583,6 +585,13 @@ function recordDayVotes(S, village) {
   }
 }
 
+/** 0%, 10%, ..., 100% quantiles (nearest rank), or null when empty. */
+export function quantiles(xs) {
+  if (!xs.length) return null;
+  const a = xs.slice().sort((x, y) => x - y);
+  return Array.from({ length: 11 }, (_, i) => a[Math.min(a.length - 1, Math.round((i / 10) * (a.length - 1)))]);
+}
+
 /** Play one seeded FJ game end to end. Never throws: errors land on the result. */
 export async function playSelfplayGame({ seed = 1, game = 0, ...rest } = {}) {
   const opts = { ...SELFPLAY_DEFAULTS, ...rest };
@@ -690,7 +699,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
       cleans: all("cleans").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.cleans, 0),
       litigates: all("litigates").length, litigateOnTeammate: all("litigates").filter((l) => l.teammate).length,
       factionChatLines: results.reduce((s, r) => s + r.stats.scumChat, 0),
-      voteTiming: { daysWithVotes: firstVoter.length, scumVotedFirst: scumFirst, scumFirstRate: rate(scumFirst, firstVoter.length), scumFirstBaseline: scumFirstBase, meanScumPosition: mean(scumPos), meanTownPosition: mean(townPos) },
+      voteTiming: { townDelayQuantilesMs: quantiles(all("voteDelays").filter((d) => d && !d.scum).map((d) => d.ms)), scumDelayQuantilesMs: quantiles(all("voteDelays").filter((d) => d && d.scum).map((d) => d.ms)), daysWithVotes: firstVoter.length, scumVotedFirst: scumFirst, scumFirstRate: rate(scumFirst, firstVoter.length), scumFirstBaseline: scumFirstBase, meanScumPosition: mean(scumPos), meanTownPosition: mean(townPos) },
     },
     vegs: all("vegs").length,
     vegCauses: countBy(all("vegs"), (v) => v.cause),
@@ -831,6 +840,7 @@ export function scorecardMarkdown(card) {
   L.push(`| Janitor cleans / Lawyer litigates (on teammate) | ${card.mafia.cleans} / ${card.mafia.litigates} (${card.mafia.litigateOnTeammate}) |`);
   L.push(`| Buses (scum voting scum) | ${card.mafia.buses} |`);
   L.push(`| Mafia kill votes moved after the first vote | ${card.mafia.killVoteMoves} |`);
+  if (card.mafia.voteTiming.townDelayQuantilesMs) L.push(`| First-vote delay after own gate, ms (0/50/90/100%) | town ${[0, 5, 9, 10].map((i) => card.mafia.voteTiming.townDelayQuantilesMs[i]).join("/")}, scum ${(card.mafia.voteTiming.scumDelayQuantilesMs ? [0, 5, 9, 10].map((i) => card.mafia.voteTiming.scumDelayQuantilesMs[i]).join("/") : "n/a")} |`);
   L.push(`| Scum first Village vote | ${card.mafia.voteTiming.scumVotedFirst}/${card.mafia.voteTiming.daysWithVotes} (${pct(card.mafia.voteTiming.scumFirstRate)} vs ${pct(card.mafia.voteTiming.scumFirstBaseline)} random) |`);
   L.push(`| Faction chat lines / public lines | ${card.mafia.factionChatLines} / ${card.publicLines} |`);
   L.push(`| Lynches on the mafia PLAN target | ${card.lynchSteering.lynchOnPlanTarget}/${card.lynchSteering.lynchDaysWithPlan} (random lynch would hit scum ${pct(card.lynchSteering.randomLynchBaseline)}) |`);
