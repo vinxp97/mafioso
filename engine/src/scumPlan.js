@@ -3,6 +3,7 @@
 import { allies, FACTION_MEETINGS, myFaction } from "./faction.js";
 import { memoryOf } from "./notes.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
+import { adaptiveClaimLine, adaptiveDraft, adaptiveVote, formatAdaptivePlan, mafiaModeOf } from "./adaptiveMafia.js";
 
 
 export function scumFaction(view) {
@@ -102,6 +103,10 @@ const LYNCH_RES = [
   new RegExp(`\\b${W}\\s+(?:is (?:an )?easy wagon|tmrw|tomorrow)\\b`, "i"),
 ];
 const CLAIM_RE = new RegExp(`\\b(?:i'?ll|ill|i will|i)\\s+(?:fake\\s*claim|fake|claim|fc)\\s+(${ROLE_WORDS})\\b|\\b(?:fake\\s*claim|fakeclaim|fc)\\s+(${ROLE_WORDS})\\b`, "i");
+// Adaptive plans: a teammate named as the claimer ("bea fake journalist tmrw"), or nobody claims.
+const MATE_CLAIM_RE = new RegExp(`\\b${W}\\s+(?:fake\\s*claims?|fakes?|claims?|fc)\\s+(${ROLE_WORDS})\\b`, "i");
+const NO_CLAIM_RE = /\bno (?:fake )?claims?\b|\blay low\b/i;
+const SAVE_CLEAN_RE = /\b(?:save the clean|dont clean|don'?t clean|no clean)\b/i;
 const LAWYER_RE = new RegExp(`\\blawyer\\s+(?:go\\s+on|goes\\s+on|on|protect|cover|defend)?\\s*${W}`, "i");
 
 function firstPlayer(view, text, res, skip = []) {
@@ -132,12 +137,17 @@ export function parsePlanLine(text, view = null, senderId = null) {
   if (!killTarget || killTarget === senderId) return null;
   const lynchTarget = firstPlayer(view, s.replace(new RegExp(`.*?\\b(push|lynch|wagon|condemn|vote|bus)\\b`, "i"), "$1"), LYNCH_RES, [killTarget]);
   const cm = s.match(CLAIM_RE);
-  const roleWord = cm ? (cm[1] || cm[2]).toLowerCase() : null;
-  const claimRole = roleWord ? ({ journ: "Journalist", vt: "Villager", vanilla: "Villager", doc: "Doctor", vig: "Vigilante" }[roleWord] || roleWord[0].toUpperCase() + roleWord.slice(1)) : "Cop";
+  const mm = cm ? null : s.match(MATE_CLAIM_RE);
+  const mateId = mm ? resolvePlayer(view, mm[1]) : null;
+  const roleWord = cm ? (cm[1] || cm[2]).toLowerCase() : mm && mateId ? mm[2].toLowerCase() : null;
+  const roleOf = (w) => ({ journ: "Journalist", vt: "Villager", vanilla: "Villager", doc: "Doctor", vig: "Vigilante" }[w] || w[0].toUpperCase() + w.slice(1));
+  const noClaim = !roleWord && NO_CLAIM_RE.test(s);
+  const claimRole = noClaim ? null : roleWord ? roleOf(roleWord) : "Cop";
   const lm = s.match(LAWYER_RE);
   const lawyerTarget = lm ? (/^me$/i.test(lm[1]) ? senderId : resolvePlayer(view, lm[1])) : null;
   const iClaim = cm && /\b(i'?ll|ill|i will|i)\s/i.test(cm[0]);
-  return { killTarget, lynchTarget: lynchTarget || null, claimRole, lawyerTarget, speakerId: iClaim ? senderId : (senderId || null) };
+  const speakerId = noClaim ? null : mateId || (iClaim ? senderId : (senderId || null));
+  return { killTarget, lynchTarget: lynchTarget || null, claimRole, lawyerTarget, speakerId, ...(SAVE_CLEAN_RE.test(s) ? { janitorTarget: null } : {}) };
 }
 
 /** Casual faction-chat line with player NAMES only. Clauses whose name is unknown are dropped. */
@@ -175,8 +185,8 @@ export function noteFactionPlan(view, message) {
     lynchTarget: parsed.lynchTarget,
     claimRole: parsed.claimRole,
     lawyerTarget: parsed.lawyerTarget,
-    janitorTarget: parsed.killTarget,
-    speakerId: parsed.speakerId || message.senderId || null,
+    janitorTarget: "janitorTarget" in parsed ? parsed.janitorTarget : parsed.killTarget,
+    speakerId: parsed.claimRole === null ? null : parsed.speakerId || message.senderId || null,
     source: "chat",
     night: planNight(view),
   };
@@ -206,8 +216,8 @@ export function agreedPlan(view) {
     return {
       ...parsed,
       lawyerTarget: parsed.lawyerTarget,
-      janitorTarget: parsed.killTarget,
-      speakerId: parsed.speakerId || message.senderId || null,
+      janitorTarget: "janitorTarget" in parsed ? parsed.janitorTarget : parsed.killTarget,
+      speakerId: parsed.claimRole === null ? null : parsed.speakerId || message.senderId || null,
       source: "chat",
     };
   }
@@ -254,7 +264,7 @@ export function draftPlan(view) {
   if (!killTarget) return null;
   const lynchPool = Object.keys(view.players || {}).filter((id) => id !== view.selfId && id !== killTarget && alive(view, id) && !teammates.has(id));
   const asked = lawyerAsk(view, teammates);
-  return {
+  const base = {
     killTarget,
     lynchTarget: pickFrom(view, lynchPool) || killTarget,
     claimRole: "Cop",
@@ -263,6 +273,7 @@ export function draftPlan(view) {
     speakerId: view.selfId,
     source: "draft",
   };
+  return mafiaModeOf(view) === "adaptive" ? adaptiveDraft(view, base, killPool) : base;
 }
 
 function unvoted(meeting, selfId) {
@@ -303,6 +314,8 @@ export function factionKillVote(view) {
 
 export function janitorSelection(meeting, plan) {
   const targets = meeting?.targets || [];
+  // Adaptive plans may save the single clean for a better kill.
+  if (plan && "janitorTarget" in plan && plan.janitorTarget === null) return targets.find((t) => /^no$/i.test(String(t))) || null;
   const kill = plan?.janitorTarget || plan?.killTarget;
   if (kill && targets.includes(kill)) return kill;
   const yes = targets.find((target) => /^yes$/i.test(String(target)));
@@ -331,7 +344,7 @@ function nightScum(view, faction) {
   const out = [];
   // One PLAN per faction, from the leader, in the faction chat only.
   if (!agreed && !copied && leader && chat?.speech && (chat.name === "Mafia" || chat.name === "Cult")) {
-    const content = formatPlanSpeech(plan, view);
+    const content = plan.adaptive ? formatAdaptivePlan(plan, view) : formatPlanSpeech(plan, view);
     if (content && !said(view, content)) out.push({ event: "speak", data: { meetingId: chat.id, content } });
   }
   const mayDecide = agreed || copied || leader;
@@ -360,7 +373,25 @@ function nightScum(view, faction) {
   return out;
 }
 
+function dayScumAdaptive(view) {
+  const plan = agreedPlan(view);
+  const village = Object.values(view.meetings || {}).find((meeting) => meeting?.name === "Village" && meeting.amMember);
+  if (!village) return null;
+  const out = [];
+  const claim = adaptiveClaimLine(view, plan);
+  if (claim && village.speech && !said(view, claim.line) && !(view.messages || []).some((m) => m?.senderId === view.selfId && m.public !== false && /\bim (cop|journalist)\b/i.test(String(m.content || "")))) {
+    out.push({ event: "speak", data: { meetingId: village.id, content: claim.line } });
+  }
+  if (village.voting && village.canVote && unvoted(village, view.selfId)) {
+    const target = adaptiveVote(view, village, plan);
+    if (target) out.push({ event: "vote", data: { meetingId: village.id, selection: target } });
+  }
+  if (!out.length && !unvoted(village, view.selfId)) return [];
+  return out.length ? out : null;
+}
+
 function dayScum(view) {
+  if (mafiaModeOf(view) === "adaptive") return dayScumAdaptive(view);
   const plan = agreedPlan(view);
   if (!plan) return null;
   const village = Object.values(view.meetings || {}).find((meeting) => meeting?.name === "Village" && meeting.amMember);
@@ -413,7 +444,8 @@ export function planViolation(view, action) {
   if (killM && meeting.id === killM.id && (meeting.targets || []).includes(plan.killTarget) && action.data.selection !== plan.killTarget) {
     return "kill vote must match the faction plan";
   }
-  if (meeting.name === "Village" && plan.lynchTarget && (meeting.targets || []).includes(plan.lynchTarget) && !allies(view).has(plan.lynchTarget) && action.data.selection !== plan.lynchTarget) {
+  const adaptive = mafiaModeOf(view) === "adaptive";
+  if (!adaptive && meeting.name === "Village" && plan.lynchTarget && (meeting.targets || []).includes(plan.lynchTarget) && !allies(view).has(plan.lynchTarget) && action.data.selection !== plan.lynchTarget) {
     return "day vote must match the faction plan";
   }
   if (factionName && meeting.faction == null && meeting.name !== factionName && isLawyerRole(view.role)) {
@@ -421,7 +453,7 @@ export function planViolation(view, action) {
     if (selection && action.data.selection !== selection) return "lawyer target must match the faction plan";
   }
   if (factionName && meeting.faction == null && meeting.name !== factionName && !isVoteKick(meeting) && view.role === "Janitor") {
-    if (/^(no|skip|none|\*)$/i.test(String(action.data.selection))) return "janitor must not skip the clean";
+    if (!(adaptive && plan.janitorTarget === null) && /^(no|skip|none|\*)$/i.test(String(action.data.selection))) return "janitor must not skip the clean";
     const selection = janitorSelection(meeting, plan);
     if (selection && action.data.selection !== selection) return "janitor must clean the kill";
   }

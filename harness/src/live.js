@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteWait } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -170,11 +170,12 @@ export function zipAccounts(accounts, prompts) {
  * `clock` ({ now, setTimer }) drives every delay and timestamp the table makes (default: wall clock);
  * `rng` drives every jitter (default: Math.random). Tests pass a virtual clock and a seeded rng.
  */
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman" } = {}) {
+// mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive" } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule },
+    clock, rng, config: { copRule, mafia },
   };
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
@@ -420,6 +421,20 @@ export function beliefDayPick(view, meeting, rng = Math.random) {
   return ranked[r < 0.85 ? 0 : Math.min(1, ranked.length - 1)];
 }
 
+/**
+ * Adaptive mafia: don't lead the vote. Each scum seat waits for 0-2 non-teammate votes (varies by seat and
+ * day, scumVoteWait), but never past late day or the Vote Kick window (no veg).
+ */
+function scumVoteNow(view, meetingId, now) {
+  const m = view.meetings?.[meetingId];
+  const team = new Set([view.selfId, ...allies(view)]);
+  const others = Object.entries(m?.votes || {}).filter(([v, t]) => !team.has(v) && t != null && !(Array.isArray(t) && !t.length)).length;
+  if (others >= scumVoteWait(view)) return true;
+  const frac = dayFraction(view, { now });
+  if (frac != null && frac >= 0.85) return true;
+  return Object.values(view.meetings || {}).some((x) => /vote\s*kick/i.test(String(x?.name || "")));
+}
+
 /** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
 function shapeDayVotes(table, id, view, actions, now, { source }) {
   const out = [];
@@ -427,6 +442,7 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
     if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
     if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
     const scum = !!scumFaction(view);
+    if (scum && mafiaModeOf(view) === "adaptive" && !scumVoteNow(view, a.data.meetingId, now)) continue;
     if (scum && allies(view).has(String(a.data.selection))) {
       // Bus: say it casually in faction chat (once per day), never as syntax. Skipped if no faction chat.
       const fc = Object.values(view.meetings || {}).find((m) => m?.speech && m.amMember && /^(mafia|cult)$/i.test(String(m.name || "")));
@@ -450,7 +466,12 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       const trusted = (t) => reads.verified.includes(t) || (reads.score[t] ?? 0) <= TOWN_READS.credible;
       const meeting = view.meetings[a.data.meetingId];
       // Town consolidates late: follow a 2+ vote leader unless this seat believes that player is town.
-      const follow = townFollow(view, meeting);
+      // Own evidence beats the crowd: with a real read (votes with flipped mafia, pushing town flips...)
+      // clearly above the wagon's target, vote the read rather than join the wagon.
+      const own = (meeting?.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !trusted(t))
+        .map((t) => [t, reads.score[t] || 0]).sort((x, y) => y[1] - x[1])[0];
+      let follow = townFollow(view, meeting);
+      if (own && own[1] >= TOWN_READS.ownRead && (!follow || (reads.score[follow] || 0) <= own[1] - TOWN_READS.ownReadMargin)) follow = own[0];
       if (follow && !trusted(follow)) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
       if (source === "rules") {
         const pick = beliefDayPick(view, meeting, rngOf(table));
@@ -527,6 +548,15 @@ function voteMayRestart(table, id, view, meetingId, vk) {
   return !(last != null && nowOf(table) - last < VOTE_GAP_MS);
 }
 
+/** A delayed faction kill vote picked before the team agreed a target: the agreed plan now wins. */
+function staleKillVote(view, action) {
+  if (action?.event !== "vote") return false;
+  const kill = factionKillMeeting(view);
+  if (!kill || action.data?.meetingId !== kill.id) return false;
+  const target = agreedPlan(view)?.killTarget;
+  return !!target && String(action.data?.selection) !== String(target);
+}
+
 function deferVote(table, id, action, wait, { source, entry, send, onError }) {
   const stateId = table.views[id]?.stateId;
   const pk = `${id}|${stateId}|${action.data?.meetingId}`;
@@ -539,6 +569,7 @@ function deferVote(table, id, action, wait, { source, entry, send, onError }) {
     const view = table.views[id];
     if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
     if (!validateAction(view, action).ok) return;
+    if (staleKillVote(view, action)) return;
     const back = table.voteBackoff?.[id];
     if (back != null && back > nowOf(table)) { deferVote(table, id, action, back - nowOf(table), { source, entry, send, onError }); return; }
     table.lastVoteAt[id] = nowOf(table);

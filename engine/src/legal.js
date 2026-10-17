@@ -1,3 +1,4 @@
+import { planClaim } from "./adaptiveMafia.js";
 import { sheriffShotCheck } from "./sheriffGate.js";
 import { isPublicSpeechMeeting } from "./scheduler.js";
 import { selfAlive } from "./reducer.js";
@@ -38,7 +39,7 @@ export function validateAction(view, action) {
     const leak = publicLeak(view, action.data?.content);
     if (leak) return no(`public leak: ${leak}`);
     if (String(action.data?.content || "").length > PUBLIC_MAX) return no("too long for chat");
-    const claim = earlyClaimBlock(view, action.data?.content, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId, planRole: agreedPlan(view)?.claimRole });
+    const claim = earlyClaimBlock(view, action.data?.content, planClaim(view));
     if (claim) return no(claim);
     const again = repeatBlock(view, action.data.meetingId, action.data?.content);
     if (again) return no(again);

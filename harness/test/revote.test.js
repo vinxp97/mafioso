@@ -11,7 +11,7 @@ const village = (s, targets, votes = {}) => ({ id: "vil", name: "Village", speec
 
 test("after a vote target dies and the server clears those votes, every living seat has a vote again", async () => {
   const clock = createVirtualClock(T0);
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock, rng: createSeededRng(3) });
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock, rng: createSeededRng(3), mafia: "script" });
   const seq = {};
   const opts = { dryRun: true, fast: true, limiter: createLlmLimiter(1) };
   const feed = (s, event, data, t) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t, event, data }, opts); };

@@ -12,13 +12,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { agreedPlan, claimedRoleIn, createSeededRng, scoreGame, summarizeMetrics, validateAction } from "mafioso-engine";
+import { adaptiveClaimLine, agreedPlan, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, summarizeMetrics, validateAction } from "mafioso-engine";
 import { FJ_ROLES, alignOf, mixSeed, plurality, shuffle, winnerFor } from "./arena.js";
 import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
 import { createVirtualClock } from "./clock.js";
 
 export const SELFPLAY_DIR = fileURLToPath(new URL("../../logs/selfplay", import.meta.url));
-export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", lawyer: "loyal" });
+export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", lawyer: "loyal", mafia: "adaptive" });
 const NAMES = ["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gil", "Hap", "Ivo"];
 const T0 = 1_760_000_000_000;
 const ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -60,6 +60,11 @@ function prescribedSpeech(text, mode, viewByName) {
   const me = (text.match(/^you are (.+?)\. role \(secret\)/m) || [])[1];
   const view = me && viewByName ? viewByName(me) : null;
   const plan = view ? agreedPlan(view) : null;
+  if (view && mafiaModeOf(view) === "adaptive") {
+    const c = plan ? adaptiveClaimLine(view, plan) : null;
+    if (c && !/don't say your role/.test(text)) return c.line;
+    throw new Error("offline: no model");
+  }
   if (plan && plan.speakerId === view.selfId && plan.claimRole && !/don't say your role/.test(text)) {
     const role = String(plan.claimRole).toLowerCase();
     const lynch = plan.lynchTarget && view.players?.[plan.lynchTarget] && !view.dead?.[plan.lynchTarget] ? String(view.players[plan.lynchTarget].name || "").toLowerCase() : "";
@@ -109,7 +114,7 @@ function createServer({ seed, game, opts }) {
     const acc = makeId(rng, 10); accOf[id] = acc; pidOf[acc] = id;
   });
   const clock = createVirtualClock(T0);
-  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule });
+  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, mafia: opts.mafia });
   const S = {
     seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
     complete: null, limiter: createLlmLimiter(4),
@@ -663,7 +668,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
   const days = results.map((r) => r.days);
   const errors = results.filter((r) => r.error).map((r) => ({ game: r.game, error: r.error }));
   const card = {
-    seed, games: games ?? n, copRule: rest.copRule || SELFPLAY_DEFAULTS.copRule, lawyer: rest.lawyer || SELFPLAY_DEFAULTS.lawyer, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
+    seed, games: games ?? n, copRule: rest.copRule || SELFPLAY_DEFAULTS.copRule, lawyer: rest.lawyer || SELFPLAY_DEFAULTS.lawyer, mafiaMode: rest.mafia || SELFPLAY_DEFAULTS.mafia, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
     path: "harness onGameEntry fast mode: rules -> decide (bus) -> shapeDayVotes; scum chatter; claim rule; candidates -> selector (offline enumerator, no model)",
     winRate: { Village: rate(wins.Village, n), Mafia: rate(wins.Mafia, n), draw: rate(wins.draw, n), error: rate(wins.error, n), counts: wins },
     townVotes: {
@@ -807,7 +812,7 @@ const countSummary = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(
 export function scorecardMarkdown(card) {
   const L = [];
   L.push(`# Self-play scorecard: ${card.games} games, seed ${card.seed}`, "");
-  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, `Cop rule: ${card.copRule}; Lawyer: ${card.lawyer}`, "");
+  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, `Cop rule: ${card.copRule}; Lawyer: ${card.lawyer}; Mafia: ${card.mafiaMode}`, "");
   L.push("| Metric | Value |", "|---|---|");
   L.push(`| Village win rate | ${pct(card.winRate.Village)} (${card.winRate.counts.Village}) |`);
   L.push(`| Mafia win rate | ${pct(card.winRate.Mafia)} (${card.winRate.counts.Mafia}) |`);
@@ -850,7 +855,8 @@ export async function writeSelfplay({ results, scorecard }, { outDir = SELFPLAY_
   await mkdir(outDir, { recursive: true });
   const rule = scorecard.copRule && scorecard.copRule !== SELFPLAY_DEFAULTS.copRule ? `-${scorecard.copRule}` : "";
   const law = scorecard.lawyer && scorecard.lawyer !== SELFPLAY_DEFAULTS.lawyer ? `-${scorecard.lawyer}lawyer` : "";
-  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}${rule}${law}`;
+  const maf = scorecard.mafiaMode && scorecard.mafiaMode !== SELFPLAY_DEFAULTS.mafia ? `-${scorecard.mafiaMode}mafia` : "";
+  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}${rule}${law}${maf}`;
   const json = join(outDir, `${base}.json`);
   const md = join(outDir, `${base}.md`);
   const jsonl = join(outDir, `${base}.records.jsonl`);

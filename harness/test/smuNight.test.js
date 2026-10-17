@@ -7,7 +7,7 @@ import { seats, players, meetingsFor, voteKick, MAFIA } from "./fixtures/smu-nig
 
 // Every table runs on a virtual clock with a seeded rng: deterministic, no wall-clock waits.
 const T0 = 1_800_000_000_000;
-const newTable = (accounts, seed = 1) => { const clock = createVirtualClock(T0); return { clock, table: createBotTable(accounts, { clock, rng: createSeededRng(seed) }) }; };
+const newTable = (accounts, seed = 1) => { const clock = createVirtualClock(T0); return { clock, table: createBotTable(accounts, { clock, rng: createSeededRng(seed), mafia: "script" }) }; };
 
 async function playNight1(makeComplete, { ticks = 3 } = {}) {
   const { clock, table } = newTable(seats.map((s) => ({ accountId: s.acc })));
