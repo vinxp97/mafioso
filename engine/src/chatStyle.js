@@ -107,6 +107,12 @@ export function counterclaimReason(view) {
     if (mine && r && r === mine) return { kind: "role", by: m.senderId };
     if (mentionsId(view, m.content, view.selfId) && /\b(guilty|mafia|scum)\b/i.test(String(m.content || "")) && !/\bnot\s+(guilty|mafia)/i.test(String(m.content || ""))) return { kind: "guilty", by: m.senderId };
   }
+  // A living rival holding my unique role's claim from an earlier day still needs an answer.
+  if (/^(cop|journalist)$/.test(mine)) {
+    const rival = Object.entries(view?.claims || {}).find(([id, c]) => id !== view.selfId && c?.kind !== "retract" && lc(c?.role) === mine
+      && view.players?.[id] && !view.players[id].left && !view.dead?.[id]);
+    if (rival) return { kind: "role", by: rival[0] };
+  }
   return null;
 }
 
@@ -205,9 +211,9 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
   // Every town role may claim under pressure (L-1 or the leading wagon late): no immediate claims.
   if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)) || underPressure(view));
-  // Journalist (Vinman's fixed rule): a guilty on me or real info (a report worth sharing); a role steal
-  // alone is not a trigger. Under pressure it claims too.
-  if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view) || underPressure(view);
+  // Journalist: a rival Journalist claim (counterclaim at once: the role is unique), a guilty on me, or real
+  // info (a report worth sharing). Under pressure it claims too.
+  if (/journalist/i.test(role)) return !!(counterclaimReason(view) || journalistInfo(view) || underPressure(view));
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
 }

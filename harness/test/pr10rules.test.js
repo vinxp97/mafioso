@@ -68,7 +68,7 @@ test("Journalist claims if guiltied, or its report exposes a fake Cop or finds t
   const none = seat("Journalist", [srv("You received all reports that Bea received: You were visited.")]);
   assert.equal(roleClaimLine(none), null);
   const stolen = seat("Journalist", [msg("otU9CsNlbw", "im journalist, trust me")]);
-  assert.equal(roleClaimLine(stolen), null, "role steal alone is not a Journalist trigger");
+  assert.match(roleClaimLine(stolen), /^\w+ is lying, im journalist/, "a rival Journalist claim is countered at once");
   const fake = seat("Journalist", [srv("You learn that Bea received no reports.")]);
   fake.claims.rhyFPKXcnH = { role: "Cop" };
   assert.match(roleClaimLine(fake), /bea got no report, fake cop/);
