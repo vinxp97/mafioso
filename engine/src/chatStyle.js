@@ -91,6 +91,15 @@ export function journalistInfo(view) {
     const claimedCop = /cop/i.test(String(view?.claims?.[id]?.role || ""));
     if (claimedCop && /\b(no report|no reports|nothing|did not receive|didn'?t receive|received no)\b/i.test(text)) return { kind: "fakecop", target: id };
   }
+  // A Cop claimer whose reports include a Guilty: relay it (a Loyal Lawyer cannot fake a Guilty), even
+  // when that Cop died the same night.
+  for (const [id, c] of Object.entries(checks)) {
+    const text = String(c?.detail || "");
+    if (!/cop/i.test(String(view?.claims?.[id]?.role || "")) || !/reports?:/i.test(text)) continue;
+    const m = /investigation shows that (.+?) is guilty/i.exec(text);
+    const guilty = m && Object.keys(view?.players || {}).find((pid) => lc(view.players[pid]?.name || "") === lc(m[1]) && !view.dead?.[pid]);
+    if (guilty && guilty !== view.selfId) return { kind: "copguilty", target: id, guilty };
+  }
   // A Cop claimer whose reports include a Cop result is the real Cop. Only worth outing myself for when
   // the Cop claim is contested (otherwise it just paints two targets).
   const copClaimers = Object.entries(view?.claims || {}).filter(([pid, c]) => /cop/i.test(String(c?.role || "")) && c.kind !== "retract" && !view.dead?.[pid]).map(([pid]) => pid);
@@ -118,15 +127,25 @@ function guiltyTarget(view) {
   return null;
 }
 
+/**
+ * Cop claim rule. "vinman" (default, Vinman's FJ rule): claim once a Sheriff has outed and is alive, or
+ * with a guilty, or when counterclaimed / called guilty. "wait": the same without the Sheriff-out trigger
+ * (an early Cop claim is a free night kill). Set per seat with view.config.copRule (the "botConfig" frame).
+ */
+export const COP_RULES = Object.freeze(["vinman", "wait"]);
+export function copRuleOf(view) {
+  return view?.config?.copRule === "wait" ? "wait" : "vinman";
+}
+
 /** May this seat claim a role in public now? Rules, not the model, decide for Cop and Journalist. */
 export function claimAllowed(view, { planSpeaker = false } = {}) {
   if (view?.phase?.phase !== "Day") return true;
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
   if (planSpeaker) return true;
-  // FJ: the real Cop claims when counterclaimed or called guilty (or to deliver a guilty), not just because
-  // a Sheriff is out: an early Cop claim is a free night kill.
-  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view));
+  // FJ: the real Cop claims to deliver a guilty, or when counterclaimed or called guilty; under the default
+  // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
+  if (/^cop$/i.test(role)) return !!(hasGuiltyCheck(view) || counterclaimReason(view) || (copRuleOf(view) === "vinman" && sheriffOutAlive(view)));
   if (/journalist/i.test(role)) return counterclaimReason(view)?.kind === "guilty" || !!journalistInfo(view);
   if (counterclaimReason(view)) return true;
   return pressureOn(view) >= 2;
@@ -136,6 +155,14 @@ function allResults(view) {
   const nm = (id) => lc(nameOfId(view, id) || "");
   return Object.entries(memoryOf(view).checks || {}).filter(([id]) => nm(id))
     .map(([id, c]) => `${nm(id)} ${/mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`) ? "guilty" : "inno"}`).join(", ");
+}
+
+function journalistWhat(info, nm) {
+  if (!info) return "";
+  if (info.kind === "janitor") return `${nm(info.target)} is janitor`;
+  if (info.kind === "copguilty") return `${nm(info.target)} got a cop report, real cop, it said ${nm(info.guilty)} guilty`;
+  if (info.kind === "realcop") return `${nm(info.target)} got a cop report, real cop`;
+  return `${nm(info.target)} got no report, fake cop`;
 }
 
 /** The rules-decided claim line for Cop / Journalist (null when they should stay quiet). */
@@ -151,7 +178,7 @@ export function roleClaimLine(view) {
     if (/^cop$/i.test(role)) { const res = allResults(view); info = res ? `results: ${res}` : null; }
     if (/journalist/i.test(role)) {
       const j = journalistInfo(view);
-      info = !j ? null : j.kind === "janitor" ? `${nm(j.target)} is janitor` : j.kind === "realcop" ? `${nm(j.target)} got a cop report, real cop` : `${nm(j.target)} got no report, fake cop`;
+      info = journalistWhat(j, nm) || null;
     }
     // A new rival claim or a guilty on me: call it out again, once per accuser.
     const callOut = cc && !mine.some((m) => mentionsId(view, m.content, cc.by) && /\blying\b/i.test(String(m.content || ""))) ? `${nm(cc.by)} is lying` : null;
@@ -165,8 +192,7 @@ export function roleClaimLine(view) {
   }
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
-    const what = !info ? "" : info.kind === "janitor" ? `${nm(info.target)} is janitor`
-      : info.kind === "realcop" ? `${nm(info.target)} got a cop report, real cop` : `${nm(info.target)} got no report, fake cop`;
+    const what = journalistWhat(info, nm);
     return `${lead}im journalist${what ? `. ${what}` : ""}`.slice(0, 80);
   }
   // FJ: the Sheriff outs on Day 1 (a known Sheriff is a deterrent and a test of Cop claims).

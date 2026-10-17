@@ -68,3 +68,23 @@ test("offline complete: candidates get every legal target; speech needs a prescr
   await assert.rejects(complete({ purpose: "speech", user: "you are Ash. role (secret): Villager." }), /no model/);
   await assert.rejects(createOfflineComplete({ speech: "none" })({ purpose: "speech", user: "aim: Out yourself as Sheriff" }), /no model/);
 });
+
+test("copRule reaches every seat's view, and the CLI-level option is recorded on the scorecard", async () => {
+  for (const copRule of ["vinman", "wait"]) {
+    const r = await playSelfplayGame({ seed: 3, game: 0, copRule, keepServer: true });
+    const views = Object.values(r.server.table.views);
+    assert.ok(views.length === 9 && views.every((v) => v.config?.copRule === copRule), copRule);
+  }
+  const { scorecard } = await runSelfplay({ games: 1, seed: 3, copRule: "wait" });
+  assert.equal(scorecard.copRule, "wait");
+  assert.equal(scorecard.lawyer, "loyal");
+});
+
+test("Loyal Lawyer (FJ): Litigate on a town player is blocked, so every Cop Guilty is true", async () => {
+  const { results } = await runSelfplay({ games: 12, seed: 2 });
+  const checks = results.flatMap((r) => r.stats.copChecks);
+  assert.ok(checks.some((c) => c.result === "Guilty"));
+  assert.ok(checks.filter((c) => c.result === "Guilty").every((c) => c.correct), "no false Guilty under a Loyal Lawyer");
+  assert.ok(checks.filter((c) => !c.correct).every((c) => c.result === "Innocent" && c.litigated), "only lawyered Innocents are wrong");
+  for (const l of results.flatMap((r) => r.stats.litigates)) assert.equal(l.blocked, !l.teammate);
+});

@@ -103,6 +103,10 @@ function readPick(view, spec, night, ids, memory) {
   if (/^cop$/i.test(role)) {
     const top = best(fresh);
     if (top && top[1] > 0) return top[0];
+    // A Loyal Lawyer can make a teammate read Innocent: re-check someone I found innocent who is still
+    // suspicious on the public evidence (the Lawyer may cover someone else tonight).
+    const again = best(ids.filter((id) => /^village$|innocent/i.test(String(memory.checks[id]?.result || ""))));
+    if (again && again[1] > 0) return again[0];
   }
   return null;
 }

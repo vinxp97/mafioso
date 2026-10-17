@@ -82,7 +82,10 @@ The server follows the restartq rules. Meetings resolve by plurality (a tie mean
 ```bash
 cd harness
 npm run selfplay -- --games 50 --seed 1          # writes ../logs/selfplay/selfplay-seed1-n50.{json,md,records.jsonl,games.jsonl}
+npm run selfplay -- --games 50 --seed 1 --cop-rule wait   # ...-n50-wait.*: the Cop does not claim on a Sheriff out alone
 ```
+
+`--cop-rule vinman` (default) is Vinman's FJ rule: the Cop claims once a Sheriff has outed and is alive, or with a guilty, or when counterclaimed or called guilty. `--cop-rule wait` drops the Sheriff-out trigger. The rule reaches every seat as the engine's `botConfig` frame (`view.config.copRule`; `createBotTable(..., { copRule })`). `--lawyer loyal` (default) models FJ's Loyal Lawyer per the restartq server: a Litigate on a town player is blocked, and on a teammate it sets the Cop result to Innocent, so a Cop's Guilty can never be faked. `--lawyer plain` lets a Litigate frame a town player as Guilty.
 
 The scorecard (JSON and markdown) has:
 
