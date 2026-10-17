@@ -54,7 +54,9 @@ export function cleanedRoles(view) {
   const out = {};
   for (const m of view?.messages || []) {
     if (m?.senderId && m.senderId !== "server") continue;
-    const hit = /(?:learn that|discover) (.+?)'s role is (?:a |an |the )?([A-Za-z ]+?)\.?$/i.exec(String(m?.content || ""));
+    const text = String(m?.content || "");
+    if (/^:invest:/.test(text)) continue; // a role Cop's "You Learn that X's Role is Y", not a clean
+    const hit = /(?:learn that|discover) (.+?)'s role is (?:a |an |the )?(.+?)\.*$/i.exec(text);
     if (!hit) continue;
     const id = Object.keys(view.players || {}).find((p) => nameOf(view, p) === hit[1].toLowerCase());
     if (id) out[id] = hit[2].trim();

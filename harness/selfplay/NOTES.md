@@ -1,14 +1,19 @@
 # Overnight wrap-up for Vinman
 
+> **First check in the next approved live game:** confirm what a Journalist report looks like when its target is
+> another real Journalist (the target's own `:journ:` alert). The game archive has no real example of it.
+> Cop, Journalist and Janitor results themselves are now checked against real archive text (65/65
+> fixtures, branch `alert-fixtures`).
+
 All of this is local: nothing was pushed or merged, no games were played on any server, and dev, QA, prod
 and ultimafia.com weren't touched. The Sheriff Day-1 rule is unchanged. Every number comes from the offline
 FJ 9p self-play (`npm run selfplay`, 50 games per seed, restartq rules, no model).
 
 **The branches are stacked.** Each one is cut from the one before it, so merging the tip
-(`journalist-targets`) brings in all of them:
+(`alert-fixtures`) brings in all of them:
 
 test-hardening (13fef7e) → selfplay (afb97c1) → selfplay-improve (1d9b237) → cop-guilty (8a265e3) →
-adaptive-mafia (ef51262) → pressure-claims (905ad52) → journalist-targets (tip of this branch)
+adaptive-mafia (ef51262) → pressure-claims (905ad52) → journalist-targets (9852b6d) → alert-fixtures (tip)
 
 The intended base is main at **ba9b729 (PR #12)**. That commit isn't in this local clone, though (it was
 never fetched). Here the stack sits on 7dbbcb6, and local `origin/main` is the stale bbc7b11 (PR #9). So
@@ -22,7 +27,8 @@ check the stack against ba9b729, by rebasing or with a test merge, before mergin
 | cop-guilty | 8a265e3 | `copRule` vinman (default) or wait, the Loyal Lawyer, and acting on credible Cop guilties. | Town vs script, seeds 1-4: 44/32/38/44% → 92/88/86/88%. Guilties acted on: about 37-68% → 68-73%. |
 | adaptive-mafia | ef51262 | `--mafia adaptive\|script`. Adaptive mafia plays your FJ strategy from public information only. Town gets vote-company and verified-innocent reads. | Seeds 1-4: town 44/48/46/32% vs adaptive, 92/86/92/88% vs script. Unseen seeds 5-8: 34/30/26/36%. |
 | pressure-claims | 905ad52 | Town (and adaptive scum) claim at L-1 or on the late leading wagon. Scum time their votes from town's measured delays, with no 3-scum bloc. | Seeds 4-8 vs adaptive: 31.6% → 37.2%. Scum voted first 12.1% → 33.7% (chance 35.2%). Vs script 87.2%. |
-| journalist-targets | tip | Journalist visits pushers and pressure claimers when no Cop claimer is unchecked, and reports only what it really sees. Live alert wording is now parsed. | Seeds 4-8 vs adaptive: 37.2% → 36.4% (flat, within noise). Vs script 87.2% → 93.2%. 0 illegal actions, 0 vegs. |
+| journalist-targets | 9852b6d | Journalist visits pushers and pressure claimers when no Cop claimer is unchecked, and reports only what it really sees. Live alert wording is now parsed. | Seeds 4-8 vs adaptive: 37.2% → 36.4% (flat, within noise). Vs script 87.2% → 93.2%. 0 illegal actions, 0 vegs. |
+| alert-fixtures | tip | Real Cop, Journalist and Janitor alerts from the game archive (sanitized) as fixtures, run through the engine parsers. Fixes the misses they found. | Fixtures parsed: 12/65 at 905ad52, 46/65 at 9852b6d, 65/65 now. Self-play unchanged (seed 1 vs adaptive: 34%). |
 
 **Adaptive mafia is the live default** (`createBotTable`) until you choose. `--mafia script` brings back the
 old plan. The engine itself still defaults to script unless `view.config.mafia === "adaptive"`.
@@ -34,11 +40,13 @@ first lynch is about 37%).
 
 **Risks for live play:**
 - **Base mismatch.** See above: test the stack against ba9b729 before merging.
-- **Live alert wording.** restartq tags alerts with an emoji (`:invest:`, `:journ:`, `:mop:`). The FJ Cop card
-  says "After investigating, you learn that X is Mafia!", and the Janitor gets "You discover X's role is Y".
-  Before this branch the engine parsed none of these, so on live the Cop's, Journalist's and Janitor's own
-  results were probably never recorded. It's fixed and unit-tested against the restartq strings, but it hasn't
-  been checked against a real live log. Confirm it on the first approved dev game.
+- **Live alert wording.** restartq tags alerts with an emoji (`:invest:`, `:journ:`, `:mop:`). Before
+  journalist-targets the engine parsed none of these, so on live the Cop's, Journalist's and Janitor's own
+  results were probably never recorded. Both branches together now parse every real variant in the game
+  archive: the Cop's "After investigating, you learn that X is Innocent/Guilty/Village/Mafia/Cult/Independent!",
+  the role Cop's "You Learn that X's Role is Y", the Journalist's no-report and all-reports lines, and the
+  Janitor's "You discover X's role is Y". These are the real alert texts, but the harness has never received
+  them over a live socket, so watch the first approved game's logs for a recorded check.
 - **Adaptive mafia changes live mafia behaviour**: varied fake claims, the Janitor saving its clean,
   at most two scum on one wagon, and rules-driven pressure claims (scum claim Villager or an open Journalist).
 - **Scum vote timing.** `TOWN_VOTE_DELAY_MS` was measured offline, where town votes the moment its gate
@@ -580,3 +588,68 @@ Town vs adaptive mafia is still about 36% on unseen seeds, with lynch accuracy a
 Day 2.3, so Day 1 decides most of them: the Sheriff's Day-1 shot (51% on scum) and the first lynch. Night-2+
 information comes too late to matter much.
 
+
+# Real alert fixtures (branch `alert-fixtures`, off `9852b6d`)
+
+Goal: check the Cop, Journalist and Janitor result parsing against real alert text, not the server source.
+
+## Where real alerts were found
+
+| Source | Real role-result alerts |
+|---|---|
+| Box `/workspace/winlogs`, `/workspace/restartq/logs` (live harness logs) | 0. The logs keep sends, meetings and public chat, but not received server alerts. The only matches are bot chat ("I'm the real Journalist. My night read: ... received no reports"). |
+| PC `C:\Users\vince\mafioso\logs` | 0. Same files as the box copies. |
+| `harness/test/fixtures/replays` | 0. These are rebuilt from those logs, and their server messages are only joins and phase changes. |
+| PC `mafia.db` (7,470 archived games, read-only) | **6,990** in the kept categories: 3,766 Cop alignment results, 961 role Cop results, 542 Journalist "no reports", 363 Journalist "all reports", 1,358 Janitor cleans. Also seen: 1,057 `:track:` and 23,615 `:system:` role reveals, used only as negatives. |
+| PC tagger extracts (`archive_lines.jsonl`) | Public Village chat only: 67 player lines quoting a result. They aren't alerts, so 3 of them are used as negatives. |
+
+The fixture file is `engine/test/fixtures/real-alerts.json`, with 65 fixtures across 42 templates:
+- **Names:** every player name in a name slot is replaced by a fake name.
+- **Dropped:** 12 Journalist reports whose inner text carries free-text names (carol, law, mask, love, beer,
+  dowse).
+- **Counts:** `templateCount` is how often each template occurs in the archive.
+- **Expected values:** taken from the alert text itself, not from the parser.
+
+## Variants found (real text)
+
+- **Cop:** `:invest: After investigating, you learn that X is Innocent!` (2,399) or `Guilty!` (1,326), the
+  older wording; `Village!` (24), `Cult!` (6), `Independent!` (4) and `Mafia!` (3), the current wording.
+- **Boastful Cop, overheard by everyone:** `:loud: a Cop (Boastful) is overheard reading: :invest: ...`. This
+  is not the seat's own check.
+- **Role Cop:** `:invest: You Learn that X's Role is Y.` (931), with `..` (24) or with no period (6), and
+  `Role is not A, or B..`.
+- **Journalist:** `:journ: You learn that X received no reports.` and
+  `:journ: You received all reports that X received: <alerts, comma-separated>.`. The inner alerts are kept
+  with their emoji tags, including Cop results, `:mop:` cleans, `:track:`/`:watch:`, item gifts and even
+  Protips. A rare inner variant is `:invest: You learn that X is Guilty..`.
+- **Janitor:** `:mop: You discover X's role is Y.` (1,358). Y can carry modifiers, e.g.
+  "Oracle (Astral/Resolute)".
+
+## Parsed before and after (fixtures passing)
+
+| Category | 905ad52 | 9852b6d | now |
+|---|---|---|---|
+| Cop alignment (6 results + 2 overheard negatives) | 2/8 (only the negatives) | 8/8 | 8/8 |
+| Role Cop | 0/12 | 0/12 | 12/12 |
+| Journalist no reports | 0/1 | 1/1 | 1/1 |
+| Journalist all reports | 0/30 | 24/30 | 30/30 |
+| Janitor clean (`cleanedRoles`) | 0/4 | 3/4 | 4/4 |
+| Negatives (`:track:`, `:system:` reveals, player quotes) | 10/10 | 10/10 | 10/10 |
+| **Total** | **12/65** | **46/65** | **65/65** |
+
+Fixes:
+1. The role Cop line is parsed (`not A, or B` gives no alignment read). The `:invest: You learn that X is
+   Guilty` variant is parsed too.
+2. `JANITOR_REPORT` no longer matches "learn that X's role is". A role Cop's report inside a Journalist report
+   was being called a Janitor, a real false positive found in 6 fixtures. It now keys on `:mop:` or
+   "discover X's role is".
+3. `cleanedRoles` accepts roles with modifiers and ignores `:invest:` lines.
+
+Self-play is unchanged (seed 1 vs adaptive: 34%), because the FJ simulator lines were already parsed.
+
+## No real example
+
+No real alert shows a Journalist report whose target is another real Journalist. In FJ there is only one
+Journalist, so the "no report on a Journalist claim = fake" logic doesn't depend on it. Whether the target's
+own `:journ:` alert shows up is order-dependent in restartq (both actions run at the same priority). Check it
+in the next approved live game (see the wrap-up).
