@@ -7,6 +7,7 @@ import { isAlive } from "./reducer.js";
 import { memoryOf } from "./notes.js";
 import { ALIGNMENT } from "./faction.js";
 import { townReads } from "./townReads.js";
+import { claimedRoleIn } from "./chatStyle.js";
 
 const DEFAULT_MAP = createRequire(import.meta.url)("../data/night-actions.json");
 const KILL_MEETING = /^(mafia|cult)$/i;
@@ -97,8 +98,10 @@ function readPick(view, spec, night, ids, memory) {
   const fresh = ids.filter((id) => !memory.checks[id] && !memory.cleared.has(id));
   const best = (list) => list.map((id) => [id, reads.score[id] || 0]).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0];
   if (/journalist/i.test(role) && night > 1) {
+    // Vinman's rule: the Cop claimer comes first (a fake Cop gets no report).
     const cops = fresh.filter((id) => reads.record.claims[id] === "Cop");
     if (cops.length) return best(cops)[0];
+    return journalistTarget(view, fresh, reads);
   }
   if (/^cop$/i.test(role)) {
     const top = best(fresh);
@@ -110,6 +113,37 @@ function readPick(view, spec, night, ids, memory) {
   }
   return null;
 }
+
+/** Latest public role claim a player made in chat ("villager", "journalist", ...), or null. */
+function publicClaimOf(view, id) {
+  let role = null;
+  for (const m of view.messages || []) {
+    if (m?.senderId !== id || m.public === false) continue;
+    const r = claimedRoleIn(m.content);
+    if (r) role = /^(vanilla|vt|town|townie)$/.test(r) ? "villager" : r;
+  }
+  return role || (view.claims?.[id]?.kind !== "retract" ? String(view.claims?.[id]?.role || "").toLowerCase() || null : null);
+}
+
+/**
+ * Journalist with no unchecked Cop claimer. What a visit can show in FJ (restartq ReceiveReports): the
+ * target's own night alerts. A real Journalist always has one (its own report), the Janitor has one on a
+ * clean night, the real Cop has its result; everyone else gets none. So:
+ *  1. a rival Journalist claimer (no report = fake),
+ *  2. else the hardest pusher on the public reads, with a small bonus for a pressure claimer (Villager or
+ *     other unverified claim), since a "no report" fits their claim and a Janitor report outs the cleaner.
+ */
+export function journalistTarget(view, fresh, reads = townReads(view)) {
+  const rivals = fresh.filter((id) => publicClaimOf(view, id) === "journalist");
+  const rank = (list, bonus = () => 0) => list
+    .map((id) => [id, (reads.score[id] || 0) + bonus(id)])
+    .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0];
+  if (rivals.length) return rank(rivals)[0];
+  const claimer = (id) => { const r = publicClaimOf(view, id); return r && r !== "sheriff" ? JOURNALIST_TARGET.claimBonus : 0; };
+  const top = rank(fresh, claimer);
+  return top && top[1] > 0 ? top[0] : null;
+}
+export const JOURNALIST_TARGET = { claimBonus: 0.5 };
 
 /**
  * Propose a night vote for the bot's role. Returns a validated ProposedAction or null.

@@ -7,6 +7,8 @@ export function emptyNotes() {
   return { checks: {}, cleared: [], suspects: [], deaths: [], votes: [], heard: [], plan: null };
 }
 
+/** A report only the Janitor gets: its clean result (live ":mop: You discover X's role is Y."). */
+export const JANITOR_REPORT = /janitor|\bclean(?:ed|s)?\b|(?:discover|learn that) .+?'s role is/i;
 const SIDED = /^(.+?) is sided with the (Village|Mafia|Cult|Town)\b/i;
 const ROLE_LINE = /^(.+?) is (?:a |an |the )?([A-Za-z][A-Za-z ]+?)\.?$/;
 
@@ -68,6 +70,9 @@ export function parseServerInfo(view, data) {
   if (sender && sender !== "server" && sender !== "anonymous") return null;
   let text = String(data?.content || "").trim();
   // Live server wording: Cop "Your investigation shows that X is Guilty"; Journalist report lines.
+  // Live alerts carry an emoji tag (":invest:", ":journ:", ":mop:"); the FJ Cop card (LearnAlignment) says
+  // "After investigating, you learn that X is Mafia!".
+  text = text.replace(/^(?::[\w-]+:\s*)+/, "").replace(/^after investigating,?\s+you learn that\s+(.+?)!*$/i, "$1");
   text = text.replace(/^your investigation shows that\s+/i, "").replace(/^you learn that your\s+(.+?)'s alignment is\s+/i, "$1 is ");
   const noRep = text.match(/^you learn that (.+?) received no reports\.?$/i);
   const allRep = text.match(/^you received all reports that (.+?) received:\s*(.+?)\.?$/i);
@@ -75,7 +80,7 @@ export function parseServerInfo(view, data) {
     const pid = namedId(view, (noRep || allRep)[1]);
     if (!pid || pid === view.selfId) return null;
     const detail = noRep ? "no reports" : `reports: ${allRep[2]}`;
-    return { playerId: pid, detail, align: "", role: /janitor/i.test(detail) ? "Janitor" : null, text };
+    return { playerId: pid, detail, align: "", role: JANITOR_REPORT.test(detail) ? "Janitor" : null, text };
   }
   const sided = text.match(SIDED);
   const roleLine = sided ? null : text.match(ROLE_LINE);
