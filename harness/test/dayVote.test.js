@@ -11,7 +11,7 @@ const village = (s) => ({ id: "vil", name: "Village", speech: true, voting: true
 
 async function setupDay(seed = 1) {
   const clock = createVirtualClock(T0);
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock, rng: createSeededRng(seed) });
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock, rng: createSeededRng(seed), mafia: "script" });
   const seq = {};
   const opts = { dryRun: true, fast: true, limiter: createLlmLimiter(1) };
   const feed = (s, event, data, t = T0) => { seq[s.acc] = (seq[s.acc] || 0) + 1; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t, event, data }, opts); };

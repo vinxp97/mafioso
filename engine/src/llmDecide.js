@@ -1,3 +1,4 @@
+import { planClaim } from "./adaptiveMafia.js";
 import { applySheriffRule } from "./sheriffGate.js";
 import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed } from "./chatStyle.js";
 import { selfAlive } from "./reducer.js";
@@ -61,7 +62,7 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
   if (scumFaction(view)) {
     const plan = agreedPlan(view);
     L.push(plan
-      ? `TEAM PLAN: kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget} janitor=${plan.janitorTarget} speaker=${plan.speakerId || "-"} source=chat`
+      ? `TEAM PLAN: kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole === null ? "none" : plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget} janitor=${plan.janitorTarget} speaker=${plan.speakerId || "-"} source=chat`
       : "TEAM PLAN: none");
   }
   const guide = roleGuideForView(view);
@@ -229,7 +230,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     return { action: null, source: "scheduler", rejections: [cap.ok ? "no generator" : cap.reason], schedule: sched };
   }
   // Cop and Journalist claims are rules-only (roleClaimLine); the model never claims for them.
-  const may = !/^(cop|journalist)$/i.test(String(view.role || "")) && claimAllowed(view, { planSpeaker: agreedPlan(view)?.speakerId === view.selfId });
+  const may = !/^(cop|journalist)$/i.test(String(view.role || "")) && claimAllowed(view, { planSpeaker: planClaim(view).planSpeaker });
   const chat = buildChatPrompt(view, meeting, { goal, may });
   // One extra try when the only problem was repeating recent chat.
   let bonus = 0;

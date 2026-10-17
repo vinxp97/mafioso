@@ -201,3 +201,120 @@ Cop's guilty later, which is where most of the remaining contested-Cop no-lynch 
 keep the Day-1 threat shots (someone calls the Sheriff guilty or counterclaims), but hold the no-read shot
 for a Cop guilty or a strong read. Measure the hit rate and how many guilties get acted on.
 After that: the scorecard's `mafia-vote-timing` tell (scum cast the first vote 43-46% vs 32.5% random).
+
+# Adaptive mafia (branch `adaptive-mafia`, off `8a265e3`)
+
+Goal: make the mafia adapt (Vinman's FJ strategy from the mafia side) while keeping the old script selectable,
+then bring town to a 45-65% win rate against it on seeds 1-4 (4 held out) with principled play only, while town
+still beats the old script at about 88%. The Sheriff Day-1 always-shoot rule was left alone.
+
+**Result: done criterion NOT met.** Seeds 1-3 land at 44 / 48 / 46%, but held-out seed 4 is 32%, and four
+extra unseen seeds (5-8) are 34 / 30 / 26 / 36%. Seeds 1-3 were the ones I diagnosed games on (I also looked at
+a few seed-4 games early on, before I stopped using it), so the honest out-of-sample estimate of town vs
+adaptive mafia is about **32%**, not the band. I did not add handicaps to reach it. Everything below is principled
+play on both sides, and the gap is reported rather than tuned away.
+
+`--mafia adaptive|script`. Adaptive is the default for self-play and for `createBotTable` (live). The engine
+itself keeps `script` unless `view.config.mafia === "adaptive"` (old views and tests).
+
+## Results (50 games per seed, cop rule vinman, Loyal Lawyer)
+
+| Seed | Mafia | Town win | Lynch accuracy | Town ballots on scum | No-lynch days | Mean days | Scum voted first (chance) | Vegs | Illegal |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | adaptive | **44%** (22/50) | 68.2% | 77.1% | 24 | 2.52 | 17.0% (35.2%) | 0 | 0 |
+| 1 | script | **92%** (46/50) | 95.9% | 89.5% | 28 | 3.08 | 41.3% (34.3%) | 0 | 0 |
+| 2 | adaptive | **48%** (24/50) | 62.5% | 71.1% | 17 | 2.50 | 11.5% (34.0%) | 0 | 0 |
+| 2 | script | **86%** (43/50) | 95.7% | 88.2% | 27 | 2.98 | 38.0% (34.3%) | 0 | 0 |
+| 3 | adaptive | **46%** (23/50) | 68.0% | 73.5% | 25 | 2.76 | 13.1% (33.8%) | 0 | 0 |
+| 3 | script | **92%** (46/50) | 96.7% | 93.0% | 23 | 2.98 | 42.5% (34.6%) | 0 | 0 |
+| 4 (held out) | adaptive | **32%** (16/50) | 54.8% | 67.3% | 27 | 2.48 | 12.6% (34.9%) | 0 | 0 |
+| 4 (held out) | script | **88%** (44/50) | 99.1% | 91.1% | 28 | 2.96 | 38.0% (33.4%) | 0 | 0 |
+| 5-8 (unseen) | adaptive | 34 / 30 / 26 / 36% | 55.8 / 48.7 / 48.6 / 60.5% | | | | | 0 | 0 |
+
+Means for seeds 1-4: adaptive 42.5%, script 89.5% (8a265e3 had 88.5%).
+
+How the town number moved against adaptive mafia (seed 1 / 2 / 3 / 4):
+
+| Step | Town win |
+|---|---|
+| Adaptive mafia, town as in 8a265e3 (seed 1 only) | 16% |
+| + vote company with flipped mafia | 32 / 38 / 44 / 38% |
+| + flipped mafia's own votes clear their target | 32 / 42 / 46 / 36% |
+| + verified-Cop innocents, cleaned claimer, votes on a revealed townie; mafia stops voting revealed townies | 34 / 50 / 54 / 36% |
+| + stale kill-vote fix (mafia kills now land; affects both modes) | 32 / 44 / 48 / 32% |
+| + own read over the crowd | 38 / 52 / 46 / 32% |
+| + dead claimer's guilty no longer forces no-lynch; fake-guilty target counts as a scum push | **44 / 48 / 46 / 32%** |
+
+Adaptive claim mix (seeds 1-4): the Janitor claims Cop 7-17 times per 50 games, Mafioso 3-7, Lawyer 0-4 (the
+script claimed Cop from every mafia seat in ~45/50 games). Janitor cleans 21-27/50 (script 50/50). Buses 5-7/50.
+No day had all three scum on one lynch short of the endgame (test).
+
+## Adaptations (mafia, `engine/src/adaptiveMafia.js`)
+
+- **Kill priority Cop > Sheriff > Journalist**, by public claim (or a public reveal). With no claim, the kill is
+  among the three players the public reads trust most, picked by a state hash, so kills spread.
+- **Information discipline.** Every mafia read goes through `observerView`, a town observer's view: no
+  teammates, no checks, and only public reveals (dead players, or a Sheriff who shot). The only private input is
+  the faction's own chat and the Janitor's own clean result.
+- **Fake claims vary.** About half the nights, nobody claims. When somebody does, it is the Janitor half the
+  time, else a hashed teammate. No fake Cop once a real Cop has flipped, claimed (alive or dead), or is verified.
+  A fake Journalist ("X got no report, fake cop") only goes on a living Cop claimer, and never on tonight's
+  kill. Never a Sheriff claim.
+- **The Janitor saves its one clean** for a claimed power role (or night 3+). It then claims the role it
+  cleaned (Cop or Journalist), but only if the cleaned player never claimed it in public and no outsider holds
+  the claim.
+- **Lawyer** covers the teammate town suspects most, since the Cop checks its top read.
+- **Day votes blend in.** A scum seat joins a town wagon of 2+ votes, else the most publicly suspicious
+  non-claimer. It puts at most two scum on one target unless the lynch wins the game, and never votes a revealed
+  townie short of the endgame. A claimer stays consistent with its claim. Buses still come from `busPick`.
+- **Not voting first.** Each scum seat waits for 0-2 outside votes (by seat and day), never past 85% of the
+  day or the Vote Kick window. The 2-15s staggered copy delay is unchanged.
+- **Chat stays natural language.** Examples: "kill dot tonight, no fake claims tmrw, lay low and lean eli,
+  lawyer go on bea, save the clean" and "kill cal tonight, bea fake cop tmrw and push eli". `parsePlanLine`
+  reads "no fake claims", a teammate named as claimer, and "save the clean". No PLAN or key=value lines (test).
+- **Fixes that touch both modes:**
+  - The selector now recognises the split "Mafia Kill" meeting as the faction kill.
+  - A delayed kill vote picked before the plan existed is dropped once a different agreed kill exists
+    (`staleKillVote`). Before this, the second mafia voter could split the kill and no one died.
+
+## Town answers (`engine/src/townReads.js`, `harness/src/live.js`)
+
+All from public play, ordered by evidence strength, same weights on every seed:
+
+- **Vote company:** +1.5 per day for voting the same player as someone who later flipped mafia. -1.5 for voting
+  the lynch that flipped mafia. -1 for being voted, or called guilty, by a flipped mafia. A flipped fake Cop's
+  guilty counts as their vote that day.
+- **Verified Cop's innocent:** -3, or -8 once the Lawyer has flipped (nothing else can fake an innocent).
+- **Cleaned claimer:** a dead player with no role shown was killed by the mafia, so was town. Any other claimer
+  of their unique role gets +6.
+- **A standing vote on a living revealed townie** (the Sheriff after a shot): +2.
+- **Own read over the crowd:** with a read of 2+ that is 1.5 above the wagon's target, vote the read instead of
+  following the wagon.
+- **A guilty from a claimer who has died** no longer forces the "guilty on a power role, no lynch" rule. On
+  Day 1 a shot fake Cop used to hold the whole town on no-lynch.
+
+## Lessons
+
+- The old 88% was mostly town reading the script's tells. Every mafia seat fake-claimed Cop, and all three voted
+  together. Without those tells, the town bots had little to go on: Day 1 is close to a coin flip, the claimed
+  Cop dies on Night 2 in ~30/50 games, and the town Journalist never speaks offline.
+- The Sheriff Day-1 rule costs town a lot against quiet mafia. With no fake claimer to shoot, the shot often
+  lands on town. Night kill + town shot + mislynch is parity on Day 1. Left alone as asked.
+- Vote history is the strongest evidence once something flips mafia. "Who voted with the flipped scum" took
+  seed 1 from 16% to 32% on its own.
+- Overfitting is easy at 50 games a seed (±7pp). Seeds 1-3 rose with each change while seeds 4-8 stayed near
+  30%. Seed 4 and a fresh set of seeds are the honest gauge.
+- A real mafia bug hid behind the script. The leader's delayed kill vote could override the agreed kill, so a
+  third of kills failed when only two mafia were left.
+
+## Next weakness
+
+- **Mafia, a new tell:** adaptive scum now vote first only 11-17% of days, against ~35% by chance. Their mean
+  vote position is 0.68 (town 0.40). Voting late is as readable as voting first. The wait should be sampled to
+  match town timing, not 0-2 outside votes. Town does not exploit it yet, so fixing it will lower town's rate
+  further.
+- **Town, offline speech:** the town Journalist and other power roles never claim under a wagon in self-play.
+  Only canned rules speak, and the LLM is not in the loop. Town loses LYLO games with a silent Journalist
+  lynched. A rules "claim at L-1" for town power roles is the next principled town gain.
+- **Town, Day 1 with no claims:** split votes with no lynch, and mislynches built on 2-scum wagons, decide many
+  games. Both a shared tie-break for the first wagon and the own-read rule moved little.

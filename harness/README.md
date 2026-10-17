@@ -83,7 +83,10 @@ The server follows the restartq rules. Meetings resolve by plurality (a tie mean
 cd harness
 npm run selfplay -- --games 50 --seed 1          # writes ../logs/selfplay/selfplay-seed1-n50.{json,md,records.jsonl,games.jsonl}
 npm run selfplay -- --games 50 --seed 1 --cop-rule wait   # ...-n50-wait.*: the Cop does not claim on a Sheriff out alone
+npm run selfplay -- --games 50 --seed 1 --mafia script     # ...-n50-scriptmafia.*: the old fixed mafia script
 ```
+
+`--mafia adaptive` (default for self-play and for `createBotTable`, i.e. live) plays Vinman's FJ strategy from the mafia side (`engine/src/adaptiveMafia.js`), using only public play, faction chat and the Janitor's own clean result: kill priority Cop > Sheriff > Journalist by public claim, otherwise a spread over the players town trusts; fake claims vary in who and whether (about half the nights), no fake Cop once a real Cop has claimed, flipped or been verified, never a Sheriff claim; the Janitor saves its one clean for a claimed power role (or a late night) and may claim the role it cleaned; day votes join a town wagon or the most publicly suspicious townie, at most two scum on one target short of the endgame, never a revealed townie, and each scum seat waits for 0-2 outside votes before voting (staggered 2-15s as before); buses use the existing bus rule. `--mafia script` keeps the old plan (fake Cop every day, bloc on one push). The engine itself defaults to `script` unless `view.config.mafia === "adaptive"`.
 
 `--cop-rule vinman` (default) is Vinman's FJ rule: the Cop claims once a Sheriff has outed and is alive, or with a guilty, or when counterclaimed or called guilty. `--cop-rule wait` drops the Sheriff-out trigger. The rule reaches every seat as the engine's `botConfig` frame (`view.config.copRule`; `createBotTable(..., { copRule })`). `--lawyer loyal` (default) models FJ's Loyal Lawyer per the restartq server: a Litigate on a town player is blocked, and on a teammate it sets the Cop result to Innocent, so a Cop's Guilty can never be faked. `--lawyer plain` lets a Litigate frame a town player as Guilty.
 
