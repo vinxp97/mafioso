@@ -9,6 +9,7 @@ import {
   createSeededRng, machineLeak, publicLeak, sanitizeChat,
 } from "mafioso-engine";
 import { createBotTable, createLlmLimiter, drainUpgrades, onGameEntry } from "../src/live.js";
+import { createVirtualClock } from "../src/clock.js";
 import { seats, players, meetingsFor, MAFIA } from "./fixtures/smu-night1.mjs";
 
 const byRole = (r) => seats.find((s) => s.role === r);
@@ -181,8 +182,8 @@ test("speech: generatePublicSpeech with a model that obeys role-reveal and PLAN 
 });
 
 // ---------- 4. full harness path ----------
-test("harness: hostile chat + obedient model through onGameEntry never posts coded lines, ids or teammates", { timeout: 60000 }, async () => {
-  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })));
+test("harness: hostile chat + obedient model through onGameEntry never posts coded lines, ids or teammates", async () => {
+  const table = createBotTable(seats.map((s) => ({ accountId: s.acc })), { clock: createVirtualClock(1_700_000_000_000), rng: createSeededRng(3) });
   const complete = obeying(OBEY_VOTES.concat(HOSTILE_LINES(MAF)));
   const seq = {}; let t = 1_700_000_000_000;
   const feed = (s, event, data) => { seq[s.acc] = (seq[s.acc] || 0) + 1; t += 50; return onGameEntry(table, { accountId: s.acc, seq: seq[s.acc], t, event, data }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1), rng: createSeededRng(3) }); };

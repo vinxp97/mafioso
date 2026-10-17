@@ -91,6 +91,7 @@ export function reduce(view, frame) {
     case "reveal": case "roleReveal": {
       if (data?.playerId) v.reveals[data.playerId] = data.role;
       updateRole(v);
+      break;
     }
     case "meeting": {
       if (data?.id) {
@@ -116,6 +117,24 @@ export function reduce(view, frame) {
       break;
     }
     case "leftMeeting": delete v.meetings[data]; break;
+    // Server re-sends a meeting's member list when it changes ({ meetingId, members: [{ id, canVote }] }).
+    case "members": {
+      const m = v.meetings[data?.meetingId];
+      const list = Array.isArray(data?.members) ? data.members : [];
+      if (m) m.members = clone(list);
+      for (const mem of list) if (mem?.id && !v.players[mem.id]) v.players[mem.id] = { id: mem.id };
+      break;
+    }
+    // Night/day obituaries ({ obituaries: [{ id, playerInfo, ... }] }): the dead, also on a reconnect
+    // that missed the "death" frame.
+    case "obituaries":
+      for (const o of Array.isArray(data?.obituaries) ? data.obituaries : []) if (o?.id) v.dead[o.id] = true;
+      break;
+    // Sent when this seat has not voted in every core meeting and is about to be veg-kicked.
+    case "youAreBeingVoteKicked": v.voteKickWarning = !!data?.status; break;
+    case "start": v.started = true; break;
+    case "isStarted": v.started = !!data; break;
+    case "isSpectator": v.spectator = true; break;
     case "message": case "quote":
       if (data) {
         const msg = clone(data);
@@ -150,7 +169,7 @@ export function reduce(view, frame) {
     case "revival": if (data) v.dead[data] = false; break;
     case "winners": v.winners = clone(data); v.finished = true; break;
     case "finished": v.finished = true; break;
-    default: break; // unknown events ignored (pure)
+    default: break; // ignored or unknown (see classifyEvent); the reducer stays pure either way
   }
   applyNotes(v, frame);
   if ((event === "message" || event === "quote") && data) noteFactionPlan(v, data);
@@ -178,4 +197,51 @@ export function splitAppearance(a) {
 
 function updateRole(v) {
   v.role = v.selfId && v.reveals[v.selfId] ? splitAppearance(v.reveals[v.selfId]).role : null;
+}
+
+/** Every server event the reducer folds into the view. */
+export const HANDLED_EVENTS = Object.freeze([
+  "time", "timerInfo", "self", "players", "playerJoin", "playerLeave", "left", "gameLeft", "kicked", "teammates",
+  "state", "history", "reveal", "roleReveal", "meeting", "leftMeeting", "members", "message", "quote",
+  "speakCooldown", "vote", "unvote", "death", "exorcised", "revival", "obituaries", "winners", "finished",
+  "youAreBeingVoteKicked", "start", "isStarted", "isSpectator",
+]);
+
+/** Server events seen on the dev stream that carry nothing a seat decides on, each with the reason. */
+export const IGNORED_EVENTS = Object.freeze({
+  connected: "socket handshake; the dev stream is already connected when we see it",
+  authSuccess: "socket auth ack; dev API seats are authenticated by the harness token",
+  loaded: "client page-load signal; state/meeting frames follow and carry the content",
+  options: "lobby options (private/anonymous/etc.); no effect on legal actions, meetings carry those",
+  setup: "setup card (role list); FJ roles come from the harness setup and roleReveal",
+  stateEvents: "names of client UI state events (sound/animation hooks)",
+  emojis: "custom emoji table for the chat UI",
+  spectatorCount: "spectator count for the UI",
+  spectators: "spectator list for the UI; spectators cannot vote or speak in game meetings",
+  dev: "client flag for dev-role users (dev API seats get it on join); no effect on play",
+  kudos: "post-game kudos vote UI state; bots do not give kudos",
+  clearTimer: "timer cleared at a phase change; the next state frame resets the view timer",
+  audio: "sound cue (veg, jinx, explosion)",
+  deathSounds: "death sound URLs for the client to play; the death itself arrives as death/obituaries",
+  gunshot: "sound cue for a gun; the result arrives as death/message frames",
+  condemn: "sound cue for a condemn; the result arrives as death/obituaries",
+  "readyCheck init": "lobby ready check UI; dev seats are auto-verified (game PbOaZSJzx reached success with no bot action)",
+  "readyCheck update": "lobby ready check progress UI",
+  "readyCheck cancel": "lobby ready check UI",
+  "readyCheck success": "lobby ready check passed; the game start frames follow",
+  typing: "typing indicator for the chat UI",
+  firstGame: "new-user hint for the client UI",
+  lastWill: "this seat's own last will text echoed back; bots do not write wills",
+  rehosted: "lobby rehost link after the game; the harness opens its own games",
+  banned: "account-level ban notice; the dev API refuses sends and the harness sees send errors",
+  error: "server error toast; failed sends already surface as HTTP errors from the dev API",
+  alert: "UI alert; game-relevant alerts arrive as server messages",
+});
+
+/** "handled" | "ignored" | "unknown", plus the reason for ignored events. */
+export function classifyEvent(name) {
+  const n = String(name ?? "");
+  if (HANDLED_EVENTS.includes(n)) return { kind: "handled" };
+  if (Object.prototype.hasOwnProperty.call(IGNORED_EVENTS, n)) return { kind: "ignored", reason: IGNORED_EVENTS[n] };
+  return { kind: "unknown" };
 }

@@ -9,6 +9,7 @@ import { createLmStudioComplete } from "./lmstudio.js";
 import { createExperientialComplete } from "./experiential.js";
 import { createOpenCodeGoComplete } from "./opencodeGo.js";
 import { createArenaScorer } from "./arena.js";
+import { realClock } from "./clock.js";
 import { ensurePromptStore, finishGame, outcomeForView, replayDigest, savePromptStore, selectPrompts } from "./prompts.js";
 
 export const TOKEN_REFRESH_MS = 55 * 60 * 1000;
@@ -165,12 +166,20 @@ export function zipAccounts(accounts, prompts) {
   return accounts.map((a, i) => ({ accountId: a.accountId, promptId: prompts[i].id, promptText: prompts[i].text }));
 }
 
-export function createBotTable(accounts) {
+/**
+ * `clock` ({ now, setTimer }) drives every delay and timestamp the table makes (default: wall clock);
+ * `rng` drives every jitter (default: Math.random). Tests pass a virtual clock and a seeded rng.
+ */
+export function createBotTable(accounts, { clock = realClock, rng = Math.random } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
+    clock, rng,
   };
 }
+const nowOf = (table) => (table?.clock || realClock).now();
+const rngOf = (table) => table?.rng || Math.random;
+const waitOn = (table, ms) => new Promise((r) => (table?.clock || realClock).setTimer(r, ms));
 
 /**
  * Per-seat async queues. Entries for one accountId run strictly in order; different seats run
@@ -279,7 +288,7 @@ function withTimeout(p, ms) {
 export const CHAT_LIMITS = { cooldownMs: 3500, perMinute: 6, fillerGapMs: 20000, fillerChance: 0.4 };
 
 function localSpeechOk(table, id, clock) {
-  const t = clock ?? Date.now();
+  const t = clock ?? nowOf(table);
   const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000);
   if (mine.length >= CHAT_LIMITS.perMinute) return false;
   return !mine.length || t - Math.max(...mine) >= CHAT_LIMITS.cooldownMs;
@@ -290,7 +299,8 @@ export const VOTE_GAP_MS = 3000;
 export const VOTE_BACKOFF_MS = 6000;
 
 // ---- Day village vote: discuss first, then a staggered BeliefBoard vote. ----
-export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000, staggerMinMs: 2000, staggerMaxMs: 15000, scumExtraMs: 0 };
+// Day vote stagger is COPY_VOTE below (2-15s for every seat, PR10). No scum extra delay: a fixed one would be a tell.
+export const DAY_VOTE = { fraction: 0.6, remainingMs: 60000, otherLines: 8, sheriffWindowMs: 120000 };
 
 export function isDayVillageVote(view, meetingId) {
   const m = view?.meetings?.[meetingId];
@@ -418,7 +428,7 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       const k = `${id}|${view.stateId}`;
       if (fc && !(table.busNoted ||= {})[k]) {
         table.busNoted[k] = true;
-        const note = { event: "speak", data: { meetingId: fc.id, content: busNote(view, a.data.selection) } };
+        const note = { event: "speak", data: { meetingId: fc.id, content: busNote(view, a.data.selection, rngOf(table)) } };
         if (validateAction(view, note).ok && !machineLeak(view, note.data.content)) out.push(note);
       }
     }
@@ -427,7 +437,7 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       const follow = townFollow(view, view.meetings[a.data.meetingId]);
       if (follow) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
       if (source === "rules") {
-        const pick = beliefDayPick(view, view.meetings[a.data.meetingId]);
+        const pick = beliefDayPick(view, view.meetings[a.data.meetingId], rngOf(table));
         if (pick) { out.push({ ...a, data: { ...a.data, selection: pick } }); continue; }
       }
     }
@@ -457,7 +467,7 @@ export function copyDelay(table, slot, rng = Math.random) {
 }
 
 function voteDelay(table, id, view, action) {
-  const now = Date.now();
+  const now = nowOf(table);
   let wait = 0;
   const kill = factionKillMeeting(view);
   // Only the first voter decides; teammates copy after a human-like 2-15s pause, >=2s apart.
@@ -465,14 +475,14 @@ function voteDelay(table, id, view, action) {
     (table.copied ||= {})[`${id}|${view.stateId}`] = true;
     // Leader votes after the night's chatter; teammates copy 2-15s later.
     wait = factionLeader(view) === view.selfId
-      ? (table.fastMode ? SCUM_CHAT.killAfterMs + Math.floor(Math.random() * SCUM_CHAT.killJitterMs) : 0)
-      : copyDelay(table, `kill|${view.stateId}`);
+      ? (table.fastMode ? SCUM_CHAT.killAfterMs + Math.floor(rngOf(table)() * SCUM_CHAT.killJitterMs) : 0)
+      : copyDelay(table, `kill|${view.stateId}`, rngOf(table));
   }
   // Day village vote: first vote of the day is staggered 2-15s.
   if (table.fastMode && isDayVillageVote(view, action.data.meetingId) && !table.dayStaggered?.[`${id}|${view.stateId}`]) {
     (table.dayStaggered ||= {})[`${id}|${view.stateId}`] = true;
     // Random 2-15s, jittered >=2s apart across seats, never above 15s.
-    wait = Math.min(COPY_VOTE.maxMs, Math.max(wait, copyDelay(table, `day|${view.stateId}`)));
+    wait = Math.min(COPY_VOTE.maxMs, Math.max(wait, copyDelay(table, `day|${view.stateId}`, rngOf(table))));
   }
   const last = table.lastVoteAt?.[id];
   if (last != null) wait = Math.max(wait, last + VOTE_GAP_MS - now);
@@ -484,14 +494,14 @@ function voteDelay(table, id, view, action) {
 function deferVote(table, id, action, wait, { source, entry, send, onError }) {
   const stateId = table.views[id]?.stateId;
   // Reserve the slot now so later votes from this seat queue behind this one.
-  (table.lastVoteAt ||= {})[id] = Date.now() + wait;
-  const p = new Promise((resolve) => setTimeout(resolve, wait)).then(async () => {
+  (table.lastVoteAt ||= {})[id] = nowOf(table) + wait;
+  const p = waitOn(table, wait).then(async () => {
     const view = table.views[id];
     if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
     if (!validateAction(view, action).ok) return;
     const back = table.voteBackoff?.[id];
-    if (back != null && back > Date.now()) { deferVote(table, id, action, back - Date.now(), { source, entry, send, onError }); return; }
-    table.lastVoteAt[id] = Date.now();
+    if (back != null && back > nowOf(table)) { deferVote(table, id, action, back - nowOf(table), { source, entry, send, onError }); return; }
+    table.lastVoteAt[id] = nowOf(table);
     (table.lastVoteAction ||= {})[id] = action;
     const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+delay`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
     table.proposed.push(proposal);
@@ -507,7 +517,7 @@ function deferVote(table, id, action, wait, { source, entry, send, onError }) {
 
 /** Server said "voting too quickly": hold this seat's votes and resend the last one later. */
 export function noteVoteThrottle(table, id, { send, onError } = {}) {
-  (table.voteBackoff ||= {})[id] = Date.now() + VOTE_BACKOFF_MS;
+  (table.voteBackoff ||= {})[id] = nowOf(table) + VOTE_BACKOFF_MS;
   const last = table.lastVoteAction?.[id];
   if (last && send) deferVote(table, id, last, VOTE_BACKOFF_MS, { source: "throttle", entry: null, send, onError });
 }
@@ -538,7 +548,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     // Public lines are cut to chat size (and ids turned into names) before validation.
     if (isPublicSpeak(view, action)) {
       action = humanizeSpeak(view, action);
-      action = { ...action, data: { ...action.data, content: varyOpener(view, chatShorten(action.data.content), Math.random, action.data.meetingId) } };
+      action = { ...action, data: { ...action.data, content: varyOpener(view, chatShorten(action.data.content), rngOf(table), action.data.meetingId) } };
     }
     const verdict = validateAction(view, action);
     if (!verdict.ok) {
@@ -567,7 +577,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       if (wait > 0) { table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection); deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError }); continue; }
       table.voteCount[vk] = n + 1;
       table.lastVote[vk] = JSON.stringify(action.data.selection);
-      (table.lastVoteAt ||= {})[id] = Date.now();
+      (table.lastVoteAt ||= {})[id] = nowOf(table);
     }
     table.seen.add(key);
     if (pub) {
@@ -579,7 +589,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       if (claimed && table.claimedRole?.[id]) continue;
       if (claimed) (table.claimedRole ||= {})[id] = claimed;
       table.speechStamp[id] = stamp;
-      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? Date.now());
+      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? nowOf(table));
     }
     const proposal = {
       accountId: id, afterSeq: entry?.seq, source, phase: view.phase?.name || "",
@@ -671,8 +681,8 @@ function startUpgrade(table, id, ctx) {
         const t = ctx.clockOf();
         const last = Math.max(0, ...(table.spokeAt?.[id] || []));
         const lively = (view.messages || []).filter((m) => m.meetingId === pm?.id && m.senderId && m.senderId !== view.selfId && Number(m.t) >= t - 30000).length >= 2;
-        if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && Math.random() < CHAT_LIMITS.fillerChance) {
-          const line = cannedReaction(view);
+        if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && rngOf(table)() < CHAT_LIMITS.fillerChance) {
+          const line = cannedReaction(view, rngOf(table));
           if (line) {
             const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: line } }], { ...ctx, source: "canned", clock: t });
             if (ctx.onAdded) ctx.onAdded(added);
@@ -767,18 +777,18 @@ function scheduleScumChatter(table, id, view, ctx) {
   const stateId = view.stateId;
   const team = [view.selfId, ...Object.keys(view.teammates || {})].filter(Boolean).sort();
   const rank = Math.max(0, team.indexOf(view.selfId));
-  let at = SCUM_CHAT.minDelayMs + rank * Math.floor(SCUM_CHAT.gapMs / 2) + Math.floor(Math.random() * (SCUM_CHAT.maxDelayMs - SCUM_CHAT.minDelayMs));
+  let at = SCUM_CHAT.minDelayMs + rank * Math.floor(SCUM_CHAT.gapMs / 2) + Math.floor(rngOf(table)() * (SCUM_CHAT.maxDelayMs - SCUM_CHAT.minDelayMs));
   for (const _slot of [0]) {
-    const wait = at; at += SCUM_CHAT.gapMs + Math.floor(Math.random() * 4000);
-    const p = new Promise((r) => setTimeout(r, wait)).then(async () => {
+    const wait = at; at += SCUM_CHAT.gapMs + Math.floor(rngOf(table)() * 4000);
+    const p = waitOn(table, wait).then(async () => {
       const v = table.views[id];
       if (!v || v.stateId !== stateId || !selfAlive(v) || !v.meetings?.[chat.id]) return;
       // Pick at send time, never a line a teammate already used tonight.
       const used = ((table.scumSaid ||= {})[`${chat.id}|${v.phase?.name}`] ||= new Set());
-      const line = scumChatterLines(v, Math.random, 9).find((l) => !used.has(l));
+      const line = scumChatterLines(v, rngOf(table), 9).find((l) => !used.has(l));
       if (!line) return;
       used.add(line);
-      const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: chat.id, content: line } }], { ...ctx, source: "scum-chat", clock: Date.now() });
+      const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: chat.id, content: line } }], { ...ctx, source: "scum-chat", clock: nowOf(table) });
       if (ctx.onAdded) ctx.onAdded(added);
     });
     (table.upgrades ||= new Set()).add(p);
@@ -819,6 +829,7 @@ export function publicChatLogLine(table, accountId, entry) {
 export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
+  rng = rng ?? rngOf(table);
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? emptyView(), entry);
@@ -855,13 +866,13 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     table.fastMode = true;
     // Rules first, right now: every open night action and vote gets a legal pick before any model call.
     const rules = rulesSeatActions(view, { rng, now: clock });
-    const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? Date.now(), { source: "rules" });
+    const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? nowOf(table), { source: "rules" });
     const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
     scheduleScumChatter(table, id, view, { ...ctx, onAdded });
     if (complete) {
       startUpgrade(table, id, {
         ...ctx, complete, rng, limiter, onSchedule, onAdded,
-        clockOf: () => (now != null ? now : Date.now()),
+        clockOf: () => (now != null ? now : nowOf(table)),
       });
     }
     return added;
@@ -891,7 +902,14 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
 
 /** Wait for queued model upgrades (tests, end of game). */
 export async function drainUpgrades(table) {
-  while (table.upgrades?.size) await Promise.all([...table.upgrades]);
+  if (!table.clock?.virtual) { while (table.upgrades?.size) await Promise.all([...table.upgrades]); return; }
+  // Virtual clock: let ready work run, then fire the next due timer; repeat until nothing is left.
+  for (;;) {
+    await new Promise((r) => setImmediate(r));
+    if (table.clock.pending) { table.clock.runNext(); continue; }
+    if (!table.upgrades?.size) return;
+    await Promise.race([Promise.all([...table.upgrades]), new Promise((r) => setImmediate(r))]);
+  }
 }
 
 export async function driveAccounts(entries, opts) {
@@ -1061,7 +1079,7 @@ export async function pollOnce(client, accounts, sinceById) {
   return entries;
 }
 
-export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, signals = null, exit = (c) => process.exit(c) } = {}) {
+export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, clock = realClock, signals = null, exit = (c) => process.exit(c) } = {}) {
   const cfg = liveConfigFromEnv(env);
   const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
   const say = (m) => log(redact(m, secrets));
@@ -1083,7 +1101,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const opened = await openTestingGame(client, { gameId: cfg.gameId, setupId: cfg.setupId, botCount: cfg.botCount, lobbyName: cfg.lobbyName });
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
-  const table = createBotTable(accounts);
+  const table = createBotTable(accounts, { clock, rng });
   // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
   if (signals) {
     for (const sig of ["SIGINT", "SIGTERM"]) {
@@ -1133,7 +1151,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const onFrame = async (frame) => {
     const ft = `${frame.type}${frame.entry?.event ? ":" + frame.entry.event : ""}`;
     frameCounts[ft] = (frameCounts[ft] || 0) + 1;
-    if (Date.now() - lastTrace > 20000) { lastTrace = Date.now(); say(`frames ${JSON.stringify(frameCounts)}`); }
+    if (clock.now() - lastTrace > 20000) { lastTrace = clock.now(); say(`frames ${JSON.stringify(frameCounts)}`); }
     if (frame.type !== "game" || !frame.entry) return false;
     const done = seats.push(frame.entry);
     if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;

@@ -69,18 +69,25 @@ test("a throwing model falls back to rules and reports the error", async () => {
 });
 
 test("two seats with a slow model decide in parallel; each seat stays in order", async () => {
+  // No wall clock: each "model call" is a gate the test opens by hand, so the interleaving is exact.
   const order = [];
+  const gates = {};
   const q = createSeatQueues(async (e) => {
-    order.push(`start ${e.accountId}${e.seq}`);
-    await new Promise((r) => setTimeout(r, 200));
-    order.push(`end ${e.accountId}${e.seq}`);
+    const k = `${e.accountId}${e.seq}`;
+    order.push(`start ${k}`);
+    await new Promise((r) => { gates[k] = r; });
+    order.push(`end ${k}`);
   });
-  const t0 = Date.now();
+  const settle = () => new Promise((r) => setImmediate(r));
   q.push({ accountId: "A", seq: 1 }); q.push({ accountId: "B", seq: 1 });
   q.push({ accountId: "A", seq: 2 }); q.push({ accountId: "B", seq: 2 });
-  await q.drain();
-  const ms = Date.now() - t0;
-  assert.ok(ms < 700, `took ${ms}ms; serial would be ~800ms`);
+  await settle();
+  assert.deepEqual(order, ["start A1", "start B1"], "both seats are in a model call at once");
+  gates.A1(); await settle();
+  assert.deepEqual(order.slice(2), ["end A1", "start A2"], "A moves on while B1 is still waiting");
+  gates.B1(); gates.A2(); await settle();
+  gates.B2(); await q.drain();
+  assert.equal(order.length, 8);
   assert.ok(order.indexOf("start B1") < order.indexOf("end A1"), "B started before A finished");
   assert.ok(order.indexOf("end A1") < order.indexOf("start A2"), "A stays serial");
   assert.ok(order.indexOf("end B1") < order.indexOf("start B2"), "B stays serial");
