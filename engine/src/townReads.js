@@ -105,6 +105,7 @@ export function publicRecord(view) {
     const claimed = roleName(claimedRoleIn(text) || (view.claims?.[by]?.kind !== "retract" ? view.claims?.[by]?.role : null));
     if (claimed && claimed !== "Villager" && !claims[by]) { claims[by] = claimed; claimedAt[by] = phaseOrdinal(m.phase); }
     const segs = text.split(/[.;!?,]+/);
+    let reportedCop = null; // "x got a cop report, real cop, it said y guilty": the relay's source is x
     for (const [si, seg] of segs.entries()) {
       const ids = namesIn(view, seg).filter((id) => id !== by);
       if (!ids.length) continue;
@@ -118,8 +119,8 @@ export function publicRecord(view) {
           : /fake cop/i.test(said) || claims[target] === "Cop" ? "fakecop" : "noreport";
         reports.push({ by, target, kind });
       }
-      else if (claims[by] === "Journalist" && GOT_REPORT.test(seg)) reports.push({ by, target, kind: "realcop" });
-      if (claims[by] === "Journalist" && RELAY.test(seg) && GUILTY.test(seg)) { guilty.push({ by, target, phase: m.phase || "", relay: true }); continue; }
+      else if (claims[by] === "Journalist" && GOT_REPORT.test(seg)) { reports.push({ by, target, kind: "realcop" }); reportedCop = target; }
+      if (claims[by] === "Journalist" && RELAY.test(seg) && GUILTY.test(seg)) { guilty.push({ by, target, phase: m.phase || "", relay: true, cop: reportedCop }); continue; }
       if (LIAR.test(seg)) liar.push({ by, target });
       else if (claims[by] === "Cop" && GUILTY.test(seg) && !NOT_GUILTY.test(seg)) guilty.push({ by, target, phase: m.phase || "" });
       else if (claims[by] === "Cop" && INNO.test(seg)) inno.push({ by, target, phase: m.phase || "" });
@@ -271,7 +272,17 @@ export function townReads(view) {
   const copClaimers = (byRole.Cop || []).filter((id) => alive(view, id));
   for (const g of rec.guilty) {
     if (revealedAlign(view, g.target)) continue;
-    if (g.relay) { if (rec.claims[g.by] === "Journalist" && !contested.Journalist) add(g.target, W.credibleGuilty, "Journalist relayed a Cop's guilty report"); continue; }
+    if (g.relay) {
+      // A contested Journalist's relay still counts when its source Cop is verified (e.g. the Sheriff's shot on
+      // that Cop's guilty flipped mafia), or when it names the rival Journalist claimer.
+      // "Verified" here must not lean on the relaying Journalist's own report: the Cop flipped Cop, or one of
+      // its own guilties flipped mafia.
+      const proven = (cop) => !!cop && (roleName(String(view?.reveals?.[cop] || "").split(" (")[0]) === "Cop"
+        || rec.guilty.some((x) => x.by === cop && !x.relay && revealedAlign(view, x.target) === "Mafia"));
+      const rival = (contested.Journalist || []).includes(g.target);
+      if (rec.claims[g.by] === "Journalist" && (!contested.Journalist || proven(g.cop) || rival)) add(g.target, W.credibleGuilty, "Journalist relayed a Cop's guilty report");
+      continue;
+    }
     if (verified(g.by)) add(g.target, W.credibleGuilty, alive(view, g.by) ? "guilty from a verified Cop" : "guilty from a Cop who flipped Cop");
     else if (copClaimers.length === 1 && copClaimers[0] === g.by && (score[g.by] || 0) <= 0) add(g.target, W.soleCopGuilty, "guilty from the only Cop claimer");
   }
@@ -312,7 +323,8 @@ export function townDayPick(view, meeting) {
   // Contested means nobody has independent support yet; a verified Cop settles the contest.
   const contestedCop = (reads.contested.Cop || []).length >= 2 && !reads.contested.Cop.some((id) => reads.verified.includes(id));
   // A guilty from a claimer who has since died (or flipped mafia) no longer holds the vote hostage.
-  const guiltyOnPower = today(view, reads.record.guilty).some((g) => alive(view, g.by) && POWER.has(reads.record.claims[g.target] || "") && alive(view, g.target));
+  // Only a claimer's own guilty: a Journalist relaying a Cop's report is not the Journalist accusing.
+  const guiltyOnPower = today(view, reads.record.guilty).some((g) => !g.relay && alive(view, g.by) && POWER.has(reads.record.claims[g.target] || "") && alive(view, g.target));
   if (noOne && (contestedCop || guiltyOnPower)) {
     return { target: "*", why: contestedCop ? "Cop claims contested: no lynch on either claim" : "guilty on a power-role claimer: no lynch", reads };
   }
