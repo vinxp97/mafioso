@@ -1,6 +1,6 @@
 // Fast-chatroom public speech: short lines, early-claim discipline.
 import { memoryOf } from "./notes.js";
-import { sanitizeChat } from "./sanitize.js";
+import { sanitizeChat, defang } from "./sanitize.js";
 
 export const PUBLIC_MAX = 80;
 
@@ -30,7 +30,7 @@ export function chatShorten(text, max = PUBLIC_MAX) {
 }
 
 const ROLE_WORDS = "villager|vanilla|vt|town(?:ie)?|cop|journalist|sheriff|doctor|medic|mafioso|lawyer|janitor|godfather";
-const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming|as an?|as the)\\s+(?:(?:a|an|the|just|only|plain|a plain|real|actually)\\s+)*(${ROLE_WORDS})\\b`, "i");
+const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming|as an?|as the|(?:my\\s+)?role\\s*(?:is|was|[:=]))\\s*(?:(?:a|an|the|just|only|plain|a plain|real|actually)\\s+)*(${ROLE_WORDS})\\b`, "i");
 
 // "Sheriff here.", "cop btw", "sheriff, holding my shot": a bare role word that opens the line.
 const TRAIL_CLAIM_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*(?:here|btw|fyi|[.!]|$)`, "i");
@@ -246,15 +246,17 @@ export function addressedBy(view, meetingId) {
 
 /** Short chat prompt: who you are, your voice, the last few lines, and who to answer. */
 export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}) {
-  const me = nameOf(view, view.selfId) || "you";
-  const living = Object.keys(view.players || {}).filter((id) => !view.dead?.[id] && view.players[id] && !view.players[id].left).map((id) => nameOf(view, id)).filter(Boolean);
-  const recent = chatLines(view, meeting.id).slice(-6).map((m) => `${nameOf(view, m.senderId) || "?"}: ${sanitizeChat(String(m.content || "")).replace(/\s+/g, " ").slice(0, 100)}`);
+  // Player names are chosen by players: flatten and defang them like chat.
+  const safe = (n) => (n ? defang(n, 30) : n);
+  const me = safe(nameOf(view, view.selfId)) || "you";
+  const living = Object.keys(view.players || {}).filter((id) => !view.dead?.[id] && view.players[id] && !view.players[id].left).map((id) => safe(nameOf(view, id))).filter(Boolean);
+  const recent = chatLines(view, meeting.id).slice(-6).map((m) => `${safe(nameOf(view, m.senderId)) || "?"}: ${sanitizeChat(String(m.content || "")).replace(/\s+/g, " ").slice(0, 100)}`);
   const to = addressedBy(view, meeting.id);
   const lines = [
     `you are ${me}. role (secret): ${view.role || "?"}. voice: ${personaOf(view).voice}`,
     `alive: ${living.join(", ")}`,
     recent.length ? `chat:\n${recent.join("\n")}` : "chat: (quiet so far)",
-    to ? (to.kind === "vote" ? `${to.name} just voted you. answer ${to.name} directly.` : `${to.name} said to you: "${sanitizeChat(to.text).slice(0, 100)}". answer ${to.name} directly.`)
+    to ? (to.kind === "vote" ? `${safe(to.name)} just voted you. answer ${safe(to.name)} directly.` : `${safe(to.name)} said to you: ${sanitizeChat(to.text).slice(0, 100)}. answer ${safe(to.name)} directly.`)
       : "react to the last lines. ask or push someone by name.",
     may ? "" : "don't say your role.",
     goal ? `aim: ${String(goal).slice(0, 120)}` : "",
