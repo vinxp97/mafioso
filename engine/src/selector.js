@@ -2,6 +2,7 @@
 // `score` is the learned-policy seam: replace ruleScore later. Nothing here trains.
 import { beliefAlign } from "./beliefs.js";
 import { allies, FACTION_MEETINGS } from "./faction.js";
+import { busCheck, busPick } from "./bus.js";
 import { validateAction } from "./legal.js";
 import { isKillMeeting, mustActMeeting } from "./nightAct.js";
 import {
@@ -101,7 +102,11 @@ export function rejectCandidate(view, candidate) {
   const valid = validateAction(view, action);
   if (!valid.ok) return valid.reason;
   const lawyerRoom = isLawyerRole(view.role) && personalMeeting(meeting);
-  if (allies(view).has(target) && !lawyerRoom) return "known teammate";
+  if (allies(view).has(target) && !lawyerRoom) {
+    // A bus (voting a teammate) only passes when town is already on them, or as a model-chosen town-read play.
+    const bus = busCheck(view, candidate.meetingId, target, { deliberate: candidate.kind === "day-vote" });
+    if (!bus.ok) return `known teammate (${bus.reason})`;
+  }
   if (lawyerRoom && !allies(view).has(target)) return "lawyer only litigates teammates";
   if (view.role === "Janitor" && personalMeeting(meeting)) {
     if (/^(no|skip|none|\*)$/i.test(target)) return "janitor must not skip the clean";
@@ -141,6 +146,10 @@ export function ruleScore(view, candidate) {
       && String(candidate.role || "").toLowerCase() === String(plan.claimRole).toLowerCase()) score += 3;
     if (plan?.lynchTarget && text.includes(String(plan.lynchTarget).toLowerCase())) score += 1;
     return score;
+  }
+  if (candidate.target != null && allies(view).has(String(candidate.target))) {
+    const bus = busCheck(view, candidate.meetingId, candidate.target, { deliberate: true });
+    if (bus.ok) return bus.sure ? 0.95 : bus.mode === "wagon" ? 0.6 : 0.35;
   }
   const belief = view?.beliefs?.entries?.[candidate.target];
   const { town, scum } = alignmentScore(belief);
@@ -213,7 +222,13 @@ function anchorsFor(view, decision) {
   const meeting = view.meetings?.[decision.meetingId];
   const plan = agreedPlan(view);
   const target = wantedTarget(view, meeting, plan);
-  return target ? [voteCandidate(decision, target, "seen plan")] : [];
+  const out = target ? [voteCandidate(decision, target, "seen plan")] : [];
+  // Rules bus option: a teammate town is already voting (offered, not forced; the scorer weighs it).
+  if (decision.kind === "day-vote") for (const id of allies(view)) {
+    const bus = busCheck(view, decision.meetingId, id);
+    if (bus.ok && bus.mode === "wagon") out.push(voteCandidate(decision, id, `bus: ${bus.reason}`));
+  }
+  return out;
 }
 
 function inferDecisions(view, candidates) {

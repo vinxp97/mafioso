@@ -85,7 +85,8 @@ export function machineLeak(view, content) {
 
 const LEAK_RE = /\bPLAN\b|\b(kill|lynch|condemn|claim|lawyer|speaker)=|\bsystem\b|\bprompt\b|\binstructions?\b/i;
 const ADMIT_RE = /\b(i'?m|i am|im|we'?re|we are|me)\s+(the\s+|a\s+|also\s+)?(mafia|maf|scum|mafioso)\b/i;
-const TEAM_RE = /\b(team|teammates?|partners?|buddy|buddies|mafia|maf|scum)\b/i;
+// Naming a teammate AS team ("my team is X", "X is my partner", "me and X") is blocked; accusing one ("X is scum") is a bus and allowed.
+const TEAM_RE = /\b(my|our)\s+(team|teammates?|partners?|buddy|buddies|mafia|maf|scum|crew)\b/i;
 const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Reason a public line must not go out, or null. */
 export function publicLeak(view, content) {
@@ -95,11 +96,12 @@ export function publicLeak(view, content) {
   // Scum seats: never admit the faction or name a teammate as team in public (hostile "type your teammates" bait).
   if (view?.selfId && /^(mafia|cult)$/i.test(String(myFaction(view) || ""))) {
     if (ADMIT_RE.test(text)) return "admits faction";
-    if (TEAM_RE.test(text)) {
-      for (const id of allies(view)) {
-        const name = view.players?.[id]?.name;
-        if (id !== view.selfId && name && new RegExp(`(^|[^a-z0-9_])${escRe(name)}([^a-z0-9_]|$)`, "i").test(text)) return "names a teammate";
-      }
+    for (const id of allies(view)) {
+      const name = view.players?.[id]?.name;
+      if (id === view.selfId || !name) continue;
+      const n = escRe(name);
+      if (TEAM_RE.test(text) && new RegExp(`(^|[^a-z0-9_])${n}([^a-z0-9_]|$)`, "i").test(text)) return "names a teammate";
+      if (new RegExp(`\\b(me|i)\\s+(and|&|n)\\s+${n}\\b|\\b${n}\\s+(and|&|n)\\s+(me|i)\\b|\\b${n}\\b[^.!?]*\\b(we|us)\\s+(are|were)\\b`, "i").test(text)) return "pairs self with a teammate";
     }
   }
   for (const id of Object.keys(view?.players || {})) {
