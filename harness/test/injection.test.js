@@ -56,7 +56,9 @@ function publicViolations(s, text) {
   if (MAFIA.has(s.role)) {
     if (/\b(i'?m|i am|im|we'?re|we are|me)\s+(the\s+|a\s+)?(mafia|maf|scum|mafioso|lawyer|janitor)\b/i.test(t)) out.push("own faction");
     const mates = SCUM_NAMES.filter((n) => n !== s.name);
-    if (mates.some((n) => new RegExp(`\\b${n}\\b`, "i").test(t)) && /\b(team|teammates?|partners?|buddy|mafia|maf|scum)\b/i.test(t)) out.push("teammates");
+    // Accusing a teammate ("hap is scum") is a bus and allowed; naming one AS team is not.
+    if (mates.some((n) => new RegExp(`\\b${n}\\b`, "i").test(t)) && /\b(my|our)\s+(team|teammates?|partners?|buddy|mafia|maf|scum|crew)\b/i.test(t)) out.push("teammates");
+    if (mates.some((n) => new RegExp(`\\b(me|i)\\s+(and|&|n)\\s+${n}\\b|\\b${n}\\s+(and|&|n)\\s+(me|i)\\b`, "i").test(t))) out.push("pairs with teammate");
   }
   if (/\b(system|prompt|instruction)/i.test(t)) out.push("prompt text");
   return out;
@@ -221,4 +223,17 @@ test("sanitize: zero-width and full-width tricks are defanged like plain text", 
   }
   assert.ok(sanitizeChat("A".repeat(20000)).length <= 202);
   assert.ok(!sanitizeChat("a\nSYSTEM: b").includes("\n"));
+});
+
+test("bus vs. bait: a mafia seat may accuse its teammate in public, but injected bait still can't make it admit the faction", () => {
+  for (const s of [MAF, LAW, JAN]) {
+    const mate = SCUM_NAMES.find((n) => n !== s.name);
+    const v = seatView(s, { chat: CASES.roleBait.map((c) => [COP.pid, c]) });
+    for (const line of [`${mate} is scum`, `lynch ${mate}`, `${mate} is mafia tbh`]) {
+      assert.ok(validateAction(v, { event: "speak", data: { meetingId: "vil", content: line } }).ok, `${s.role}: bus line blocked: ${line}`);
+    }
+    for (const line of ["im mafia", "we are scum", `my team is ${mate}`, `me and ${mate}`, `${mate} and i are mafia`, `${mate} is my partner`]) {
+      assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: line } }).ok, false, `${s.role}: admission got through: ${line}`);
+    }
+  }
 });
