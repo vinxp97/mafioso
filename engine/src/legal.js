@@ -7,6 +7,7 @@ import { PUBLIC_MAX, earlyClaimBlock, repeatBlock } from "./chatStyle.js";
 import { agreedPlan } from "./scumPlan.js";
 import { normalizeText } from "./sanitize.js";
 import { allies, myFaction } from "./faction.js";
+import { NO_LYNCH_LOSES, noLynchLoses, townSeat } from "./lynchMath.js";
 
 const canVoteIn = (m) => !!(m && m.voting && m.canVote && m.amMember);
 
@@ -53,6 +54,7 @@ export function validateAction(view, action) {
       if (!canVoteIn(m)) return no("cannot vote in meeting");
       const sel = String(action.data.selection);
       if (!Array.isArray(m.targets) || !m.targets.includes(sel)) return no("selection not in targets");
+      if (sel === "*" && m.name === "Village" && townSeat(view) && noLynchLoses(view)) return no(NO_LYNCH_LOSES);
       const mine = m.votes?.[view.selfId];
       if (mine != null && !m.multi && m.canUpdateVote === false) return no("vote locked");
       return { ok: true };

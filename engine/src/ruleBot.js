@@ -13,6 +13,7 @@ import { decideSpeech, isPublicSpeak, publicMessages, publicSpeechMeeting, speec
 import { createSeededRng } from "./selector.js";
 import { agreedPlan, formatPlanSpeech, parsePlanLine, scumFaction } from "./scumPlan.js";
 import { NO_ONE } from "./types.js";
+import { noLynchLoses, townSeat } from "./lynchMath.js";
 
 const KILL_PRIORITY = ["Cop", "Sheriff", "Journalist"];
 const POWER_CLAIM = new Set(["Cop", "Sheriff", "Journalist", "Doctor"]);
@@ -190,7 +191,7 @@ function preferredVotes(view, rng, board) {
     } else {
       const suspect = mostSuspected(view, village.targets, rng, board);
       const hold = sheriffDead(view) && Number(view.phase.day) === 1 && (!suspect || suspicionScore(view, suspect, board) < 4);
-      const noLynch = (village.targets || []).includes(NO_ONE);
+      const noLynch = (village.targets || []).includes(NO_ONE) && !(townSeat(view) && noLynchLoses(view));
       const pick = hold || !suspect ? (noLynch ? NO_ONE : suspect) : suspect;
       if (pick) picks.set(village.id, pick);
     }

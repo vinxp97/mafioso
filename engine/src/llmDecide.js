@@ -24,6 +24,7 @@ import { amendmentLine, decideSpeech, isPublicSpeak, publicSpeechMeeting, schedu
 import { selectAction } from "./selector.js";
 import { defang, sanitizeChat } from "./sanitize.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
+import { NO_LYNCH_LOSES, noLynchLoses, townSeat } from "./lynchMath.js";
 
 export const SYSTEM_PROMPT = [
   "You are a player in an online Mafia game (Ultimafia). Play to win for your faction.",
@@ -65,6 +66,7 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
       ? `TEAM PLAN: kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole === null ? "none" : plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget} janitor=${plan.janitorTarget} speaker=${plan.speakerId || "-"} source=chat`
       : "TEAM PLAN: none");
   }
+  if (townSeat(view) && noLynchLoses(view)) L.push(`${NO_LYNCH_LOSES.toUpperCase()}: a no-one vote is illegal; vote your top read.`);
   const guide = roleGuideForView(view);
   if (guide) L.push(guide);
   L.push("LEGAL ACTIONS:");
