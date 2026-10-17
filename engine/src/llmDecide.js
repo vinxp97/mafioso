@@ -1,6 +1,6 @@
 import { planClaim } from "./adaptiveMafia.js";
 import { applySheriffRule } from "./sheriffGate.js";
-import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed } from "./chatStyle.js";
+import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed, accusedReply } from "./chatStyle.js";
 import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
@@ -24,6 +24,7 @@ import { amendmentLine, decideSpeech, isPublicSpeak, publicSpeechMeeting, schedu
 import { selectAction } from "./selector.js";
 import { defang, sanitizeChat } from "./sanitize.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
+import { NO_LYNCH_LOSES, noLynchLoses, townSeat } from "./lynchMath.js";
 
 export const SYSTEM_PROMPT = [
   "You are a player in an online Mafia game (Ultimafia). Play to win for your faction.",
@@ -65,6 +66,7 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
       ? `TEAM PLAN: kill=${plan.killTarget} lynch=${plan.lynchTarget || "-"} claim=${plan.claimRole === null ? "none" : plan.claimRole || "Cop"} lawyer=${plan.lawyerTarget} janitor=${plan.janitorTarget} speaker=${plan.speakerId || "-"} source=chat`
       : "TEAM PLAN: none");
   }
+  if (townSeat(view) && noLynchLoses(view)) L.push(`${NO_LYNCH_LOSES.toUpperCase()}: a no-one vote is illegal; vote your top read.`);
   const guide = roleGuideForView(view);
   if (guide) L.push(guide);
   L.push("LEGAL ACTIONS:");
@@ -213,6 +215,13 @@ export async function llmDecide(view, { complete, maxRetries = 1, rng, memory = 
 }
 
 /**
+ * Speech token budget. A plain model writes a 3-12 word line in 40 tokens. A reasoning model (view.config.reasoning,
+ * set by the harness from the model name) can ignore reasoning_effort "none" and spend 40 tokens on hidden
+ * thinking, leaving an empty reply: give it room. An empty reply at the plain budget retries once with it.
+ */
+export const SPEECH_TOKENS = Object.freeze({ plain: 40, reasoning: 640 });
+
+/**
  * What to say after the scheduler has approved one public line.
  * Uses the same briefing as llmDecide (role card, ledger, board, digest, last K chat).
  * @returns {Promise<{action:import('./types.js').ProposedAction|null, source:string, rejections:string[], schedule:object}>}
@@ -234,12 +243,16 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   const chat = buildChatPrompt(view, meeting, { goal, may });
   // One extra try when the only problem was repeating recent chat.
   let bonus = 0;
+  let budget = view.config?.reasoning === true ? SPEECH_TOKENS.reasoning : SPEECH_TOKENS.plain;
+  // An empty reply (or a failed call) at the plain budget: one more try with the reasoning budget.
+  const grow = () => { if (budget < SPEECH_TOKENS.reasoning) { budget = SPEECH_TOKENS.reasoning; bonus += 1; } };
   for (let attempt = 0; attempt <= maxRetries + bonus; attempt++) {
     const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)}. say something different.)` : chat.user;
     let out;
-    try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: 40, json: false, reasoningEffort: "none" }); } catch { rejections.push("model error"); continue; }
+    try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: budget, json: false, reasoningEffort: "none" }); }
+    catch (e) { rejections.push(`model error: ${String(e?.message || e).slice(0, 80)}`); grow(); continue; }
     const content = cleanChatReply(out, view, chat.addressed);
-    if (!content) { rejections.push("empty line"); continue; }
+    if (!content) { rejections.push(String(out || "").trim() ? "empty line (only reasoning)" : "empty line"); grow(); continue; }
     const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });
     action.data.content = chatShorten(action.data.content);
     const checked = validateAction(view, action);
@@ -288,6 +301,7 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
   const speakSched = allowSpeech ? sched : { ...sched, speak: false };
   let decided = { actions: rules.actions, source: "rules", rejections: [] };
   let speechGoal = null;
+  const speechRejections = [];
   const model = typeof complete === "function";
   // speechFirst: a speak decision costs exactly one model call (the speech line); votes stay on rules.
   if (model && (rules.actions.length || allowSpeech) && !(speechFirst && allowSpeech)) {
@@ -327,14 +341,22 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
       const goal = [outGoal, speechGoal].filter(Boolean).join(" ") || null;
       const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal });
       if (generated.action && validateAction(view, generated.action).ok) actions.push(generated.action);
+      else speechRejections.push(...(generated.rejections.length ? generated.rejections : ["invalid line"]));
     }
     if (!actions.some((action) => isPublicSpeak(view, action))) {
       const line = rulesSeatActions(view, { rng, now, speechSchedule: sched }).actions.find((action) => isPublicSpeak(view, action));
       if (line) actions.push(line);
     }
+    // Named or voted and still nothing to say: a rules reply, not silence.
+    const pm = publicSpeechMeeting(view);
+    if (pm && !actions.some((action) => isPublicSpeak(view, action))) {
+      const content = accusedReply(view, pm.id, rng || Math.random);
+      const reply = content ? { event: "speak", data: { meetingId: pm.id, content } } : null;
+      if (reply && validateAction(view, reply).ok) actions.push(reply);
+    }
   }
   const aimed = applySheriffRule(view, actions, { now });
   const named = aimed.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
     .filter((action) => action.event !== "speak" || String(action.data?.content || "").trim());
-  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal };
+  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal, speechRejections };
 }

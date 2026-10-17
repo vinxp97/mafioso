@@ -28,8 +28,9 @@ test("illegal target rejected, retried with note, then fallback", async () => {
 });
 
 test("retry can succeed", async () => {
-  const r = await llmDecide(base(), { complete: fake("nonsense", '{"action":"vote","meeting":"mVil","target":"*"}') });
-  assert.equal(r.source, "llm"); assert.equal(r.actions[0].data.selection, "*");
+  // 3 alive with 1 assumed mafia: a no-lynch would lose (noLynchLoses), so the retry votes a player.
+  const r = await llmDecide(base(), { complete: fake("nonsense", '{"action":"vote","meeting":"mVil","target":"p3"}') });
+  assert.equal(r.source, "llm"); assert.equal(r.actions[0].data.selection, "p3");
 });
 
 test("garbage JSON and model errors -> fallback", async () => {
