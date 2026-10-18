@@ -98,7 +98,7 @@ function emptyStats() {
     townBallots: [], // final Village ballots by town seats: { day, voter, target, onScum, baseline, abstain }
     voteOrder: [], // per day: first-vote order with alignments
     voteDelays: [], // per seat-day: first village vote let through, ms after that seat's vote gate opened
-    lynches: [], noLynchDays: 0,
+    lynches: [], noLynchDays: 0, tieNoLynch: 0, autolossByTie: 0,
     shots: [], kills: [], cleans: 0, litigates: [], copChecks: [], journalistChecks: [],
     claims: [], buses: [], vegs: [], scumChat: 0, publicLines: 0, cannedOrRules: 0,
     illegal: [], copGuiltyFollowUp: [], dayOutcomes: [], stale: 0, vegKickWindows: 0, killVoteMoves: [],
@@ -587,6 +587,12 @@ async function playDay(S, night) {
     noLynch: !lynch, sheriffAliveAtVote: S.alive.has(sheriffId),
     townNoOne: village.members.filter((id) => S.alive.has(id) && !isScum(S, id) && village.ballots[id] === "*").length,
   });
+  const tie = tieBallot(ballots);
+  if (tie) {
+    S.stats.tieNoLynch += 1;
+    const mafia = liveNow.filter((id) => isScum(S, id)).length;
+    if (mafia > 0 && mafia >= liveNow.length - 1 - mafia) S.stats.autolossByTie += 1;
+  }
   if (condemned && !lynch) {
     // The server's stale votes (deadVotesCleared): the day condemns a player who is already dead. Nobody dies.
     S.stats.deadCondemns.push({ day: S.day, target: S.names[condemned], votes: ballots.filter((t) => t === condemned).length });
@@ -605,6 +611,14 @@ async function playDay(S, night) {
 export function mafiaKillTarget(ballots) {
   const t = tally(ballots);
   return t && t !== "*" ? t : null;
+}
+
+function tieBallot(votes) {
+  const counts = new Map();
+  for (const v of votes) if (v != null) counts.set(v, (counts.get(v) || 0) + 1);
+  let n = 0; let ways = 0;
+  for (const c of counts.values()) { if (c > n) { n = c; ways = 1; } else if (c === n) ways++; }
+  return n > 0 && ways > 1;
 }
 
 function pluralityWithNoOne(votes) {
@@ -763,7 +777,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
       lift: cast.length ? rate(onScum, cast.length) - baseline : null,
       baselineMethod: "analytic: for each final town ballot, living mafia / living players other than the voter, under the same state; averaged",
     },
-    lynches: { total: lynches.length, scum: lynches.filter((l) => l.scum).length, accuracy: rate(lynches.filter((l) => l.scum).length, lynches.length), noLynchDays: all("noLynchDays").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.noLynchDays, 0) },
+    lynches: { total: lynches.length, scum: lynches.filter((l) => l.scum).length, accuracy: rate(lynches.filter((l) => l.scum).length, lynches.length), noLynchDays: all("noLynchDays").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.noLynchDays, 0), tieNoLynch: results.reduce((s, r) => s + (r.stats.tieNoLynch || 0), 0), autolossByTie: results.reduce((s, r) => s + (r.stats.autolossByTie || 0), 0) },
     illegalActions: { total: illegalList.length, byReason: countBy(illegalList, (x) => x.reason.replace(/\(.*\)|[A-Za-z0-9_-]{6,}$/g, "").trim()), samples: illegalList.slice(0, 10) },
     gameLength: { meanDays: mean(days), minDays: Math.min(...days), maxDays: Math.max(...days), histogram: countBy(days, (d) => String(d)), meanVirtualMinutes: mean(results.map((r) => r.minutes)) },
     day1: dayOneCard(results),
@@ -912,6 +926,7 @@ export function scorecardMarkdown(card) {
   L.push(`| Lift over random | ${card.townVotes.lift == null ? "n/a" : (card.townVotes.lift * 100).toFixed(1) + " pts"} |`);
   L.push(`| Town abstains (no vote / no one) | ${card.townVotes.abstained} |`);
   L.push(`| Lynch accuracy | ${pct(card.lynches.accuracy)} (${card.lynches.scum}/${card.lynches.total}), ${card.lynches.noLynchDays} no-lynch days |`);
+  L.push(`| Tie no-lynches / autoloss-by-tie | ${card.lynches.tieNoLynch || 0} / ${card.lynches.autolossByTie || 0} |`);
   L.push(`| Illegal actions | ${card.illegalActions.total} |`);
   L.push(`| Game length | mean ${fmt(card.gameLength.meanDays)} days (min ${card.gameLength.minDays}, max ${card.gameLength.maxDays}); ${countSummary(card.gameLength.histogram)} |`);
   L.push(`| Sheriff shots | ${card.sheriff.hits}/${card.sheriff.shots} hit scum (${pct(card.sheriff.accuracy)} vs ${pct(card.sheriff.randomBaseline)} random) |`);

@@ -104,7 +104,8 @@ export function hammerAskLine(view, { now = view?.clock } = {}) {
   const st = hammerState(view, { now });
   if (!st) {
     if (Number.isFinite(start) && Number.isFinite(t) && t - start < HAMMER.askAfterMs) return null;
-    if (!hammerRead(view)) return null; // no real read: no ask, town votes normally
+    // A 5-alive day with the Sheriff up must ask, even with no read. Larger days still need one.
+    if (living(view).length !== 5 && !hammerRead(view)) return null;
     return "everyone self-vote, ill cast the deciding vote";
   }
   if (st.reaskAt == null && st.pending.length && Number.isFinite(t) && t - st.askAt >= HAMMER.reaskAfterMs) {

@@ -504,7 +504,7 @@ export function buildChatPrompt(view, meeting, { goal = null, may = false, facts
   const lines = [
     `you are ${me}. role (secret): ${view.role || "?"}. voice: ${personaOf(view).voice}`,
     `alive: ${living.join(", ")}`,
-    facts.length ? `key events:\n${facts.map((f) => `- ${defang(f, 120)}`).join("\n")}` : "",
+    facts.length ? `key events:\n${facts.map((f) => `- ${defang(f, f.startsWith("BALLOT:") ? 500 : 120)}`).join("\n")}` : "",
     recent.length ? `chat:\n${recent.join("\n")}` : "chat: (quiet so far)",
     to ? (to.kind === "vote" ? `${safe(to.name)} just voted you. answer ${safe(to.name)} directly, and point at your top read.` : `${safe(to.name)} said to you: ${sanitizeChat(to.text).slice(0, 100)}. answer ${safe(to.name)} directly.`)
       : "react to one key event (a claim, a shot and its flip, a report) or push a vote on your top read with its reason. no empty questions, no filler.",

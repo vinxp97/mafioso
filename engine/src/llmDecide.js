@@ -25,6 +25,7 @@ import { selectAction } from "./selector.js";
 import { defang, sanitizeChat } from "./sanitize.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
 import { speechFacts } from "./speechFacts.js";
+import { formatBallot } from "./ballot.js";
 import { DAY1_LYNCH_OWED, LYLO, METEOR_DAY, METEOR_NIGHT, NO_LYNCH_LOSES, dayOneLynchOwed, lyloToday, meteorOn, noLynchLoses, townSeat } from "./lynchMath.js";
 
 export const SYSTEM_PROMPT = [
@@ -84,6 +85,8 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
   }
   const guide = roleGuideForView(view);
   if (guide) L.push(guide);
+  const ballot = formatBallot(view);
+  if (ballot) L.push(ballot);
   L.push("LEGAL ACTIONS:");
   const votes = legalVotes(view);
   for (const lv of votes)
@@ -256,7 +259,8 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   }
   // Cop and Journalist claims are rules-only (roleClaimLine); the model never claims for them.
   const may = !/^(cop|journalist)$/i.test(String(view.role || "")) && claimAllowed(view, { planSpeaker: planClaim(view).planSpeaker });
-  const chat = buildChatPrompt(view, meeting, { goal, may, facts: speechFacts(view) });
+  const ballotText = formatBallot(view);
+  const chat = buildChatPrompt(view, meeting, { goal, may, facts: [...speechFacts(view), ...(ballotText ? [ballotText] : [])] });
   // One extra try when the only problem was repeating recent chat.
   let bonus = 0;
   let budget = view.config?.reasoning === true ? SPEECH_TOKENS.reasoning : SPEECH_TOKENS.plain;
