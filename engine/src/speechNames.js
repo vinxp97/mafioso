@@ -45,8 +45,33 @@ export function humanizePlayerIds(view, text) {
   return out;
 }
 
+/**
+ * Vinman 10/18: a player's FULL name in an outgoing line takes that player's exact username capitalization,
+ * as tab-complete would ("vinman" -> "Vinman"). Whole words only, case-insensitive, living and dead players;
+ * partial names and nicknames stay as written.
+ */
+// A name that is also an everyday word ("Me", "No") is left alone: "why me" must not become "why Me".
+const COMMON_WORDS = new Set("i me my a an the is it its no not so ok yes you he she we us him her his they them all any one and or but if to of in on at by be do go up out who why how what when lol idk".split(" "));
+export function exactNames(view, text) {
+  let out = String(text ?? "");
+  const names = [...new Set(Object.values(view?.players || {}).map((p) => String(p?.name || "")).filter((n) => n.length >= 2 && !COMMON_WORDS.has(n.toLowerCase())))]
+    .sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const re = new RegExp(`(?<![A-Za-z0-9_])${escapeReg(name)}(?![A-Za-z0-9_])`, "gi");
+    out = out.replace(re, name);
+  }
+  return out;
+}
+
 /** Same action with its content humanized; non-speak actions pass through. */
 export function humanizeSpeak(view, action) {
   if (action?.event !== "speak" || typeof action.data?.content !== "string") return action;
-  return { ...action, data: { ...action.data, content: humanizePlayerIds(view, action.data.content) } };
+  return { ...action, data: { ...action.data, content: exactNames(view, humanizePlayerIds(view, action.data.content)) } };
+}
+
+/** The last step before a line goes out: exactNames on speak content. */
+export function finalSpeak(view, action) {
+  if (action?.event !== "speak" || typeof action.data?.content !== "string") return action;
+  const content = exactNames(view, action.data.content);
+  return content === action.data.content ? action : { ...action, data: { ...action.data, content } };
 }

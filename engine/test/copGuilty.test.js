@@ -2,7 +2,7 @@
 // so a Cop's Guilty is a fact and an Innocent is not a clear. Plus the copRule config.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, reduce, townReads, townDayPick, townCounterLine, proposeNightAction, claimAllowed, roleClaimLine, journalistInfo, copRuleOf, TOWN_READS } from "../src/index.js";
+import { reduceAll, reduce, townReads, townDayPick, townCounterLine, proposeNightAction, claimAllowed, roleClaimLine, journalistInfo, copRuleOf, TOWN_READS, validateAction } from "../src/index.js";
 
 const players = Object.fromEntries(["Ash", "Bea", "Cal", "Dot", "Eli", "Fin"].map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
 const ids = Object.keys(players);
@@ -110,4 +110,34 @@ test("two unverified Cop claims: the counter-story is to test before lynching ei
   const v = seat("Villager", [say("p2", "im cop, cal is guilty"), say("p4", "im cop, eli is guilty")]);
   assert.match(townCounterLine(v) || "", /two cops and one is lying/);
   assert.equal(townCounterLine(seat("Mafioso", [say("p2", "im cop, cal is guilty"), say("p4", "im cop, eli is guilty")])), null, "town seats only");
+});
+
+test("Journalist relays the guilty of a Cop killed (even cleaned) that night, who never got to claim", () => {
+  const night = [{ pre: true, event: "death", data: "p2" }, srv("You received all reports that Bea received: Your investigation shows that Cal is Guilty.")];
+  assert.deepEqual(journalistInfo(seat("Journalist", night)), { kind: "copguilty", target: "p2", guilty: "p3" });
+  assert.match(roleClaimLine(seat("Journalist", night)), /bea got a cop report, real cop, it said cal guilty/);
+  const living = [srv("You received all reports that Bea received: Your investigation shows that Cal is Guilty.")];
+  assert.equal(journalistInfo(seat("Journalist", living)), null, "a living unclaimed Cop claims its own guilty; the Journalist does not out it");
+  const v = seat("Villager", [{ pre: true, event: "death", data: "p2" }, say("p6", "im journalist. bea got a cop report, real cop, it said cal guilty")]);
+  assert.ok(townReads(v).score.p3 >= TOWN_READS.strong, JSON.stringify(townReads(v).reasons.p3));
+});
+
+test("--lawyer plain (not FJ) can frame town: guilties count half and the 'lawyer cant fake a guilty' line is not said", () => {
+  const flip = [say("p2", "im cop, cal is guilty", true), ...dies("p3", "Villager", "Day 1")];
+  const loyal = townReads(seat("Villager", flip)).score.p2;
+  const plain = townReads(seat("Villager", flip, { config: { lawyer: "plain" } })).score.p2;
+  assert.equal(loyal - plain, TOWN_READS.provenLiar * (1 - TOWN_READS.plainFrame));
+  const own = [srv("Your investigation shows that Cal is Guilty")];
+  assert.equal(townReads(seat("Cop", own, { config: { lawyer: "plain" } })).score.p3, TOWN_READS.ownCheck * TOWN_READS.plainFrame);
+  const verifiedGuilty = [say("p2", "im cop. dot guilty", true), ...dies("p4", "Mafioso", "Day 1"), { pre: true, event: "state", data: { id: 4, name: "Day 2" } }, say("p2", "results: eli guilty")];
+  assert.match(townCounterLine(seat("Villager", verifiedGuilty)) || "", /lawyer cant fake a guilty/);
+  assert.doesNotMatch(townCounterLine(seat("Villager", verifiedGuilty, { config: { lawyer: "plain" } })) || "", /lawyer cant fake/);
+});
+
+test("a role claim is never dropped as a repeat: the real Cop answers a fake Cop's near-identical line", () => {
+  const cop = seat("Cop", [srv("Your investigation shows that Cal is Guilty"), say("p2", "im cop. dot guilty")]);
+  const speak = (content) => validateAction(cop, { event: "speak", data: { meetingId: "vil", content } });
+  assert.equal(speak("im cop. cal guilty").ok, true);
+  const v = seat("Villager", [say("p2", "dot is so sus today")]);
+  assert.match(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "dot is so sus today" } }).reason, /too similar/);
 });

@@ -12,13 +12,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { adaptiveClaimLine, agreedPlan, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, summarizeMetrics, validateAction } from "mafioso-engine";
-import { FJ_ROLES, alignOf, mixSeed, plurality, shuffle, winnerFor } from "./arena.js";
+import { adaptiveClaimLine, agreedPlan, chatAudit, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, selfAlive, summarizeMetrics, tally, validateAction } from "mafioso-engine";
+import { FJ_ROLES, alignOf, mixSeed, shuffle, winnerFor } from "./arena.js";
 import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
 import { createVirtualClock } from "./clock.js";
+import { plantAndAudit, plantReport } from "./auditPlant.js";
 
 export const SELFPLAY_DIR = fileURLToPath(new URL("../../logs/selfplay", import.meta.url));
-export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", lawyer: "loyal", mafia: "adaptive" });
+export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", sheriffRule: "vinman", lawyer: "loyal", mafia: "adaptive", town: "rules", chatAudit: "enforce", staleVotes: "clear", hammer: "on" });
 const NAMES = ["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gil", "Hap", "Ivo"];
 const T0 = 1_760_000_000_000;
 const ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -101,6 +102,9 @@ function emptyStats() {
     shots: [], kills: [], cleans: 0, litigates: [], copChecks: [], journalistChecks: [],
     claims: [], buses: [], vegs: [], scumChat: 0, publicLines: 0, cannedOrRules: 0,
     illegal: [], copGuiltyFollowUp: [], dayOutcomes: [], stale: 0, vegKickWindows: 0, killVoteMoves: [],
+    chatLines: 0, chatFlags: [], chatDrops: [], // chatAudit on every public line that went out; lines it dropped
+    planted: [], // test-only chatAudit positive control (--plant-audit)
+    staleVotes: [], deadCondemns: [], hammer: [], // server stale votes on the dead (deadVotesCleared) and days that condemned a dead player
   };
 }
 
@@ -115,7 +119,8 @@ function createServer({ seed, game, opts }) {
     const acc = makeId(rng, 10); accOf[id] = acc; pidOf[acc] = id;
   });
   const clock = createVirtualClock(T0);
-  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, mafia: opts.mafia });
+  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}) });
+  table.onHammer = (id, hv) => S.stats.hammer.push({ day: S.day, seat: names[pidOf[id]], role: roles[pidOf[id]], self: hv.target === pidOf[id], target: names[hv.target] || hv.target, why: hv.why });
   table.onDayVoteShaped = ({ id, scum, sinceGateMs }) => S.stats.voteDelays.push({ day: S.day, seat: names[pidOf[id]], scum, ms: sinceGateMs });
   const S = {
     seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
@@ -126,14 +131,27 @@ function createServer({ seed, game, opts }) {
   };
   // Stamp each proposal with what the server would have said the moment the seat sent it. A proposal
   // that was legal when sent but is overtaken before it is applied (its target or sender died in the
-  // same instant) is a network race the server drops, not an illegal action.
+  // same instant) is a network race the server drops, not an illegal action. So is a line from a seat whose
+  // death frame has not reached it yet (a reply computed before a Day 1 shot, sent after it).
   const stamps = new WeakMap();
+  // chatAudit of each public line in the speaker's view the moment it was sent (counted when it goes out).
+  const audits = new WeakMap();
   const push = table.proposed.push.bind(table.proposed);
+  const stamp = (p) => {
+    const why = serverVerdict(S, p);
+    return why === "dead seat acted" && selfAlive(table.views[p.accountId]) ? "stale:died before it knew" : why ?? "ok";
+  };
   table.proposed.push = (...items) => {
-    for (const p of items) if (p && typeof p === "object") stamps.set(p, serverVerdict(S, p) ?? "ok");
+    for (const p of items) {
+      if (!p || typeof p !== "object") continue;
+      stamps.set(p, stamp(p));
+      if (p.event === "speak" && S.meetings.get(p.data?.meetingId)?.name === "Village") audits.set(p, chatAudit(table.views[p.accountId], p.data.content));
+    }
     return push(...items);
   };
   S.stampOf = (p) => stamps.get(p) || null;
+  S.auditOf = (p) => audits.get(p) || [];
+  table.onChatAudit = (acc, reason, text, source) => S.stats.chatDrops.push({ phase: S.phase, seat: names[pidOf[acc]], role: roles[pidOf[acc]], reason, text, source });
   const byName = Object.fromEntries(ids.map((id) => [names[id].toLowerCase(), accOf[id]]));
   S.complete = createOfflineComplete({ speech: opts.speech, viewByName: (n) => table.views[byName[String(n).toLowerCase()]] || null });
   return S;
@@ -251,7 +269,9 @@ function serverVerdict(S, p) {
   if (!m && S.pastMeetings.has(p.data?.meetingId)) return "stale:phase over";
   if (!m || m.closed) return `unknown meeting ${p.data?.meetingId}`;
   if (!m.members.includes(pid)) return `not a member of ${m.name}`;
-  const engine = validateAction(view, { event: p.event, data: p.data });
+  // chatAudit is a send-time check on what the seat knew (stamped at push); a line overtaken in flight by a death
+  // is still delivered, as the server would.
+  const engine = validateAction(p.event === "speak" ? { ...view, config: { ...view.config, chatAudit: "measure" } } : view, { event: p.event, data: p.data });
   if (!engine.ok) return `engine: ${engine.reason}`;
   if (p.event === "speak") {
     if (!m.speech) return `cannot speak in ${m.name}`;
@@ -307,6 +327,14 @@ async function speak(S, pid, m, content, p) {
     S.trace.messages[pid] = (S.trace.messages[pid] || 0) + 1;
     S.trace.speechSent[pid] = (S.trace.speechSent[pid] || 0) + 1;
     S.trace.speech.push({ seat: pid, phase: S.phase, text: content, allowed: true });
+    S.stats.chatLines += 1;
+    for (const f of S.auditOf(p)) S.stats.chatFlags.push({ ...f, phase: S.phase, seat: S.names[pid], role: S.roles[pid], source: p.source, text: content });
+    if (S.opts.plantAudit) {
+      // Once per category per day, in the view of a seat that just spoke (audited only, never sent).
+      const done = new Set(S.stats.planted.filter((x) => x.day === S.day).map((x) => x.cat));
+      const rng = createSeededRng(mixSeed(S.gseed, `plant:${S.day}:${S.stats.planted.length}`));
+      for (const r of plantAndAudit(S, pid, S.table.views[S.accOf[pid]], rng, done, { held: S.opts.plantAudit !== true && S.opts.plantAudit })) S.stats.planted.push({ ...r, day: S.day, role: S.roles[pid] });
+    }
     const claimed = claimedRoleIn(content);
     if (claimed) S.stats.claims.push({ phase: S.phase, seat: S.names[pid], role: S.roles[pid], claimed, truthful: claimed === S.roles[pid], text: content.slice(0, 160) });
     if (/\bPLAN\b/.test(content)) S.stats.illegal.push({ phase: S.phase, seat: S.names[pid], role: S.roles[pid], event: "speak", source: p.source, reason: "faction PLAN leaked to public" });
@@ -326,7 +354,9 @@ async function kill(S, pid, { reveal = true, how }) {
     const touched = m.members.includes(pid) || (m.targets || []).includes(pid);
     if (!touched) continue;
     delete m.ballots[pid];
-    const cleared = Object.entries(m.ballots).filter(([, target]) => target === pid).map(([voter]) => voter);
+    const cleared = deadVotesCleared(m.ballots, pid, S.opts.staleVotes);
+    const stale = Object.entries(m.ballots).filter(([voter, target]) => target === pid && !cleared.includes(voter)).map(([voter]) => voter);
+    if (stale.length) S.stats.staleVotes.push({ phase: S.phase, meeting: m.name, dead: S.names[pid], voters: stale.map((v) => S.names[v]) });
     for (const voter of cleared) { delete m.ballots[voter]; (m.clearedVoters ||= new Set()).add(voter); }
     m.members = m.members.filter((id) => id !== pid);
     m.targets = (m.targets || []).filter((id) => id !== pid);
@@ -335,12 +365,26 @@ async function kill(S, pid, { reveal = true, how }) {
   }
 }
 
+/**
+ * Which votes on a player who just died the server clears. "server" (default) reproduces Ultimafia's
+ * Meeting.generateTargets: the unvote loop walks votes in insertion order and RETURNS at the first voter whose
+ * vote is still valid, so later votes on the dead stay (and count). "clear": every vote on the dead is cleared.
+ */
+export function deadVotesCleared(ballots, deadId, mode = "server") {
+  const out = [];
+  for (const [voter, target] of Object.entries(ballots)) {
+    if (target !== deadId) { if (mode === "server") break; continue; }
+    out.push(voter);
+  }
+  return out;
+}
+
 async function resolveInstant(S, m, shooter, target) {
   m.closed = true; S.gunUsed = true;
   const hit = isScum(S, target);
   const pool = living(S).filter((id) => id !== shooter);
   S.stats.shots.push({ day: S.day, sheriff: S.names[shooter], target: S.names[target], targetRole: S.roles[target], hit, baseline: pool.filter((id) => isScum(S, id)).length / pool.length, t: Math.round((S.clock.now() - S.phaseStart) / 1000) });
-  await deliverMany(S, S.ids, "message", { senderId: "server", content: `${S.names[shooter]} pulls a gun and shoots ${S.names[target]}!` });
+  await deliverMany(S, S.ids, "message", { senderId: "server", content: `:gun: ${S.names[shooter]} pulls a gun and shoots at ${S.names[target]}!` });
   await deliverMany(S, S.ids, "reveal", { playerId: shooter, role: S.roles[shooter] });
   await deliver(S, shooter, "leftMeeting", m.id);
   await kill(S, target, { how: "shot by the Sheriff" });
@@ -456,7 +500,7 @@ async function playNight(S) {
   const vegged = vegs(S);
   const live = living(S);
   const mk = byName(S, "Mafia Kill");
-  const killTarget = mk ? plurality(mk.members.filter((id) => S.alive.has(id)).map((id) => mk.ballots[id])) : null;
+  const killTarget = mk ? mafiaKillTarget(Object.fromEntries(mk.members.filter((id) => S.alive.has(id) && mk.ballots[id] != null).map((id) => [id, mk.ballots[id]]))) : null;
   const victim = killTarget && S.alive.has(killTarget) && !isScum(S, killTarget) ? killTarget : null;
   const lit = byName(S, "Litigate");
   const lawyer = lit?.members[0];
@@ -511,6 +555,9 @@ async function playDay(S, night) {
   for (const spec of daySpecs(S)) made.push(newMeeting(S, spec));
   for (const m of made) for (const pid of m.members) await deliver(S, pid, "meeting", meetingFrame(S, m, pid));
   for (const pid of living(S)) S.trace.dayPhases[pid] = (S.trace.dayPhases[pid] || 0) + 1;
+  // Vinman's Day 1 rules: the Sheriff (alive with the gun) always shoots; town never votes no-one while he lives.
+  const sheriffId = S.ids.find((id) => S.roles[id] === "Sheriff");
+  if (S.day === 1) S.stats.day1 = { sheriffAlive: S.alive.has(sheriffId) && !S.gunUsed };
   await runPhase(S, S.opts.dayMs, { endEarly: () => dayReady(S) });
   if (!S.winner && !dayReady(S)) await vegKickWindow(S, () => dayReady(S));
   if (S.winner) return recordDayVotes(S, made[0]);
@@ -518,7 +565,8 @@ async function playDay(S, night) {
   recordDayVotes(S, made[0]);
   const village = made[0];
   const ballots = village.members.filter((id) => S.alive.has(id)).map((id) => village.ballots[id]).filter((t) => t != null);
-  const lynch = pluralityWithNoOne(ballots);
+  const condemned = pluralityWithNoOne(ballots);
+  const lynch = condemned && S.alive.has(condemned) ? condemned : null;
   const tally = {};
   for (const id of village.members.filter((x) => S.alive.has(x))) { const t = village.ballots[id]; if (t != null) (tally[t] ||= []).push(S.names[id]); }
   S.events.push(`${S.phase} votes: ${Object.entries(tally).map(([t, vs]) => `${S.names[t] || "no one"} <- ${vs.join(",")}`).join("; ") || "none"}`);
@@ -535,13 +583,28 @@ async function playDay(S, night) {
     townTargets: new Set(village.members.filter((id) => S.alive.has(id) && !isScum(S, id) && village.ballots[id] && village.ballots[id] !== "*").map((id) => village.ballots[id])).size,
     scumFakeClaim: S.stats.claims.some((c) => c.phase === S.phase && !c.truthful && alignOf(c.role) === "Mafia"),
   });
-  if (lynch) {
+  if (S.day === 1) Object.assign(S.stats.day1, {
+    noLynch: !lynch, sheriffAliveAtVote: S.alive.has(sheriffId),
+    townNoOne: village.members.filter((id) => S.alive.has(id) && !isScum(S, id) && village.ballots[id] === "*").length,
+  });
+  if (condemned && !lynch) {
+    // The server's stale votes (deadVotesCleared): the day condemns a player who is already dead. Nobody dies.
+    S.stats.deadCondemns.push({ day: S.day, target: S.names[condemned], votes: ballots.filter((t) => t === condemned).length });
+    S.events.push(`${S.phase} the village condemns ${S.names[condemned]}, who is already dead (stale votes)`);
+    S.stats.noLynchDays += 1;
+  } else if (lynch) {
     S.stats.lynches.push({ day: S.day, target: S.names[lynch], role: S.roles[lynch], scum: isScum(S, lynch), votes: ballots.filter((t) => t === lynch).length });
     S.trace.lynches.push({ targetAlignment: alignOf(S.roles[lynch]), targetRole: S.roles[lynch] });
     await kill(S, lynch, { how: "lynched" });
   } else S.stats.noLynchDays += 1;
   for (const pid of vegged) if (S.alive.has(pid)) await kill(S, pid, { how: "veg-kicked" });
   checkWin(S);
+}
+
+/** The server's Mafia Kill tally (Meeting.js): "*" ballots count, so a split with no-kill or a tie kills nobody. */
+export function mafiaKillTarget(ballots) {
+  const t = tally(ballots);
+  return t && t !== "*" ? t : null;
 }
 
 function pluralityWithNoOne(votes) {
@@ -584,6 +647,19 @@ function recordDayVotes(S, village) {
     const copAlive = S.ids.some((id) => S.roles[id] === "Cop" && S.alive.has(id));
     S.stats.copGuiltyFollowUp.push({ day: S.day, target: c.name, actedOn: dead || (village.ballots && pluralityWithNoOne(Object.values(village.ballots)) === c.target), copAlive });
   }
+}
+
+/** Day 1 rule check: shots when the Sheriff starts Day 1 alive with the gun; no-lynch days, split by the Sheriff. */
+function dayOneCard(results) {
+  // A shot that wins the game ends Day 1 before the vote: read the shot from the shot log.
+  const d = results.map((r) => r.stats.day1 && { ...r.stats.day1, shot: r.stats.shots.some((s) => s.day === 1) }).filter(Boolean);
+  const alive = d.filter((x) => x.sheriffAlive);
+  return {
+    days: d.length, sheriffAlive: alive.length, shot: alive.filter((x) => x.shot).length,
+    shotRate: alive.length ? alive.filter((x) => x.shot).length / alive.length : null,
+    noLynch: d.filter((x) => x.noLynch).length, noLynchSheriffAlive: d.filter((x) => x.noLynch && x.sheriffAliveAtVote).length,
+    townNoOneSheriffAlive: d.filter((x) => x.sheriffAliveAtVote).reduce((s, x) => s + (x.townNoOne || 0), 0),
+  };
 }
 
 /** 0%, 10%, ..., 100% quantiles (nearest rank), or null when empty. */
@@ -678,7 +754,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
   const days = results.map((r) => r.days);
   const errors = results.filter((r) => r.error).map((r) => ({ game: r.game, error: r.error }));
   const card = {
-    seed, games: games ?? n, copRule: rest.copRule || SELFPLAY_DEFAULTS.copRule, lawyer: rest.lawyer || SELFPLAY_DEFAULTS.lawyer, mafiaMode: rest.mafia || SELFPLAY_DEFAULTS.mafia, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
+    seed, games: games ?? n, copRule: rest.copRule || SELFPLAY_DEFAULTS.copRule, sheriffRule: rest.sheriffRule || SELFPLAY_DEFAULTS.sheriffRule, lawyer: rest.lawyer || SELFPLAY_DEFAULTS.lawyer, mafiaMode: rest.mafia || SELFPLAY_DEFAULTS.mafia, town: rest.town || SELFPLAY_DEFAULTS.town, setup: "Frontier Justice 9p (3 Villager, Cop, Journalist, Sheriff | Mafioso, Janitor, Lawyer)",
     path: "harness onGameEntry fast mode: rules -> decide (bus) -> shapeDayVotes; scum chatter; claim rule; candidates -> selector (offline enumerator, no model)",
     winRate: { Village: rate(wins.Village, n), Mafia: rate(wins.Mafia, n), draw: rate(wins.draw, n), error: rate(wins.error, n), counts: wins },
     townVotes: {
@@ -690,6 +766,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
     lynches: { total: lynches.length, scum: lynches.filter((l) => l.scum).length, accuracy: rate(lynches.filter((l) => l.scum).length, lynches.length), noLynchDays: all("noLynchDays").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.noLynchDays, 0) },
     illegalActions: { total: illegalList.length, byReason: countBy(illegalList, (x) => x.reason.replace(/\(.*\)|[A-Za-z0-9_-]{6,}$/g, "").trim()), samples: illegalList.slice(0, 10) },
     gameLength: { meanDays: mean(days), minDays: Math.min(...days), maxDays: Math.max(...days), histogram: countBy(days, (d) => String(d)), meanVirtualMinutes: mean(results.map((r) => r.minutes)) },
+    day1: dayOneCard(results),
     sheriff: { randomBaseline: mean(shots.map((x) => x.baseline)), shots: shots.length, hits: shots.filter((s) => s.hit).length, accuracy: rate(shots.filter((s) => s.hit).length, shots.length), byDay: countBy(shots, (s) => `Day ${s.day}`), misses: shots.filter((s) => !s.hit).map((s) => `${s.targetRole}`) },
     cop: { checks: checks.length, guilty: checks.filter((c) => c.result === "Guilty").length, wrongFromLitigate: checks.filter((c) => !c.correct).length, guiltyActedOnSameDay: guilty.filter((g) => g.actedOn).length, guiltyTotal: guilty.length,
       guiltyActedOnSameDayCopAlive: guilty.filter((g) => g.actedOn && g.copAlive).length, guiltyCopAlive: guilty.filter((g) => g.copAlive).length,
@@ -708,6 +785,9 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
     staleProposals: results.reduce((s, r) => s + (r.stats.stale || 0), 0),
     lynchSteering: steering(all("dayOutcomes")),
     publicLines: results.reduce((s, r) => s + r.stats.publicLines, 0),
+    chatAudit: chatAuditCard(rest.chatAudit || SELFPLAY_DEFAULTS.chatAudit, results),
+    staleVotes: { mode: rest.staleVotes || SELFPLAY_DEFAULTS.staleVotes, left: results.flatMap((r) => r.stats.staleVotes || []).reduce((n, x) => n + x.voters.length, 0), deadCondemns: results.flatMap((r) => r.stats.deadCondemns || []).length },
+    ...(rest.plantAudit ? { plantAudit: plantReport(results.flatMap((r) => r.stats.planted || [])) } : {}),
     harnessErrors: results.reduce((s, r) => s + r.harnessErrors, 0),
     errors,
     metrics: summarizeMetrics(results.map((r) => r.record)),
@@ -822,7 +902,7 @@ const countSummary = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(
 export function scorecardMarkdown(card) {
   const L = [];
   L.push(`# Self-play scorecard: ${card.games} games, seed ${card.seed}`, "");
-  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, `Cop rule: ${card.copRule}; Lawyer: ${card.lawyer}; Mafia: ${card.mafiaMode}`, "");
+  L.push(`Setup: ${card.setup}`, `Decision path: ${card.path}`, `Cop rule: ${card.copRule}; Sheriff rule: ${card.sheriffRule}; Lawyer: ${card.lawyer}; Mafia: ${card.mafiaMode}; Town votes: ${card.town}`, "");
   L.push("| Metric | Value |", "|---|---|");
   L.push(`| Village win rate | ${pct(card.winRate.Village)} (${card.winRate.counts.Village}) |`);
   L.push(`| Mafia win rate | ${pct(card.winRate.Mafia)} (${card.winRate.counts.Mafia}) |`);
@@ -835,6 +915,7 @@ export function scorecardMarkdown(card) {
   L.push(`| Illegal actions | ${card.illegalActions.total} |`);
   L.push(`| Game length | mean ${fmt(card.gameLength.meanDays)} days (min ${card.gameLength.minDays}, max ${card.gameLength.maxDays}); ${countSummary(card.gameLength.histogram)} |`);
   L.push(`| Sheriff shots | ${card.sheriff.hits}/${card.sheriff.shots} hit scum (${pct(card.sheriff.accuracy)} vs ${pct(card.sheriff.randomBaseline)} random) |`);
+  if (card.day1) L.push(`| Day 1 | Sheriff alive with gun ${card.day1.sheriffAlive}, shot ${card.day1.shot} (${pct(card.day1.shotRate)}); no-lynch ${card.day1.noLynch} (${card.day1.noLynchSheriffAlive} with the Sheriff alive); town no-one ballots with the Sheriff alive ${card.day1.townNoOneSheriffAlive} |`);
   L.push(`| Cop checks | ${card.cop.checks}, ${card.cop.guilty} Guilty, ${card.cop.wrongFromLitigate} flipped by Lawyer; Guilty acted on same day ${card.cop.guiltyActedOnSameDay}/${card.cop.guiltyTotal} (Cop alive that day: ${card.cop.guiltyActedOnSameDayCopAlive}/${card.cop.guiltyCopAlive}) |`);
   L.push(`| Public claims | ${card.claims.total} (${countSummary(card.claims.byClaim)}) |`);
   L.push(`| Mafia kills | ${card.mafia.kills} (${countSummary(card.mafia.killsByRole)}) |`);
@@ -847,6 +928,8 @@ export function scorecardMarkdown(card) {
   L.push(`| Lynches on the mafia PLAN target | ${card.lynchSteering.lynchOnPlanTarget}/${card.lynchSteering.lynchDaysWithPlan} (random lynch would hit scum ${pct(card.lynchSteering.randomLynchBaseline)}) |`);
   L.push(`| Veg kicks | ${card.vegs} (${countSummary(card.vegCauses)}) |`);
   L.push(`| Stale proposals (phase over) | ${card.staleProposals} |`);
+  if (card.staleVotes) L.push(`| Stale votes on the dead (${card.staleVotes.mode}) / days that condemned a dead player | ${card.staleVotes.left} / ${card.staleVotes.deadCondemns} |`);
+  if (card.chatAudit) L.push(`| chatAudit (${card.chatAudit.mode}): lines out / leaks / contradictions / scum mistakes / dropped / regenerated | ${card.chatAudit.checked} / ${card.chatAudit.LEAK} / ${card.chatAudit.CONTRADICTION} / ${card.chatAudit.SCUM_MISTAKE} / ${card.chatAudit.dropped} / ${card.chatAudit.regenerated} |`);
   L.push(`| Harness onError calls | ${card.harnessErrors} |`);
   L.push("");
   if (card.topWeakness) {
@@ -861,13 +944,34 @@ export function scorecardMarkdown(card) {
   return L.join("\n");
 }
 
+/** chatAudit totals: lines that went out and their flags (by kind, by rule), lines dropped, examples. */
+function chatAuditCard(mode, results) {
+  const flags = results.flatMap((r) => r.stats.chatFlags || []);
+  const drops = results.flatMap((r) => r.stats.chatDrops || []);
+  const kinds = Object.fromEntries(["LEAK", "CONTRADICTION", "SCUM_MISTAKE"].map((k) => [k, flags.filter((f) => f.kind === k).length]));
+  const lines = new Set(flags.map((f) => `${f.phase}|${f.seat}|${f.text}`)).size;
+  const examples = Object.fromEntries(Object.keys(kinds).map((k) => [k, flags.filter((f) => f.kind === k).slice(0, 4).map((f) => `${f.phase} ${f.seat} (${f.role}, ${f.source}): "${f.text}" -- ${f.rule}: ${f.detail}`)]));
+  const regenerated = drops.filter((d) => d.reason === "chat-audit: regenerated");
+  return {
+    mode, checked: results.reduce((s, r) => s + (r.stats.chatLines || 0), 0), flaggedLines: lines, ...kinds,
+    byRule: countBy(flags, (f) => `${f.kind} ${f.rule}`),
+    dropped: drops.length - regenerated.length, regenerated: regenerated.length,
+    droppedByRule: countBy(drops.filter((d) => d.reason !== "chat-audit: regenerated"), (d) => d.reason.replace(/\s*\(.*$/, "")),
+    examples, dropExamples: drops.slice(0, 6).map((d) => `${d.phase} ${d.seat} (${d.role}, ${d.source}): "${d.text}" -- ${d.reason}`),
+  };
+}
+
 /** Write scorecard JSON + markdown and per-game records (JSONL, the summarizeMetrics format). */
 export async function writeSelfplay({ results, scorecard }, { outDir = SELFPLAY_DIR } = {}) {
   await mkdir(outDir, { recursive: true });
-  const rule = scorecard.copRule && scorecard.copRule !== SELFPLAY_DEFAULTS.copRule ? `-${scorecard.copRule}` : "";
+  const rule = (scorecard.copRule && scorecard.copRule !== SELFPLAY_DEFAULTS.copRule ? `-${scorecard.copRule}` : "")
+    + (scorecard.sheriffRule && scorecard.sheriffRule !== SELFPLAY_DEFAULTS.sheriffRule ? `-sheriff${scorecard.sheriffRule}` : "");
   const law = scorecard.lawyer && scorecard.lawyer !== SELFPLAY_DEFAULTS.lawyer ? `-${scorecard.lawyer}lawyer` : "";
   const maf = scorecard.mafiaMode && scorecard.mafiaMode !== SELFPLAY_DEFAULTS.mafia ? `-${scorecard.mafiaMode}mafia` : "";
-  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}${rule}${law}${maf}`;
+  const town = scorecard.town && scorecard.town !== SELFPLAY_DEFAULTS.town ? `-${scorecard.town}town` : "";
+  const audit = scorecard.chatAudit?.mode && scorecard.chatAudit.mode !== SELFPLAY_DEFAULTS.chatAudit ? `-audit${scorecard.chatAudit.mode}` : "";
+  const stale = scorecard.staleVotes?.mode && scorecard.staleVotes.mode !== SELFPLAY_DEFAULTS.staleVotes ? `-stale${scorecard.staleVotes.mode}` : "";
+  const base = `selfplay-seed${scorecard.seed}-n${scorecard.games}${rule}${law}${maf}${town}${audit}${stale}`;
   const json = join(outDir, `${base}.json`);
   const md = join(outDir, `${base}.md`);
   const jsonl = join(outDir, `${base}.records.jsonl`);

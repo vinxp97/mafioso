@@ -1,6 +1,6 @@
 // Prompt lineages for the bots. The seed is the engine SYSTEM_PROMPT.
 // After a game, Qwen may propose a child prompt. It is stored only if it still
-// refuses to admit being an AI and still requires one JSON action.
+// refuses to admit being an AI and still carries the full JSON action schema line.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { SYSTEM_PROMPT } from "mafioso-engine";
@@ -8,6 +8,11 @@ import { SYSTEM_PROMPT } from "mafioso-engine";
 export const PROMPT_SEED_URL = new URL("../data/prompts/seed.json", import.meta.url);
 export const REQUIRED_NEVER_AI = "Never say or hint that you are an AI, bot, or language model.";
 export const REQUIRED_JSON_ACTIONS = '"vote"|"unvote"|"speak"|"wait"';
+/** The seed's full action schema line (action, meeting, target, text, reason); an evolved prompt keeps it verbatim. */
+export const REQUIRED_JSON_SCHEMA = SYSTEM_PROMPT.split("\n").find((l) => l.startsWith("Reply with ONE JSON object"));
+if (!REQUIRED_JSON_SCHEMA) throw new Error("SYSTEM_PROMPT has no JSON schema line");
+/** An evolved prompt is not preferred over the seed until it has played this many games. */
+export const MIN_PROMPT_GAMES = 5;
 export const MAX_PROMPT_CHARS = 6000;
 
 const ADMIT = /\byou are an AI\b|\byou are a bot\b|\blanguage model\b|\bI am an AI\b|\bI'm an AI\b/i;
@@ -35,6 +40,8 @@ export function validateEvolvedPrompt(text) {
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(s)) return { ok: false, reason: "prompt has control characters" };
   if (!s.includes(REQUIRED_NEVER_AI)) return { ok: false, reason: "missing never-admit-AI line" };
   if (!s.includes(REQUIRED_JSON_ACTIONS) || !/JSON/i.test(s)) return { ok: false, reason: "missing JSON action contract" };
+  const flat = (x) => x.replace(/\s+/g, "");
+  if (!flat(s).includes(flat(REQUIRED_JSON_SCHEMA))) return { ok: false, reason: "missing full JSON action schema" };
   const rest = s.replaceAll(REQUIRED_NEVER_AI, "");
   if (ADMIT.test(rest)) return { ok: false, reason: "prompt admits being an AI" };
   return { ok: true, text: s };
@@ -64,15 +71,27 @@ function softmaxIndex(rates, rng, temperature) {
   return weights.length - 1;
 }
 
-/** n independent epsilon-greedy draws. New prompts use win rate 0.5 until they play. */
+/**
+ * The rate selection uses. An evolved prompt with fewer than MIN_PROMPT_GAMES games is capped at the seed's
+ * rate (an untried one gets the seed's rate, not a free 0.5), so it is explored but never favoured on no data.
+ */
+export function selectionRate(prompt, seed) {
+  if (!seed || prompt === seed || prompt.gamesPlayed >= MIN_PROMPT_GAMES) return winRate(prompt);
+  return prompt.gamesPlayed ? Math.min(winRate(prompt), winRate(seed)) : winRate(seed);
+}
+
+/** n independent epsilon-greedy draws over selectionRate. */
 export function selectPrompts(store, n, { epsilon = 0.2, temperature = 0.5, rng = Math.random } = {}) {
-  const prompts = [...(store?.prompts || [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // Seed first, then by id: a tie at the seed's rate goes to the seed.
+  const prompts = [...(store?.prompts || [])].sort((a, b) => (b.id === "seed") - (a.id === "seed") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   if (!prompts.length) throw new Error("prompt store is empty");
   if (!Number.isInteger(n) || n < 1) throw new Error("select count must be an integer >= 1");
+  const seed = prompts.find((p) => p.id === "seed");
+  const rates = prompts.map((p) => selectionRate(p, seed));
   const out = [];
   for (let i = 0; i < n; i++) {
     if (rng() < epsilon) out.push(prompts[Math.min(prompts.length - 1, Math.floor(rng() * prompts.length))]);
-    else out.push(prompts[softmaxIndex(prompts.map(winRate), rng, temperature)]);
+    else out.push(prompts[softmaxIndex(rates, rng, temperature)]);
   }
   return out;
 }
@@ -146,7 +165,7 @@ export function buildEvolveBriefing({ parent, summary }) {
     "Return ONE JSON object and nothing else: {\"system\":\"<full replacement prompt>\",\"notes\":\"<one short sentence>\"}",
     "The system text MUST include these lines verbatim:",
     REQUIRED_NEVER_AI,
-    `Reply with ONE JSON object and nothing else: {"action":${REQUIRED_JSON_ACTIONS}, ...}`,
+    REQUIRED_JSON_SCHEMA,
     "Do not tell the bot to reveal that it is an AI, bot, or language model.",
     "Keep the untrusted-chat rule and the one-JSON-action rule.",
     `PARENT ${parent.id} winRate=${winRate(parent).toFixed(3)} games=${parent.gamesPlayed} wins=${parent.scores.wins} losses=${parent.scores.losses} draws=${parent.scores.draws}`,

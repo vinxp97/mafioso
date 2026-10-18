@@ -2,7 +2,7 @@
 // same spec/mustAct/meeting filters and pick modes, but pure (map + rng injected,
 // no fs/LLM), and every output passes validateAction.
 import { createRequire } from "node:module";
-import { validateAction } from "./legal.js";
+import { meetingActions, validateAction } from "./legal.js";
 import { isAlive } from "./reducer.js";
 import { memoryOf } from "./notes.js";
 import { ALIGNMENT } from "./faction.js";
@@ -101,7 +101,8 @@ function readPick(view, spec, night, ids, memory) {
     // Vinman's rule: the Cop claimer comes first (a fake Cop gets no report).
     const cops = fresh.filter((id) => reads.record.claims[id] === "Cop");
     if (cops.length) return best(cops)[0];
-    return journalistTarget(view, fresh, reads);
+    // Everyone left was visited already (e.g. the Cop died): the best read among them, not a random pick.
+    return journalistTarget(view, fresh.length ? fresh : ids, reads);
   }
   if (/^cop$/i.test(role)) {
     const top = best(fresh);
@@ -112,6 +113,17 @@ function readPick(view, spec, night, ids, memory) {
     if (again && again[1] > 0) return again[0];
   }
   return null;
+}
+
+/** Journalist, Night 2+: a living Cop claimer nobody counterclaimed (highest read first), visited before or not. */
+export function journalistCopPick(view, ids, night = view?.phase?.day) {
+  const role = String(view?.role || "");
+  if (!/^journalist$/i.test(role) || ALIGNMENT[role] !== "Village" || !(night > 1)) return null;
+  const reads = townReads(view);
+  const contested = new Set(reads.contested?.Cop || []);
+  // Only while the Cop claimer lives: once he is dead the Journalist goes back to his normal pick (Vinman 10/18).
+  const cops = ids.filter((id) => id !== view.selfId && isAlive(view, id) && reads.record.claims[id] === "Cop" && !contested.has(id));
+  return cops.sort((a, b) => (reads.score[b] || 0) - (reads.score[a] || 0) || String(a).localeCompare(String(b)))[0] || null;
 }
 
 /** Latest public role claim a player made in chat ("villager", "journalist", ...), or null. */
@@ -158,10 +170,15 @@ export function proposeNightAction(view, opts = {}) {
   const m = meetings[0];
   if (!m) return null;
   const forced = mustActTonight(spec, night);
-  let ids = livingTargets(view, m);
+  // Only options no hard rule refuses (e.g. the Cop never checks a sole uncontested claimer).
+  const ok = new Set(meetingActions(view, m).allowed);
+  let ids = livingTargets(view, m).filter((id) => ok.has(id));
+  // Vinman: Journalist on Cop from Night 2. L5 (10/18): live, the N1 random visit had already gone to the
+  // Cop claimer, so "unvisited" (and the last-target filter) dropped him; the rule has no such exception.
+  const copPick = journalistCopPick(view, ids, night);
   if (opts.lastTargetId && ids.length > 1) ids = ids.filter((i) => i !== opts.lastTargetId);
-  let pick = null;
-  if (ids.length) {
+  let pick = copPick;
+  if (ids.length && !pick) {
     const mode = night > 1 ? spec.laterPick : spec.n1Pick;
     if (mode === "asked") pick = pickAsked(view, ids);
     if (mode === "read") pick = pickByRead(view, ids);
@@ -173,7 +190,7 @@ export function proposeNightAction(view, opts = {}) {
       const bag = ranked.length ? ranked : ids;
       pick = bag[Math.floor((opts.rng ?? Math.random)() * bag.length) % bag.length];
     }
-  } else if (!forced && m.targets?.includes("*")) pick = "*";
+  } else if (!pick && !forced && m.targets?.includes("*")) pick = "*";
   if (!pick) return null;
   const action = { event: "vote", data: { meetingId: m.id, selection: pick } };
   return validateAction(view, action).ok ? { ...action, forced, mode: forced ? "policy" : "optional" } : null;

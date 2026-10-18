@@ -3,17 +3,20 @@
 //   - a Cop claim is unverified until something confirms it; two Cop claims mean one is lying;
 //   - a claimer whose "guilty" flips town is a proven liar, and so is anyone claiming MY role;
 //   - Journalist reports settle Cop claims ("X got no report" = fake Cop);
-//   - players who pushed a lynch that flipped town (voted it, first voters most) earn suspicion;
+//   - players who pushed a lynch that flipped town (voted it, first voters most) earn suspicion, and so do
+//     today's voters on a verified claimer (wagon starts most);
 //   - being named a liar by several players, or giving a guilty on a power-role claimer, adds a little.
 // Scores are additive and in "evidence points"; TOWN_READS holds every weight. No seed tuning: the
 // weights only order evidence (hard > proven lie > report > contested claim > vote history).
 import { claimedRoleIn } from "./chatStyle.js";
 import { ALIGNMENT, alignmentOf, allies } from "./faction.js";
-import { memoryOf } from "./notes.js";
-import { NO_LYNCH_LOSES, noLynchLoses } from "./lynchMath.js";
+import { lawyerGone, memoryOf } from "./notes.js";
+import { DAY1_LYNCH_OWED, METEOR_DAY, NO_LYNCH_LOSES, dayOneLynchOwed, meteorOn, noLynchLoses } from "./lynchMath.js";
 
+
+const GUN_SHOT = /^(?::gun:\s*)?(.+?) pulls a gun and shoots (?:at )?(.+?)!*$/i;
 export const TOWN_READS = Object.freeze({
-  ownCheck: 20, // my own Guilty (or -20 Innocent)
+  ownCheck: 20, // my own Guilty (or -20 Innocent once the Lawyer has flipped)
   claimsMyRole: 10, // someone claims the unique role I hold
   revealedTown: -10, // a living player the server revealed as town (the Sheriff after a shot)
   provenLiar: 8, // their guilty flipped town, their innocent flipped mafia, or they called ME guilty
@@ -28,7 +31,9 @@ export const TOWN_READS = Object.freeze({
   accuser: 1.5, // per distinct player calling them a liar / fake (max 3)
   guiltyOnPower: 1, // gave a guilty on a power-role claimer
   lynchPusher: 2, // voted a Day death that flipped town
-  firstPusher: 1, // one of the first two voters on it
+  firstPusher: 1,
+  wagonEarly: 1, // extra for an early wagon vote on a town flip: starter +1, then +0.5, +0.25 ...
+  townWagon: 1, // voted a player who later flipped town (the wagon did not land that day) // one of the first two voters on it
   uncontestedPower: -1, // sole claimer of a power role, nothing against it
   credibleAccuser: -4, // called someone a liar who then flipped mafia
   credible: -3, // at or below this, a claimer counts as verified
@@ -38,6 +43,7 @@ export const TOWN_READS = Object.freeze({
   votedWithScum: 1.5, // voted the same player as a player who later flipped mafia (per day)
   votedOnScum: -1.5, // voted for a player who was lynched and flipped mafia
   votedRevealedTown: 2, // a standing day vote on a living player the server revealed as town
+  votedVerified: 1.5, // a standing vote today on a verified claimer (+firstPusher if they started that wagon)
   credibleInno: -3, // innocent from a verified Cop (a living Loyal Lawyer could have faked it)
   clearedInno: -8, // innocent from a verified Cop once the Lawyer has flipped: nothing can fake it
   cleanedClaimer: 6, // claims a unique role whose other claimer was killed at night and cleaned (so was town)
@@ -51,11 +57,21 @@ export const TOWN_READS = Object.freeze({
   strong: 6, // enough to lynch on
   shoot: 4, // enough for the Sheriff, with a margin
   shootMargin: 2,
+  plainFrame: 0.5, // --lawyer plain (not FJ): a Lawyer can frame town as Guilty, so every guilty counts half
 });
 
 const UNIQUE = new Set(["Cop", "Journalist", "Sheriff"]);
 const POWER = new Set(["Cop", "Journalist", "Sheriff", "Doctor"]);
 const GUILTY = /\b(guilty|mafia|scum|red)\b/i;
+// L5 (10/18): only a Cop RESULT counts as a guilty: "im cop. x guilty", "results: x guilty", "x is guilty"
+// (the result word), or "mafia/scum/red" with a result frame. "x is mafia, vote him now" is free chat.
+const RESULT_FRAME = /\b(?:results?|checked|investigated|my check|check(?:ed)? (?:on )?|i'?m (?:the )?cop|im (?:the )?cop|i am (?:the )?cop|cop (?:check|result|report))\b|^\s*(?:cop|results?)\s*:/i;
+/** Is this segment of a Cop claimer's line a guilty result? `line` is the whole message (for the frame). */
+export function copGuiltyResult(seg, line = seg) {
+  if (NOT_GUILTY.test(seg)) return false;
+  if (/\bguilty\b/i.test(seg)) return true;
+  return /\b(mafia|scum|red)\b/i.test(seg) && RESULT_FRAME.test(line) && !/\b(?:vote|lynch|hang|shoot)\b/i.test(seg);
+}
 const NOT_GUILTY = /\b(not|isn'?t|no)\s+(guilty|mafia|scum)\b/i;
 const INNO = /\b(inno|innocent|town|clear(?:ed)?)\b/i;
 const LIAR = /\b(lying|liar|lies|fake)\b/i;
@@ -123,7 +139,7 @@ export function publicRecord(view) {
       else if (claims[by] === "Journalist" && GOT_REPORT.test(seg)) { reports.push({ by, target, kind: "realcop" }); reportedCop = target; }
       if (claims[by] === "Journalist" && RELAY.test(seg) && GUILTY.test(seg)) { guilty.push({ by, target, phase: m.phase || "", relay: true, cop: reportedCop }); continue; }
       if (LIAR.test(seg)) liar.push({ by, target });
-      else if (claims[by] === "Cop" && GUILTY.test(seg) && !NOT_GUILTY.test(seg)) guilty.push({ by, target, phase: m.phase || "" });
+      else if (claims[by] === "Cop" && copGuiltyResult(seg, text)) guilty.push({ by, target, phase: m.phase || "" });
       else if (claims[by] === "Cop" && INNO.test(seg)) inno.push({ by, target, phase: m.phase || "" });
     }
   }
@@ -143,11 +159,29 @@ export function townReads(view) {
   const mates = allies(view);
   const self = view?.selfId;
   const add = (id, pts, why) => {
-    if (!id || id === self || mates.has(id) || !alive(view, id) || !pts) return;
+    if (!id || id === self || mates.has(id) || !alive(view, id) || !pts) return false;
     score[id] = (score[id] || 0) + pts;
     (reasons[id] ||= []).push(`${pts > 0 ? "+" : ""}${pts} ${why}`);
+    return true;
   };
+  // A Cop Innocent while a Loyal Lawyer may be alive could be litigated: it lowers suspicion but is never
+  // support for a claim (it does not make anyone "verified").
+  const soft = {};
+  const addSoft = (id, pts, why) => { if (add(id, pts, why)) soft[id] = (soft[id] || 0) + pts; };
+  const noLawyer = lawyerGone(view);
+  // FJ's Lawyer is Loyal: a real Cop's guilty is true, so the doubt is only whether the claimer is the Cop.
+  // Only the non-FJ "plain" Lawyer (view.config.lawyer) can frame a townie as Guilty.
+  const frame = view?.config?.lawyer === "plain" && !noLawyer ? W.plainFrame : 1;
   const rec = publicRecord(view);
+  // Players the Sheriff shot (the server's gun line), by id.
+  const idByName = (n) => Object.keys(view?.players || {}).find((id) => String(view.players[id]?.name || "").toLowerCase() === String(n).trim().toLowerCase());
+  const shotAt = new Set();
+  for (const m of view?.messages || []) {
+    if (m?.senderId && m.senderId !== "server") continue;
+    const hit = GUN_SHOT.exec(String(m?.content || "").trim());
+    const at = hit && idByName(hit[2]);
+    if (at) shotAt.add(at);
+  }
   const mem = memoryOf(view);
   const myRole = roleName(view?.role);
   const town = ALIGNMENT[myRole] === "Village";
@@ -157,8 +191,11 @@ export function townReads(view) {
     const txt = `${c?.result || ""} ${c?.detail || ""}`;
     // FJ's Lawyer is Loyal: Litigate only works on a teammate and makes it read Innocent. A Guilty is a
     // fact; an Innocent can be a lawyered mafia player, so it only offsets up to a lynch-level read.
-    if (/^mafia$/i.test(String(c?.result)) || /guilty/i.test(txt)) add(id, W.ownCheck, "my check: guilty");
-    else if (/^village$/i.test(String(c?.result)) || /innocent/i.test(txt)) add(id, W.lawyerableInno, "my check: innocent (could be lawyered)");
+    if (/^mafia$/i.test(String(c?.result)) || /guilty/i.test(txt)) add(id, W.ownCheck * frame, "my check: guilty");
+    else if (/^village$/i.test(String(c?.result)) || /innocent/i.test(txt)) {
+      if (noLawyer) add(id, -W.ownCheck, "my check: innocent, Lawyer gone");
+      else addSoft(id, W.lawyerableInno, "my check: innocent (could be lawyered)");
+    }
     if (/no reports?/i.test(txt) && rec.claims[id] === "Cop") add(id, W.ownCheck / 2, "claims Cop, my visit saw no report");
   }
   for (const id of Object.keys(view?.reveals || {})) if (alive(view, id) && revealedAlign(view, id) === "Village") add(id, W.revealedTown, "revealed town");
@@ -177,7 +214,7 @@ export function townReads(view) {
       // A unique role has one holder: a dead claimer who flipped it proves every other claimer a liar, and a
       // rival claimer who flipped mafia makes the remaining claimer credible.
       // The true holder may never have claimed: any dead player who flipped the role counts.
-      const flippedRole = (id) => roleName(String(view?.reveals?.[id] || "").split(" (")[0]) === role;
+      const flippedRole = (id) => roleName(String(view?.reveals?.[id] || "").split(/:| \(/)[0]) === role;
       const trueHolder = ids.find((id) => !alive(view, id) && flippedRole(id))
         || Object.keys(view?.reveals || {}).find((id) => view?.players?.[id] && !alive(view, id) && flippedRole(id));
       // Only a claimer who stood against the rival while he was alive earns that credit (claiming a role
@@ -194,7 +231,7 @@ export function townReads(view) {
   // Guilty/innocent calls checked against flips; calls on me.
   for (const g of rec.guilty) {
     const flip = revealedAlign(view, g.target);
-    if (flip === "Village") add(g.by, W.provenLiar, "their guilty flipped town");
+    if (flip === "Village") add(g.by, W.provenLiar * frame, frame < 1 ? "their guilty flipped town (lying, or a Lawyer frame)" : "their guilty flipped town");
     else if (flip === "Mafia") add(g.by, W.credibleCop, "their guilty flipped mafia");
     if (town && g.target === self) add(g.by, W.provenLiar, "called me guilty");
     if (POWER.has(rec.claims[g.target] || "") && !flip) add(g.by, W.guiltyOnPower, `guilty on a ${rec.claims[g.target]} claimer`);
@@ -224,11 +261,30 @@ export function townReads(view) {
   }
 
   // Vote history: Day deaths that flipped town. Voters on them, first two more.
-  const deaths = (mem.deaths || []).filter((d) => /^day/i.test(String(d.phase || "")) && revealedAlign(view, d.id) === "Village");
+  const deaths = (mem.deaths || []).filter((d) => /^day/i.test(String(d.phase || "")) && revealedAlign(view, d.id) === "Village"
+    && (mem.votes || []).some((v) => v.phase === d.phase && v.target === d.id));
+  // How early a voter joined a wagon on a town flip: the starter most (wagonEarly), halving per place.
+  const early = (i) => W.wagonEarly / 2 ** i;
   for (const d of deaths) {
     const seen = [];
     for (const v of mem.votes || []) if (v.phase === d.phase && v.target === d.id && !seen.includes(v.voterId)) seen.push(v.voterId);
-    seen.forEach((voter, i) => add(voter, W.lynchPusher + (i < 2 ? W.firstPusher : 0), "voted a town flip"));
+    seen.forEach((voter, i) => add(voter, W.lynchPusher + (i < 2 ? W.firstPusher : 0) + early(i), "voted a town flip"));
+  }
+  // A wagon that did not land, on a player who later flipped town (night kill, shot or a later lynch): the
+  // starter most, then the next joiners (L3, 10/18: mafia start a wagon on a townie and town piles on).
+  const lynched = new Set(deaths.map((d) => `${d.phase}|${d.id}`));
+  const dayPhases = [...new Set((mem.votes || []).filter((v) => /^day/i.test(String(v.phase || ""))).map((v) => v.phase))];
+  for (const ph of dayPhases) {
+    const order = {};
+    for (const v of mem.votes || []) {
+      if (v.phase !== ph || !v.target || v.target === "*" || lynched.has(`${ph}|${v.target}`)) continue;
+      if (alive(view, v.target) || revealedAlign(view, v.target) !== "Village") continue;
+      const list = (order[v.target] ||= []);
+      if (!list.includes(v.voterId)) list.push(v.voterId);
+    }
+    for (const [t, voters] of Object.entries(order)) voters.forEach((voter, i) => {
+      if (voter !== t) add(voter, W.townWagon + early(i), `${i === 0 ? "started" : "joined"} a wagon on ${view.players?.[t]?.name || "a player"} (flipped town) on ${ph}`);
+    });
   }
   // Vote company: who voted alongside a player who flipped mafia, and who voted the mafia lynch itself.
   const lastVotes = {}; // phase -> voter -> target (the vote that stood)
@@ -252,20 +308,32 @@ export function townReads(view) {
   }
   // Standing votes on a living revealed-town player (the Sheriff after a shot).
   for (const byVoter of Object.values(lastVotes)) for (const [voter, t] of Object.entries(byVoter)) {
-    if (alive(view, t) && revealedAlign(view, t) === "Village") add(voter, W.votedRevealedTown, `voted ${view.players?.[t]?.name || "a revealed townie"}, revealed town`);
+    // My own role is in reveals too: a vote on me is my private evidence, worth half (L3: it had the Sheriff on
+    // top as "voted X, revealed town" for voting the seat that read it).
+    if (t === self && voter !== self) add(voter, W.votedRevealedTown / 2, "votes me (I know I am town)");
+    else if (alive(view, t) && revealedAlign(view, t) === "Village") add(voter, W.votedRevealedTown, `voted ${view.players?.[t]?.name || "a revealed townie"}, revealed town`);
   }
   // A dead player with no role shown was cleaned by the Janitor, i.e. killed by the mafia: town. Their unique
   // claim was true, so any other claimer of that role is lying.
   for (const [role, ids] of Object.entries(byRole)) {
     if (!UNIQUE.has(role)) continue;
-    const cleanedHolder = ids.find((id) => view?.players?.[id] && !alive(view, id) && !view?.reveals?.[id]);
+    // Night kills only (L3, 10/18): a claimer shot by the Sheriff or lynched by day is not "killed at night",
+    // and his flip may simply not have arrived yet.
+    // Night deaths are announced at the start of the next Day, so the phase alone cannot tell: a lynch has
+    // that day's votes on him, a shot has the gun line.
+    const nightDeath = (id) => {
+      if (shotAt.has(id)) return false;
+      const ph = (mem.deaths || []).find((d) => d.id === id)?.phase;
+      return !(ph && (mem.votes || []).some((v) => v.phase === ph && v.target === id));
+    };
+    const cleanedHolder = ids.find((id) => view?.players?.[id] && !alive(view, id) && !view?.reveals?.[id] && nightDeath(id));
     if (cleanedHolder) for (const id of ids) if (id !== cleanedHolder && alive(view, id)) add(id, W.cleanedClaimer, `claims ${role}, but ${view.players?.[cleanedHolder]?.name || "a cleaned player"} claimed it and was killed at night`);
   }
   // Trust transfers: a unique role has one holder. A verified claimer makes rival claimers liars, and a
   // verified Cop's guilty is evidence; the only Cop claimer's guilty is worth a little (a test).
   // Being one of two claimers is not evidence against the one with independent support: ignore it here.
   const contestPts = (id) => (Object.values(contested).some((l) => l.includes(id)) ? W.contested : 0);
-  const verified = (id) => (alive(view, id) ? (score[id] || 0) - contestPts(id) <= W.credible : !!rec.claims[id] && roleName(view?.reveals?.[id]) === rec.claims[id]);
+  const verified = (id) => (alive(view, id) ? (score[id] || 0) - contestPts(id) - (soft[id] || 0) <= W.credible : !!rec.claims[id] && roleName(view?.reveals?.[id]) === rec.claims[id]);
   for (const [role, ids] of Object.entries(contested)) {
     const good = ids.filter(verified);
     if (good.length === 1) for (const id of ids) if (id !== good[0]) add(id, W.vsCredible, `claims ${role} against a verified ${role}`);
@@ -273,27 +341,38 @@ export function townReads(view) {
   const copClaimers = (byRole.Cop || []).filter((id) => alive(view, id));
   for (const g of rec.guilty) {
     if (revealedAlign(view, g.target)) continue;
+    // L5: my own public calls are not evidence to me; my checks come from my notes ("my check: guilty").
+    if (g.by === self) continue;
     if (g.relay) {
       // A contested Journalist's relay still counts when its source Cop is verified (e.g. the Sheriff's shot on
       // that Cop's guilty flipped mafia), or when it names the rival Journalist claimer.
       // "Verified" here must not lean on the relaying Journalist's own report: the Cop flipped Cop, or one of
       // its own guilties flipped mafia.
-      const proven = (cop) => !!cop && (roleName(String(view?.reveals?.[cop] || "").split(" (")[0]) === "Cop"
+      const proven = (cop) => !!cop && (roleName(String(view?.reveals?.[cop] || "").split(/:| \(/)[0]) === "Cop"
         || rec.guilty.some((x) => x.by === cop && !x.relay && revealedAlign(view, x.target) === "Mafia"));
       const rival = (contested.Journalist || []).includes(g.target);
-      if (rec.claims[g.by] === "Journalist" && (!contested.Journalist || proven(g.cop) || rival)) add(g.target, W.credibleGuilty, "Journalist relayed a Cop's guilty report");
+      if (rec.claims[g.by] === "Journalist" && (!contested.Journalist || proven(g.cop) || rival)) add(g.target, W.credibleGuilty * frame, "Journalist relayed a Cop's guilty report");
       continue;
     }
-    if (verified(g.by)) add(g.target, W.credibleGuilty, alive(view, g.by) ? "guilty from a verified Cop" : "guilty from a Cop who flipped Cop");
+    if (verified(g.by)) add(g.target, W.credibleGuilty * frame, alive(view, g.by) ? "guilty from a verified Cop" : "guilty from a Cop who flipped Cop");
     else if (copClaimers.length === 1 && copClaimers[0] === g.by && (score[g.by] || 0) <= 0) add(g.target, W.soleCopGuilty, "guilty from the only Cop claimer");
   }
-  const lawyerFlipped = Object.entries(view?.reveals || {}).some(([id, r]) => !alive(view, id) && /^lawyer/i.test(String(r)));
   for (const c of rec.inno) {
     if (revealedAlign(view, c.target) || c.target === self || !verified(c.by)) continue;
-    add(c.target, lawyerFlipped ? W.clearedInno : W.credibleInno, lawyerFlipped ? "innocent from a verified Cop, Lawyer gone" : "innocent from a verified Cop");
+    if (noLawyer) add(c.target, W.clearedInno, "innocent from a verified Cop, Lawyer gone");
+    else addSoft(c.target, W.credibleInno, "innocent from a verified Cop (could be lawyered)");
   }
   for (const [id, role] of soleClaims) if ((score[id] || 0) <= 0) add(id, W.uncontestedPower, `sole ${role} claim`);
   const verifiedClaimers = Object.keys(rec.claims).filter((id) => alive(view, id) && verified(id));
+  // Wagon starts: today's votes on a verified claimer, the first two voters on it more.
+  const todayVotes = (mem.votes || []).filter((v) => v.phase && v.phase === view?.phase?.name && /^day/i.test(v.phase));
+  for (const t of verifiedClaimers) {
+    const standing = Object.entries(lastVotes[view?.phase?.name] || {}).filter(([, x]) => x === t).map(([v]) => v);
+    const order = [...new Set(todayVotes.filter((v) => v.target === t).map((v) => v.voterId))];
+    for (const voter of standing) add(voter, W.votedVerified + (order.indexOf(voter) < 2 ? W.firstPusher : 0), `voted ${view.players?.[t]?.name || "a verified claimer"}, a verified claimer, today`);
+  }
+  // Vinman 10/18 (11:05): dead or shot players are out of the reads (nobody calls a body sus or votes it).
+  for (const id of Object.keys(score)) if (view?.players?.[id] && !alive(view, id)) { delete score[id]; delete reasons[id]; }
   for (const id of Object.keys(score)) score[id] = Math.round(score[id] * 100) / 100;
   return { score, reasons, contested, record: rec, verified: verifiedClaimers };
 }
@@ -329,6 +408,8 @@ export function townDayPick(view, meeting) {
   if (noOne && (contestedCop || guiltyOnPower)) {
     // A no-lynch that loses the game is never the answer: lynch the top read instead.
     if (noLynchLoses(view)) return top ? { target: top[0], why: `${NO_LYNCH_LOSES}: top read`, reads } : null;
+    if (dayOneLynchOwed(view)) return top ? { target: top[0], why: `${DAY1_LYNCH_OWED}: top read`, reads } : null;
+    if (meteorOn(view) === "Day") return top ? { target: top[0], why: `${METEOR_DAY}: top read`, reads } : null;
     return { target: "*", why: contestedCop ? "Cop claims contested: no lynch on either claim" : "guilty on a power-role claimer: no lynch", reads };
   }
   return null;
@@ -375,7 +456,7 @@ export function townCounterLine(view) {
   }
   for (const g of today(view, reads.record.guilty)) {
     if (!alive(view, g.target) || g.relay || g.target === view.selfId) continue;
-    if (reads.verified.includes(g.by) || g.by === view.selfId) {
+    if ((reads.verified.includes(g.by) || g.by === view.selfId) && view.config?.lawyer !== "plain") {
       const l = fresh(`lawyer cant fake a guilty, only an inno, so ${nm(g.target)} is mafia, vote ${nm(g.target)}`);
       if (l) return l;
     }

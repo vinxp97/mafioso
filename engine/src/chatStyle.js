@@ -1,12 +1,19 @@
 // Fast-chatroom public speech: short lines, early-claim discipline.
 import { memoryOf, JANITOR_REPORT } from "./notes.js";
 import { sanitizeChat, defang } from "./sanitize.js";
-import { ALIGNMENT } from "./faction.js";
+import { ALIGNMENT, allies } from "./faction.js";
 import { dayFraction } from "./sheriffGate.js";
+import { sheriffAskedMe } from "./sheriffAsk.js";
+import { adaptiveClaimLine, claimOptions, exposedTeam, publicReads, stateHash } from "./adaptiveMafia.js";
+import { agreedPlan } from "./scumPlan.js";
 
 export const PUBLIC_MAX = 80;
 /** A model chat line is 3-12 words (SPEECH_SYSTEM); longer replies are cut to the first 12. */
 export const SPEECH_WORDS = 12;
+/** First n words of a line (the model line cap, applied after every step that can add a word). */
+export function capSpeechWords(text, n = SPEECH_WORDS) {
+  return String(text || "").trim().split(/\s+/).filter(Boolean).slice(0, n).join(" ");
+}
 
 export const SPEECH_SYSTEM = [
   "You are a player in a fast Mafia chatroom. Write ONE chat line.",
@@ -129,10 +136,10 @@ export function journalistInfo(view) {
     if (claimedCop && /\b(no report|no reports|nothing|did not receive|didn'?t receive|received no)\b/i.test(text)) return { kind: "fakecop", target: id };
   }
   // A Cop claimer whose reports include a Guilty: relay it (a Loyal Lawyer cannot fake a Guilty), even
-  // when that Cop died the same night.
+  // when that Cop died the same night. A dead player with a Cop result was the real Cop, claimed or not.
   for (const [id, c] of Object.entries(checks)) {
     const text = String(c?.detail || "");
-    if (!/cop/i.test(String(view?.claims?.[id]?.role || "")) || !/reports?:/i.test(text)) continue;
+    if (!(/cop/i.test(String(view?.claims?.[id]?.role || "")) || view.dead?.[id]) || !/reports?:/i.test(text)) continue;
     const m = COP_GUILTY_REPORT.exec(text);
     const guilty = m && Object.keys(view?.players || {}).find((pid) => lc(view.players[pid]?.name || "") === lc(m[1]) && !view.dead?.[pid]);
     if (guilty && guilty !== view.selfId) return { kind: "copguilty", target: id, guilty };
@@ -206,6 +213,8 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   if (view?.phase?.phase !== "Day") return true;
   const role = String(view.role || "");
   if (/sheriff/i.test(role)) return true;
+  // Vinman 10/18: the Sheriff asked me to claim before he shoots: answer.
+  if (sheriffAskedMe(view)) return true;
   if (planSpeaker) return true;
   // FJ: the real Cop claims to deliver a guilty, or when counterclaimed or called guilty; under the default
   // "vinman" rule also once a Sheriff is out and alive (the Sheriff can test the Cop's results).
@@ -278,9 +287,49 @@ export function roleClaimLine(view) {
   if (/^sheriff$/i.test(role)) return `${lead}im sheriff${cc ? ", the real one" : ""}`.slice(0, 80);
   // Any other town role under pressure says what it is; a Villager says it has no power.
   if (ALIGNMENT[role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()] === "Village" && underPressure(view)) {
-    return /^villager$/i.test(role) ? "im just a villager, no power role. not me" : `im ${lc(role)}. not me`;
+    return /^villager$/i.test(role) ? villagerDefense(view) : `im ${lc(role)}. not me`;
   }
   return null;
+}
+
+/**
+ * Vinman 10/18 (11:05): a bandwagoned player's Villager defense varies, and no phrasing repeats in a game.
+ * Every line still parses as a Villager claim (claimedRoleIn).
+ */
+export const VILLAGER_DEFENSES = Object.freeze([
+  "im just a villager, no power role. not me",
+  "vt here, nothing to hide. wrong guy",
+  "im a plain villager, youre on the wrong person",
+  "villager. no role, no results. look elsewhere",
+  "im just vt, nothing to show. this wagon is wrong",
+  "im a villager, honestly. vote someone with a real case",
+  "no power here, im just a villager. why me",
+  "im a vanilla villager, youre wasting a lynch on me",
+  "im vt. check my votes, theyre clean",
+  "im villager, no claim to make. pushing me helps mafia",
+  "im a villager and this wagon is lazy",
+  "just a townie, im vt. find a better target",
+]);
+const said = (view) => new Set((view?.messages || []).filter((m) => m?.senderId && m.senderId !== "server").map((m) => normLine(m.content)));
+const normLine = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+/** A Villager defense nobody has used yet this game (seeded per seat and day); the least-recent one if all are used. */
+export function villagerDefense(view) {
+  const used = said(view);
+  const free = VILLAGER_DEFENSES.filter((l) => !used.has(normLine(l)));
+  const pool = free.length ? free : VILLAGER_DEFENSES;
+  let h = 2166136261;
+  for (const c of `${view?.selfId}|${view?.phase?.name}|defense`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return pool[(h >>> 0) % pool.length];
+}
+/** A defense line (a Villager claim) that repeats one already said this game, by anyone, or null. */
+export function repeatedDefense(view, content) {
+  const r = claimedRoleIn(content);
+  if (!r || !/^(villager|vt|vanilla|town|townie)$/.test(r)) return null;
+  const n = normLine(content);
+  // A bare claim ("hugo im vt", the answer to the Sheriff's ask) is not a defense phrasing.
+  if (n.split(" ").length < 5) return null;
+  return (view?.messages || []).some((m) => m?.senderId && m.senderId !== "server" && (normLine(m.content) === n || lineSimilarity(content, m.content) >= VARIETY.maxSimilarity))
+    ? "defense phrasing already used this game" : null;
 }
 
 /** Reason to block this public line as an early claim, or null. */
@@ -290,6 +339,51 @@ export function earlyClaimBlock(view, content, opts = {}) {
   // The mafia PLAN speaker may make exactly the PLAN's fake claim, nothing else.
   const planOk = opts.planSpeaker && opts.planRole && role === String(opts.planRole).toLowerCase();
   return claimAllowed(view, { ...opts, planSpeaker: planOk }) ? null : `early claim (${role})`;
+}
+
+/**
+ * The answer when the living Sheriff asked this seat to claim (sheriffAsk.js), or null.
+ * Town tells the truth: a power role claims it (with results, the usual claim line), a Villager says vt.
+ * Mafia fake-claims a power role the public record leaves open (the PLAN claim, the Janitor's cleaned role,
+ * Cop, then Journalist), else says vt. Never Sheriff. A seat that already claimed doesn't repeat it.
+ */
+export function askReplyLine(view) {
+  return askReplyChoice(view)?.line || null;
+}
+
+/**
+ * askReplyLine with its reason ({line, why}), for the log. L3 (10/18): the plan said "no fake claims" but the
+ * Janitor fake-claimed Journalist when the Sheriff asked, got counterclaimed and shot. With a no-claim plan the
+ * answer is "vt" unless a fake claim is clearly better: a cleaned power role nobody can contradict, or this seat
+ * already called guilty / exposed (vt dies to the gun anyway, so a counterclaim is the only out).
+ */
+export function askReplyChoice(view) {
+  const ask = sheriffAskedMe(view);
+  if (!ask) return null;
+  const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
+  if (mine.some((m) => claimedRoleIn(m.content))) return null;
+  const sheriff = lc(nameOfId(view, ask.sheriffId) || "");
+  const role = String(view.role || "");
+  const align = ALIGNMENT[role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()] || ALIGNMENT[role];
+  if (align === "Village") {
+    if (/^villager$/i.test(role)) return { line: `${sheriff} im vt`.trim(), why: "town: vt" };
+    return { line: roleClaimLine(view) || `im ${lc(role)}`, why: "town: true claim" };
+  }
+  // Mafia: survive the gun with a claim town can only break by counterclaiming.
+  const reads = publicReads(view);
+  const plan = agreedPlan(view);
+  const c = plan ? adaptiveClaimLine(view, plan, reads) : null;
+  if (c?.line) return { line: c.line, why: `plan claim${c.adapt ? ` (${c.adapt})` : ""}` };
+  const opts = claimOptions(view, reads);
+  if (/janitor/i.test(role) && opts.cleanedRole) return { line: `im ${lc(opts.cleanedRole)}`, why: `cleaned ${opts.cleanedRole}: a claim no flip can contradict` };
+  const exposed = exposedTeam(view)?.mate === view.selfId;
+  const guiltyOnMe = reads.record.guilty.some((g) => g.target === view.selfId && !allies(view).has(g.by) && g.by !== view.selfId);
+  if (plan && !plan.speakerId && !exposed && !guiltyOnMe) return { line: `${sheriff} im vt`.trim(), why: "plan has no fake claim and nothing points at me: vt" };
+  const pick = opts.cop && (!opts.journalist || stateHash(view.stateId, view.selfId, "askclaim") < 0.5) ? "cop" : opts.journalist ? "journalist" : null;
+  const why = plan && !plan.speakerId ? `plan has no fake claim, but ${exposed ? "a report named me" : "I was called guilty"}: counterclaim` : "no plan claim";
+  if (pick === "cop") return { line: "im cop, no guilty yet", why: `${why} (cop)` };
+  if (pick === "journalist") return { line: "im journalist, nothing useful yet", why: `${why} (journalist)` };
+  return { line: `${sheriff} im vt`.trim(), why: "no fake claim open: vt" };
 }
 
 const CANNED = ["ya", "idk", "sus", "who u voting", "hm", "fair", "not sure", "agreed", "wait what", "eh idk", "same", "lol", "go on", "ok but why"];
@@ -400,7 +494,7 @@ export function addressedBy(view, meetingId) {
 }
 
 /** Short chat prompt: who you are, your voice, the last few lines, and who to answer. */
-export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}) {
+export function buildChatPrompt(view, meeting, { goal = null, may = false, facts = [] } = {}) {
   // Player names are chosen by players: flatten and defang them like chat.
   const safe = (n) => (n ? defang(n, 30) : n);
   const me = safe(nameOf(view, view.selfId)) || "you";
@@ -410,9 +504,10 @@ export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}
   const lines = [
     `you are ${me}. role (secret): ${view.role || "?"}. voice: ${personaOf(view).voice}`,
     `alive: ${living.join(", ")}`,
+    facts.length ? `key events:\n${facts.map((f) => `- ${defang(f, 120)}`).join("\n")}` : "",
     recent.length ? `chat:\n${recent.join("\n")}` : "chat: (quiet so far)",
-    to ? (to.kind === "vote" ? `${safe(to.name)} just voted you. answer ${safe(to.name)} directly.` : `${safe(to.name)} said to you: ${sanitizeChat(to.text).slice(0, 100)}. answer ${safe(to.name)} directly.`)
-      : "react to the last lines. ask or push someone by name.",
+    to ? (to.kind === "vote" ? `${safe(to.name)} just voted you. answer ${safe(to.name)} directly, and point at your top read.` : `${safe(to.name)} said to you: ${sanitizeChat(to.text).slice(0, 100)}. answer ${safe(to.name)} directly.`)
+      : "react to one key event (a claim, a shot and its flip, a report) or push a vote on your top read with its reason. no empty questions, no filler.",
     may ? "" : "don't say your role.",
     goal ? `aim: ${String(goal).slice(0, 120)}` : "",
     "never 'as a villager', never recap the game. one line, 3-12 words. /no_think",
@@ -424,12 +519,12 @@ export function buildChatPrompt(view, meeting, { goal = null, may = false } = {}
 export function cleanChatReply(raw, view, addressed) {
   let text = String(raw || "");
   try { const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "null"); if (j && typeof j === "object") text = String(j.content ?? j.text ?? j.say ?? ""); } catch { /* plain text */ }
-  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, "")).split(" ").slice(0, SPEECH_WORDS).join(" ");
+  text = chatShorten(text.replace(/^\s*[A-Za-z0-9_]+:\s+/, ""));
   if (!text) return "";
   if (addressed?.name && !text.toLowerCase().includes(String(addressed.name).toLowerCase())) {
     text = chatShorten(`${String(addressed.name).toLowerCase()} ${text}`);
   }
-  return text;
+  return capSpeechWords(text);
 }
 
 const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
@@ -447,6 +542,8 @@ export const VARIETY = { window: 10, maxSimilarity: 0.6 };
 
 /** Reason a public line repeats recent chat (any seat, last ~10 lines), or null. */
 export function repeatBlock(view, meetingId, content) {
+  const dup = repeatedDefense(view, content);
+  if (dup) return dup;
   const recent = (view?.messages || []).filter((m) => m.meetingId === meetingId && m.senderId && m.senderId !== "server").slice(-VARIETY.window);
   for (const m of recent) {
     const sim = lineSimilarity(content, m.content);

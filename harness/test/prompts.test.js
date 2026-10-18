@@ -7,6 +7,7 @@ import { SYSTEM_PROMPT } from "mafioso-engine";
 import {
   beatsBaseline, defaultSeedPrompt, ensurePromptStore, evolvePrompt, finishGame, loadSeedPrompt,
   outcomeForView, recordOutcomes, selectPrompts, validateEvolvedPrompt, winRate,
+  MIN_PROMPT_GAMES, REQUIRED_JSON_ACTIONS, buildEvolveBriefing,
 } from "../src/prompts.js";
 
 const cycle = (xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -142,4 +143,27 @@ test("ensurePromptStore writes the seed once and reloads it", async () => {
   assert.equal(again.prompts[0].gamesPlayed, 3);
   await fs.writeFile(path.join(dir, "prompts.json"), "{");
   await assert.rejects(() => ensurePromptStore(dir), SyntaxError);
+});
+
+// Live run: an untried evolved prompt (p-mvciticw-0) read 0.5 against the seed's 0.39, so it was favoured,
+// and it had a weaker JSON instruction ({"action":..., ...} without meeting/target/text).
+test("an untried or barely played evolved prompt is never favoured over the seed", () => {
+  const seed = { ...defaultSeedPrompt(), gamesPlayed: 18, scores: { wins: 7, losses: 11, draws: 0, byRole: {} } };
+  const fresh = { ...defaultSeedPrompt(), id: "p-mvciticw-0", parentId: "seed", gamesPlayed: 0, scores: { wins: 0, losses: 0, draws: 0, byRole: {} } };
+  const lucky = { ...fresh, id: "p-lucky", gamesPlayed: 2, scores: { wins: 2, losses: 0, draws: 0, byRole: {} } };
+  const picks = selectPrompts({ prompts: [seed, fresh, lucky] }, 9, { epsilon: 0, temperature: 0, rng: () => 0.5 });
+  assert.deepEqual([...new Set(picks.map((p) => p.id))], ["seed"]);
+  // Once it has played enough and still beats the seed, it is preferred.
+  const proven = { ...lucky, gamesPlayed: MIN_PROMPT_GAMES, scores: { wins: 4, losses: MIN_PROMPT_GAMES - 4, draws: 0, byRole: {} } };
+  assert.equal(selectPrompts({ prompts: [seed, proven] }, 1, { epsilon: 0, temperature: 0, rng: () => 0.5 })[0].id, "p-lucky");
+  // Exploration still seats untried prompts.
+  assert.equal(selectPrompts({ prompts: [seed, fresh] }, 1, { epsilon: 1, temperature: 0, rng: cycle([0, 0.9]) })[0].id, "p-mvciticw-0");
+});
+
+test("an evolved prompt that drops the full JSON action schema is rejected; the evolve brief asks for the full line", () => {
+  const schema = SYSTEM_PROMPT.split("\n").find((l) => l.startsWith("Reply with ONE JSON object"));
+  const weak = SYSTEM_PROMPT.replace(schema, `Reply with ONE JSON object and nothing else: {"action":${REQUIRED_JSON_ACTIONS}, ...}`);
+  assert.equal(validateEvolvedPrompt(weak).reason, "missing full JSON action schema");
+  assert.equal(validateEvolvedPrompt(SYSTEM_PROMPT.replace(schema, schema.replace(/,/g, ",\n  "))).ok, true, "reflowed whitespace is fine");
+  assert.ok(buildEvolveBriefing({ parent: defaultSeedPrompt(), summary: "" }).includes(schema));
 });

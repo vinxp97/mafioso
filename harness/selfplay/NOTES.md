@@ -598,7 +598,7 @@ Goal: check the Cop, Journalist and Janitor result parsing against real alert te
 | Source | Real role-result alerts |
 |---|---|
 | Box `/workspace/winlogs`, `/workspace/restartq/logs` (live harness logs) | 0. The logs keep sends, meetings and public chat, but not received server alerts. The only matches are bot chat ("I'm the real Journalist. My night read: ... received no reports"). |
-| PC `C:\Users\vince\mafioso\logs` | 0. Same files as the box copies. |
+| PC `C:\Users\<user>\mafioso\logs` | 0. Same files as the box copies. |
 | `harness/test/fixtures/replays` | 0. These are rebuilt from those logs, and their server messages are only joins and phase changes. |
 | PC `mafia.db` (7,470 archived games, read-only) | **6,990** in the kept categories: 3,766 Cop alignment results, 961 role Cop results, 542 Journalist "no reports", 363 Journalist "all reports", 1,358 Janitor cleans. Also seen: 1,057 `:track:` and 23,615 `:system:` role reveals, used only as negatives. |
 | PC tagger extracts (`archive_lines.jsonl`) | Public Village chat only: 67 player lines quoting a result. They aren't alerts, so 3 of them are used as negatives. |
@@ -653,3 +653,45 @@ No real alert shows a Journalist report whose target is another real Journalist.
 Journalist, so the "no report on a Journalist claim = fake" logic doesn't depend on it. Whether the target's
 own `:journ:` alert shows up is order-dependent in restartq (both actions run at the same priority). Check it
 in the next approved live game (see the wrap-up).
+
+# 2026-10-18: replays against the server rules (branches `replay-fixtures` → `kill-fallback-seatlog` → `phase-resolution` → `fixture-builder`)
+
+Stacked on `game3-fixes` (edd8cd5), all local. Self-play seed 4, 50 games, is the same on every branch tip:
+Village 46.0% / Mafia 54.0%, 0 illegal, 76.4% (295/386) town ballots on scum, mean 2.40 days.
+
+## What was built
+
+| Branch | Tip | What it contains |
+|---|---|---|
+| replay-fixtures | 8b8652f | g15/g16 rebuilt from the PC harness logs. A replay-rules test runs every fixture seat by seat through the engine and checks for illegal votes and breaks of the no-lynch / no-kill rules (with stress variants: a meteor every phase, "no one" offered in kill meetings). |
+| kill-fallback-seatlog | 0788d0a | `withLegalKill` (the agreed kill stands only if it is legal) and `killOptional`. The harness now logs a `seatmap` line (handles, no account ids) so the builder can bind seats exactly. |
+| phase-resolution | 3e90072 | `engine/src/resolve.js`: a deterministic night/day resolver for the FJ roles in the server's priority order, with the Meeting.js tally, the Sheriff's shot, the stalemate Meteor and win checks. g01-g16 ballots go through it and are compared with what the fixtures recorded. |
+| fixture-builder | tip | `harness/src/replayBuild.js` (the CLI script is now a thin wrapper). Seat binding is recovered from dead-seat lines, role meetings, the winners list and journalist "no reports" alerts, with ambiguous seats listed in the manifest. Deaths follow the server's rules (the tally, the gun first, ballots from dead seats dropped). A cleaned kill has no flip. Alert lines become the server's report messages. All 16 fixtures were regenerated. |
+
+## Bugs the replays found
+
+- **Faction leader outside the kill meeting** (g16). The lowest-id teammate led, but it was not in Mafia Kill, so the
+  owed kill never came. The leader is now picked among the meeting's members (c06f861).
+- **Day meteor lifted by a shot.** `meteorOn` cleared a Day warning after any death. The server lifts it only on a
+  condemn, so town could no-lynch into a no-winner end (a7bebd0).
+- **Live gun line never parsed.** speechFacts only knew the selfplay wording. The server says
+  `:gun: X pulls a gun and shoots at Y!`, so live shots went unremarked. Both are parsed now, and selfplay sends
+  the server wording (5a2a390).
+- **Selfplay "no one" kill votes.** The offline server dropped `*` ballots in the Mafia Kill and killed on a 1-1
+  split. It now uses the engine tally: `*` counts and a tie kills nobody (3e90072). Seed-4 results did not move.
+- **Fixture builder** (this branch): the seat binding was a guess (seat i = i-th player seen), which put kills on
+  Mafia seats and ballots on already-dead seats. It also flipped cleaned kills and dropped alerts. The 18 pinned
+  differences from phase-resolution came down to 2.
+
+## Remaining gaps
+
+- **Selfplay reveals the Sheriff on a shot.** After the gun line, selfplay sends everyone a `reveal` frame with the
+  shooter's role. The server's Sheriff gun (`reveal: true`, items/Gun.js) only names the shooter in
+  `:gun: X pulls a gun and shoots at Y!` and sends no role reveal. The claim is implied, not confirmed, so the
+  offline town knows a little more than a live one.
+- **The meteor limit is not in the logs.** `noDeathLimit` is a setup option the harness never logs. The resolver
+  defaults to no meteor, so a stalemate ending can't be replayed. g07 ("No one wins") and g09 (Village wins after
+  the log's last sends) are pinned as "ending not in the log".
+- **Old logs are guesses.** The live-* logs (g02-g06) have no phase tags or meeting lines, so only their Village
+  votes are compared. Seats the log can't tell apart (same alignment, no dead line, no report) stay
+  `ambiguousSeats`. The next live game's `seatmap` line makes the binding exact.

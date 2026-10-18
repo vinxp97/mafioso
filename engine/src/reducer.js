@@ -8,6 +8,17 @@ import { applySeatMemory, emptyMemory } from "./memory.js";
 import { emptyNotes, applyNotes } from "./notes.js";
 import { isPublicSpeechMeeting } from "./scheduler.js";
 import { noteFactionPlan } from "./scumPlan.js";
+
+// items/Gun.js: ":gun: X pulls a gun and shoots at Y!" (the shooter is the Sheriff in Frontier Justice).
+const GUN_LINE = /^(?::gun:\s*)?(.+?) pulls a gun and shoots (?:at )?(.+?)!*$/i;
+const isGun = (m) => /\b(shoot|gun)\b/i.test(`${m?.name || ""} ${m?.actionName || ""}`);
+/** This seat already acted in an instant meeting: it is spent for the state (kept in v.usedMeetings across re-sends). */
+function markUsed(v, m) {
+  m.used = true;
+  const k = `${v.stateId}|${m.id}`;
+  if (!(v.usedMeetings ||= []).includes(k)) v.usedMeetings.push(k);
+  if (v.usedMeetings.length > 50) v.usedMeetings.shift();
+}
 const clone = (x) => (x === undefined ? x : structuredClone(x));
 
 /** @returns {import('./types.js').GameView} */
@@ -108,7 +119,13 @@ export function reduce(view, frame) {
           m.factionRole = kind === "kill" ? "kill" : kind === "action" ? "action" : "chat";
           if (m.factionRole === "chat") m.name = f;
         }
-        v.meetings[data.id] = m;
+        // L4 (10/18): the server re-sends a meeting right after a vote that made this seat leave it (the gun
+        // fires, leftMeeting, then Player.js sendMeeting since the state did not change), with amMember false.
+        // A meeting this seat left, or is not a member of, is not open for it: drop it.
+        const wasMine = v.meetings[data.id]?.amMember === true;
+        if (v.meetings[data.id]?.used || (v.usedMeetings || []).includes(`${v.stateId}|${data.id}`) || (v.gunFired === v.stateId && isGun(m))) m.used = true;
+        if ((m.amMember === false && wasMine) || (v.leftMeetings || []).includes(`${v.stateId}|${data.id}`)) delete v.meetings[data.id];
+        else v.meetings[data.id] = m;
       }
       // The one-shot "players" frame can be missed (sent before the stream attaches, or past the
       // event cap). Meeting members and targets are seated players, so learn them here.
@@ -117,7 +134,13 @@ export function reduce(view, frame) {
       for (const t of Array.isArray(data?.targets) ? data.targets : []) if (typeof t === "string" && t !== "*" && !/^(yes|no|kick)$/i.test(t) && !v.players[t]) v.players[t] = { id: t };
       break;
     }
-    case "leftMeeting": delete v.meetings[data]; break;
+    case "leftMeeting": {
+      const id = typeof data === "object" && data ? data.meetingId ?? data.id : data;
+      delete v.meetings[id];
+      (v.leftMeetings ||= []).push(`${v.stateId}|${id}`);
+      if (v.leftMeetings.length > 50) v.leftMeetings.shift();
+      break;
+    }
     // Server re-sends a meeting's member list when it changes ({ meetingId, members: [{ id, canVote }] }).
     case "members": {
       const m = v.meetings[data?.meetingId];
@@ -145,6 +168,15 @@ export function reduce(view, frame) {
         if (typeof msg.public !== "boolean") msg.public = meeting ? isPublicSpeechMeeting(meeting) : msg.senderId !== "server";
         v.messages.push(msg);
         v.claims = reduceClaims(v.claims || {}, data);
+        // L3 (10/18): live town views never got a reveal frame for the shooter, so the revealed-Sheriff rules
+        // (never lynch him, never vote him) did not apply. The gun line itself names him; in FJ only the
+        // Sheriff has a gun. Kept as a fallback: a real reveal frame always wins.
+        if (msg.senderId === "server" || msg.senderId == null) {
+          const shot = GUN_LINE.exec(String(msg.content || "").trim());
+          const by = shot && Object.keys(v.players || {}).find((id) => String(v.players[id]?.name || "").toLowerCase() === shot[1].trim().toLowerCase());
+          if (by && !v.reveals[by]) v.reveals[by] = "Sheriff";
+          if (by && by === v.selfId) { v.gunFired = v.stateId; for (const m of Object.values(v.meetings)) if (isGun(m)) markUsed(v, m); }
+        }
       }
       break;
     case "speakCooldown": {
@@ -159,6 +191,9 @@ export function reduce(view, frame) {
       if (!m) break;
       m.votes = m.votes || {};
       if (event === "vote") {
+        // L4 (10/18): a vote in an instant meeting (the gun) fires it at once: the meeting is used, even
+        // though the server keeps it in the view (finished, still a member) and the target then dies.
+        if (m.instant && data.voterId === v.selfId) markUsed(v, m);
         if (m.multi) m.votes[data.voterId] = [...new Set([...(m.votes[data.voterId] || []), data.target])];
         else m.votes[data.voterId] = data.target;
       } else if (m.multi && Array.isArray(m.votes[data.voterId])) {
@@ -172,6 +207,7 @@ export function reduce(view, frame) {
     case "finished": v.finished = true; break;
     default: break; // ignored or unknown (see classifyEvent); the reducer stays pure either way
   }
+  if (event === "death" || event === "exorcised" || event === "meeting" || event === "vote" || event === "obituaries") pruneDeadVotes(v);
   applyNotes(v, frame);
   if ((event === "message" || event === "quote") && data) noteFactionPlan(v, data);
   applySeatMemory(v, frame, { prevPhase });
@@ -179,6 +215,28 @@ export function reduce(view, frame) {
 }
 
 export const reduceAll = (frames, view = emptyView()) => frames.reduce(reduce, view);
+/**
+ * Server bug (Games/core/Meeting.js generateTargets): the unvote loop returns at the first voter whose vote is
+ * still valid, so votes cast later on a player who just died can stay, and the day can condemn a dead player.
+ * The view keeps such a vote apart (meeting.staleVotes) and out of meeting.votes, so every seat whose vote
+ * sits on a dead player sees itself as not voted and re-votes a living target at once.
+ */
+export function pruneDeadVotes(v) {
+  for (const m of Object.values(v.meetings || {})) {
+    // An instant meeting's vote already fired (the gun shot its target): it is not a stale vote to redo.
+    if (!m?.votes || m.instant || m.used) continue;
+    for (const [voter, t] of Object.entries(m.votes)) {
+      const list = Array.isArray(t) ? t : [t];
+      const deadHit = list.filter((x) => typeof x === "string" && x !== "*" && v.dead?.[x]);
+      if (!deadHit.length) continue;
+      (m.staleVotes ||= {})[voter] = t;
+      const keep = list.filter((x) => !deadHit.includes(x));
+      if (Array.isArray(t) && keep.length) m.votes[voter] = keep;
+      else delete m.votes[voter];
+    }
+  }
+}
+
 /** False once this seat died, was lynched or shot (death), was kicked (playerLeave), or left the game. */
 export const selfAlive = (v) => !v?.selfId || (!v.dead?.[v.selfId] && !v.players?.[v.selfId]?.left && !v.leftGame && !v.kicked);
 
@@ -186,7 +244,7 @@ export const isAlive = (v, id) => !!v.players[id] && !v.players[id].left && !v.d
 
 function seedMeetings(v) {
   for (const m of Object.values(v.history[v.stateId]?.meetings || {}))
-    if (m?.id && !v.meetings[m.id]) v.meetings[m.id] = clone(m);
+    if (m?.id && !v.meetings[m.id] && !(v.leftMeetings || []).includes(`${v.stateId}|${m.id}`)) v.meetings[m.id] = clone(m);
 }
 
 /** "Cop:Humble/Loud" -> {role:"Cop", modifiers:["Humble","Loud"]} (Autobot knowledge.splitAppearance). */
@@ -227,7 +285,7 @@ export const IGNORED_EVENTS = Object.freeze({
   deathSounds: "death sound URLs for the client to play; the death itself arrives as death/obituaries",
   gunshot: "sound cue for a gun; the result arrives as death/message frames",
   condemn: "sound cue for a condemn; the result arrives as death/obituaries",
-  "readyCheck init": "lobby ready check UI; dev seats are auto-verified (game PbOaZSJzx reached success with no bot action)",
+  "readyCheck init": "lobby ready check UI; dev seats are auto-verified (game GAME04 reached success with no bot action)",
   "readyCheck update": "lobby ready check progress UI",
   "readyCheck cancel": "lobby ready check UI",
   "readyCheck success": "lobby ready check passed; the game start frames follow",
