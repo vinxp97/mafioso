@@ -3,7 +3,7 @@
 import { busCheck } from "./bus.js";
 import { allies } from "./faction.js";
 import { hammerSheriff, hammerState } from "./hammer.js";
-import { dayFraction } from "./sheriffGate.js";
+import { dayFraction, sheriffGunOwed } from "./sheriffGate.js";
 import { noCondemnDanger } from "./lynchMath.js";
 import { agreedPlan, scumFaction } from "./scumPlan.js";
 import { townReads, TOWN_READS } from "./townReads.js";
@@ -147,6 +147,8 @@ function hammerOwns(view) {
 export function ballotSwitch(view, { now = view?.clock } = {}) {
   const meeting = villageMeeting(view);
   if (!meeting || view?.phase?.phase !== "Day" || !view?.selfId || !alive(view, view.selfId)) return null;
+  // Day 1: the Sheriff's village vote waits for the shot. A switch here closes the day with the gun unfired.
+  if (sheriffGunOwed(view)) return null;
   if (view?.config?.hammer !== "off" && hammerOwns(view)) return null;
   const board = ballotBoard(view, meeting);
   const mine = board.votes[view.selfId] ?? null;

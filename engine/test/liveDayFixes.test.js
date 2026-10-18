@@ -2,7 +2,7 @@
 // ballot switches, names that must survive outgoing chat, and tighter chatAudit.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing } from "../src/index.js";
+import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing, sheriffGunOwed } from "../src/index.js";
 
 const players = Object.fromEntries(["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gus"].map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
 const ids = Object.keys(players);
@@ -140,6 +140,27 @@ test("ballot analysis tells every seat which switch lynches, and mafia will not 
   assert.ok(sw, "off a teammate");
   assert.notEqual(sw.target, "p2");
   assert.notEqual(sw.target, "p3");
+});
+
+test("the Sheriff does not switch his village vote while the Day 1 gun is still owed", () => {
+  const gun = { event: "meeting", data: { id: "gun", name: "Shoot Gun", voting: true, canVote: true, amMember: true, targets: [...ids.filter((id) => id !== "p1"), "*"], votes: {} } };
+  const split = [
+    { event: "state", data: { id: 3, name: "Day 1" } },
+    vil(),
+    gun,
+    say("p2", "im cop"),
+    vote("p2", "p6"), vote("p3", "p6"), vote("p4", "p7"), vote("p5", "p7"),
+  ];
+  const owed = day("p1", "Sheriff", split);
+  assert.equal(sheriffGunOwed(owed), true);
+  assert.equal(ballotSwitch(owed, { now: 1 }), null);
+  assert.match(formatBallot(owed), /BALLOT:/);
+  const fired = day("p1", "Sheriff", [
+    ...split,
+    { event: "vote", data: { meetingId: "gun", voterId: "p1", target: "p6" } },
+  ]);
+  assert.equal(sheriffGunOwed(fired), false);
+  assert.equal(ballotSwitch(fired, { now: 1 })?.target, "p6");
 });
 
 test("outgoing lines keep usernames; only a whole-word full name is recapitalized", () => {
