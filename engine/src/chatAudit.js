@@ -244,8 +244,8 @@ export function chatAudit(view, content) {
     if (id && n !== (votes.tally[id] || 0)) flag("CONTRADICTION", "vote-count", `${nm(id)} has ${votes.tally[id] || 0} votes, not ${n}`);
   });
 
-  // "two cops": two living Cop claimers in the public record.
-  if (/\btwo cops\b/.test(text)) {
+  // "two cops": two living Cop claimers in the public record. Negation and past tense are not a count.
+  if (/\btwo cops\b/.test(text) && !/\b(?:not|no|never|weren'?t|wasn'?t|were|was|had)\s+two cops\b/.test(text)) {
     const cops = Object.keys(view.players || {}).filter((id) => alive(view, id) && claimOf(id).has("Cop"));
     if (cops.length < 2) flag("CONTRADICTION", "claim-count", `${cops.length} living cop claimer(s), not two`);
   }
@@ -320,11 +320,33 @@ export function chatAudit(view, content) {
   const sheriff = sheriffSeat(view);
   if (scum && sheriff && sheriff !== view.selfId && !mates.has(sheriff)) {
     const sn = esc(nm(sheriff));
+    const sheriffTok = new RegExp(`(?<![a-z0-9_])(?:${sn}|(?:the |our |this )?sheriff)(?![a-z0-9_])`);
+    const pushTok = new RegExp(`\\b(?:vote|voting|lynch|hang|hammer|wagon|push|condemn)\\s+(?:on\\s+|for\\s+)?(?:${sn}|(?:the )?sheriff)(?![a-z0-9_])`);
+    const sheriffNames = new Set([nm(sheriff), "sheriff", ...nicknamesOf(view.players?.[sheriff]?.name)]);
+    const nearerOther = (seg, at) => {
+      let best = Infinity;
+      for (const [name, id] of Object.entries(byName)) {
+        if (id === sheriff || sheriffNames.has(name)) continue;
+        const i = seg.indexOf(name);
+        if (i < 0) continue;
+        best = Math.min(best, Math.abs(i - at), Math.abs(i + name.length - at));
+      }
+      return best;
+    };
     for (const seg of text.split(/[.;!?,]+|\bbut\b/)) {
-      const who = new RegExp(`(?<![a-z0-9_])(?:${sn}|(?:the |our |this )?sheriff)(?![a-z0-9_])`).test(seg);
-      const pushed = new RegExp(`\\b(?:vote|voting|lynch|hang|hammer|wagon|push|condemn)\\s+(?:on\\s+|for\\s+)?(?:${sn}|(?:the )?sheriff)(?![a-z0-9_])`).test(seg);
+      const who = sheriffTok.exec(seg);
+      if (!who) continue;
+      const pushed = pushTok.test(seg);
       const doubt = CLAIM_DOUBT.test(seg) && !CLAIM_TRUST.test(seg);
-      if (!who || !(doubt || ((SHERIFF_ACCUSE.test(seg) || pushed) && !SHERIFF_DEFEND.test(seg)))) continue;
+      const accuse = (SHERIFF_ACCUSE.test(seg) || pushed) && !SHERIFF_DEFEND.test(seg);
+      if (!(doubt || accuse)) continue;
+      if (!pushed) {
+        const charge = CLAIM_DOUBT.exec(seg) || SHERIFF_ACCUSE.exec(seg);
+        if (charge) {
+          const sheriffDist = Math.min(Math.abs(who.index - charge.index), Math.abs(who.index + who[0].length - charge.index));
+          if (nearerOther(seg, charge.index) < sheriffDist) continue;
+        }
+      }
       flag("SCUM_MISTAKE", "accuses-sheriff", `calls the Sheriff (${nm(sheriff)}) suspicious`);
       break;
     }
@@ -365,9 +387,10 @@ export function chatAudit(view, content) {
   const guiltyOnClaimer = (c) => !shooter && (townReads(view).record.guilty.some((g) => g.target === c) || /mafia|guilty/i.test(String(memoryOf(view)?.checks?.[c]?.result || "")));
   if (!scum && shClaimer && shClaimer !== view.selfId && !flags.some((f) => /sheriff/.test(f.rule)) && !guiltyOnClaimer(shClaimer)) {
     const sn = [nm(shClaimer), ...nicknamesOf(view.players?.[shClaimer]?.name)].map(esc).join("|");
-    const who = `(?:${sn}|(?:the |that |this |our |their |s\\d+ )?sheriff(?: claim(?:er)?)?)`;
+    const who = `(?:${sn}|(?:the |that |this |our |their |s\\d+ )?sheriff(?: claim(?:er)?)?)(?!'s\\b)`;
     const push = new RegExp(`\\b(?:vote|voting|lynch|hang|hammer|wagon|push|kill|condemn)\\s+(?:out\\s+)?(?:on\\s+|for\\s+)?${who}(?![a-z0-9_])(?!\\s+(?:is|isnt|isn't)\\b)|${who}\\s+(?:out|needs to go|has to go|must go|gets? lynched)\\b`);
-    if (push.test(text)) flag("CONTRADICTION", "lynch-sheriff", `calls for the Sheriff's lynch (${nm(shClaimer)})`);
+    const negated = /\b(?:don'?t|do not|never)\s+(?:\w+\s+){0,3}(?:vote|voting|lynch|hang|hammer|wagon|push|kill|condemn)\b/.test(text);
+    if (push.test(text) && !negated) flag("CONTRADICTION", "lynch-sheriff", `calls for the Sheriff's lynch (${nm(shClaimer)})`);
   }
   // L6: the Sheriff calling his own claim and a Cop claim a conflict ("both claiming law enforcement, someone is
   // lying"): Sheriff and Cop are different roles, nothing conflicts.
@@ -377,8 +400,23 @@ export function chatAudit(view, content) {
   // Vinman 10/18 (11:05): a dead or shot player (the flipped Janitor too) is never called sus now.
   const deadIds = Object.keys(view.players || {}).filter((id) => id !== view.selfId && !alive(view, id) && !view.players[id]?.left);
   if (deadIds.length) for (const seg of text.split(/[.;!?,]+|\bbut\b|\band\b/)) {
-    if (!DEAD_SUS.test(seg) || /\b(was|were|flipped|flip|died|dead|turned out)\b/.test(seg)) continue;
-    const hit = deadIds.find((id) => new RegExp(`(?<![a-z0-9_])${esc(nm(id))}(?![a-z0-9_])`).test(seg) || [...(nicknamesOf(view.players[id]?.name) || [])].some((n) => new RegExp(`(?<![a-z0-9_])${esc(n)}(?![a-z0-9_])`).test(seg) && byName[n] === id));
+    const sus = DEAD_SUS.exec(seg);
+    if (!sus || /\b(was|were|flipped|flip|died|dead|turned out)\b/.test(seg)) continue;
+    const named = (chunk) => {
+      const hits = [];
+      for (const [name, id] of Object.entries(byName)) {
+        const re = new RegExp(`(?<![a-z0-9_])${esc(name)}(?![a-z0-9_])`, "g");
+        let m;
+        while ((m = re.exec(chunk))) hits.push({ id, at: m.index });
+      }
+      hits.sort((a, b) => a.at - b.at);
+      return hits;
+    };
+    const before = named(seg.slice(0, sus.index));
+    const last = before[before.length - 1];
+    const after = seg.slice(sus.index + sus[0].length);
+    const immediate = named(after).find((h) => after.slice(0, h.at).trim() === "");
+    const hit = (last && deadIds.includes(last.id) ? last.id : null) || (immediate && deadIds.includes(immediate.id) ? immediate.id : null);
     if (hit) { flag("CONTRADICTION", "dead-sus", `calls ${nm(hit)} sus, who is dead`); break; }
   }
   // "vote ash" with Ash dead.

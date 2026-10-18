@@ -8,6 +8,7 @@ import { agreedPlan } from "./scumPlan.js";
 import { normalizeText } from "./sanitize.js";
 import { allies, myFaction } from "./faction.js";
 import { chatAuditBlock } from "./chatAudit.js";
+import { memoryOf } from "./notes.js";
 import { publicRecord, townReads } from "./townReads.js";
 import { hammerState } from "./hammer.js";
 import { DAY1_LYNCH_OWED, METEOR_DAY, METEOR_NIGHT, NO_LYNCH_LOSES, dayOneLynchOwed, killOptional, lyloToday, meteorOn, noLynchLoses, townSeat } from "./lynchMath.js";
@@ -161,19 +162,29 @@ export function meetingActions(view, m) {
 export const COP_SKIPS_SOLE_CLAIMER = "the Cop never checks the sole uncontested claimer of a role";
 const SOLE_ROLES = new Set(["Cop", "Journalist", "Sheriff", "Doctor"]);
 /**
- * Living players who are the only claimer of a unique role (no other claimer of it, living or dead, and no dead
- * player flipped it). Contested claimers are still fair game for a check.
+ * Living players the Cop must not check: the only living claimer of a unique role, when nobody flipped that
+ * role and every other claimer is gone by a day lynch (a counterclaim that was lynched confirms the survivor).
+ * A night kill does not confirm them. A dead player who flipped the role means the survivor is the fake.
  */
 export function soleClaimers(view) {
   const claims = publicRecord(view).claims || {};
   const by = {};
   for (const [id, r] of Object.entries(claims)) if (SOLE_ROLES.has(r) && id !== view?.selfId) (by[r] ||= []).push(id);
+  const mem = memoryOf(view);
+  const dayLynched = (id) => {
+    const ph = (mem.deaths || []).find((d) => d.id === id)?.phase;
+    return !!(ph && /^day/i.test(String(ph)) && (mem.votes || []).some((v) => v.phase === ph && v.target === id));
+  };
   const out = new Set();
   for (const [role, list] of Object.entries(by)) {
     const flipped = Object.entries(view?.reveals || {}).some(([id, a]) => view?.dead?.[id] && String(a).split(/:| \(/)[0] === role);
     // I hold the role myself: his claim is contested (a rival Cop claimer is a fake).
     const mine = String(view?.role || "").toLowerCase() === role.toLowerCase();
-    if (list.length === 1 && !mine && !flipped && view?.players?.[list[0]] && !view.dead?.[list[0]]) out.add(list[0]);
+    if (mine || flipped) continue;
+    const living = list.filter((id) => view?.players?.[id] && !view.dead?.[id]);
+    if (living.length !== 1) continue;
+    const others = list.filter((id) => id !== living[0]);
+    if (others.length === 0 || others.every((id) => view.dead?.[id] && dayLynched(id))) out.add(living[0]);
   }
   return out;
 }
