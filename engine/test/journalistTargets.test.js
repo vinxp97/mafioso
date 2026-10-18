@@ -45,9 +45,9 @@ test("no unchecked Cop claimer: a rival Journalist claimer, else the hardest pus
   assert.equal(night([say("p4", "im journalist"), say("p2", "cal is lying"), say("p5", "cal is lying")]), "p4", "a rival claim is checkable");
   assert.equal(night([say("p2", "cal is lying"), say("p5", "cal is lying")]), "p3", "hardest pusher by the public reads");
   assert.equal(night([say("p6", "im just a villager, no power role. not me")]), "p6", "pressure claimer when nobody reads scummy");
-  // The Cop claimer was already checked: move on to the pusher.
+  // L5 (Vinman): an uncounterclaimed Cop claimer is the Journalist's N2+ target even when already visited.
   const checked = [say("p4", "im cop, eli is guilty"), srv(":journ: You received all reports that Dot received: Your investigation shows that Eli is Guilty."), say("p2", "cal is lying"), say("p5", "cal is lying")];
-  assert.equal(night(checked), "p3");
+  assert.equal(night(checked), "p4");
 });
 
 test("journalistTarget returns null with nobody worth a visit (default pick takes over)", () => {

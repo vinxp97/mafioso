@@ -106,7 +106,7 @@ ends.
   buffered events (`pollOnce` from `table.lastSeq`, sorted by `seq`) and feeds them in.
   - The per-seat `seq` guard in `onGameEntry` (and `replayStream`) drops anything already applied, including
     duplicates the stream then repeats.
-  - This fixed game qAl36MVss, where `self`, `roleReveal` and `state` went out before the subscription and
+  - This fixed game GAME03, where `self`, `roleReveal` and `state` went out before the subscription and
     every seat idled into the Vote Kick.
 - **`accounts_dropped`:** if it names one of our accounts, the harness treats it as an outage and reconnects.
   Otherwise it's a stale record from an older server boot: logged once and ignored.

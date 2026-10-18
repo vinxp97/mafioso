@@ -13,7 +13,9 @@ import { allies, alignmentOf } from "./faction.js";
 import { townReads } from "./townReads.js";
 import { NO_ONE } from "./types.js";
 import { agreedPlan } from "./scumPlan.js";
-import { underPressure } from "./chatStyle.js";
+import { underPressure, claimedRoleIn, villagerDefense } from "./chatStyle.js";
+import { revealedSheriff } from "./legal.js";
+import { sheriffSeat } from "./sheriffAsk.js";
 
 export const MAFIA_MODES = Object.freeze(["adaptive", "script"]);
 /** Engine default stays "script" (old views and tests); the harness defaults every seat to "adaptive". */
@@ -70,7 +72,7 @@ export function claimOptions(view, reads = publicReads(view)) {
   const team = new Set([view.selfId, ...mates]);
   const rec = reads.record;
   const holders = (role) => Object.entries(rec.claims).filter(([id, r]) => r === role && !team.has(id)).map(([id]) => id);
-  const flipped = (role) => Object.entries(view.reveals || {}).some(([id, r]) => !alive(view, id) && String(r).split(" (")[0] === role);
+  const flipped = (role) => Object.entries(view.reveals || {}).some(([id, r]) => !alive(view, id) && String(r).split(/:| \(/)[0] === role);
   const cleaned = cleanedRoles(view);
   const copOut = holders("Cop").some((id) => alive(view, id));
   const copDead = holders("Cop").some((id) => !alive(view, id));
@@ -87,7 +89,7 @@ export function claimOptions(view, reads = publicReads(view)) {
 /** Night kill: Cop > Sheriff > Journalist claimers; else spread over the players town trusts most. */
 export function adaptiveKill(view, pool, reads = publicReads(view)) {
   if (!pool.length) return null;
-  const prio = (id) => POWER_PRIORITY[reads.record.claims[id]] || POWER_PRIORITY[String(view.reveals?.[id] || "").split(" (")[0]] || 0;
+  const prio = (id) => POWER_PRIORITY[reads.record.claims[id]] || POWER_PRIORITY[String(view.reveals?.[id] || "").split(/:| \(/)[0]] || 0;
   const top = Math.max(...pool.map(prio));
   let cands = pool.filter((id) => prio(id) === top);
   if (top === 0) {
@@ -168,6 +170,42 @@ export function formatAdaptivePlan(plan, view) {
   return parts.join(", ").slice(0, 200);
 }
 
+const ACCUSE_ROLE = /\b(janitor|lawyer|mafioso|mafia|maf|scum|guilty)\b/i;
+/**
+ * A living outsider who publicly claimed Cop or Journalist and named this seat or a teammate as scum
+ * ("im journalist. ash is janitor", "im cop. ash guilty"): { by, mate, role }, the latest one, or null.
+ */
+export function exposedTeam(view) {
+  const team = new Set([view.selfId, ...allies(view)]);
+  const claimed = {};
+  let hit = null;
+  for (const m of view.messages || []) {
+    if (m?.public === false || !m.senderId || team.has(m.senderId) || !view.players?.[m.senderId]) continue;
+    const text = String(m.content || "");
+    const c = claimedRoleIn(text);
+    if (c === "cop" || c === "journalist") claimed[m.senderId] = c;
+    const role = claimed[m.senderId];
+    if (!role || !alive(view, m.senderId) || !ACCUSE_ROLE.test(text)) continue;
+    for (const mate of team) {
+      const n = nameOf(view, mate);
+      if (n && new RegExp(`(?<![a-z0-9_])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9_])`, "i").test(text)) hit = { by: m.senderId, mate, role: role === "cop" ? "Cop" : "Journalist" };
+    }
+  }
+  return hit;
+}
+
+/**
+ * Why this seat's planned fake claim is not going out today, or null (it is, or there is no plan for me).
+ * For the live log: a planned claim that is dropped is dropped on purpose.
+ */
+export function planClaimDropReason(view, plan = agreedPlan(view), reads = publicReads(view)) {
+  if (!plan?.claimRole || plan.speakerId !== view?.selfId || adaptiveClaimLine(view, plan, reads)) return null;
+  const opts = claimOptions(view, reads);
+  if (plan.claimRole === "Cop" && !opts.cop) return opts.liveCop ? `cop already claimed by ${nameOf(view, opts.liveCop)}` : "cop flipped or confirmed";
+  if (plan.claimRole === "Journalist" && !opts.journalist) return "journalist already claimed or flipped";
+  return `no ${String(plan.claimRole).toLowerCase()} claim fits the board`;
+}
+
 /** The claim line this seat says today, or null (re-checked at day: the board may have changed). */
 export function adaptiveClaimLine(view, plan, reads = publicReads(view)) {
   if (!plan?.claimRole || plan.speakerId !== view.selfId) return null;
@@ -175,9 +213,21 @@ export function adaptiveClaimLine(view, plan, reads = publicReads(view)) {
   const janitor = /janitor/i.test(String(view.role || ""));
   const role = janitor && opts.cleanedRole ? opts.cleanedRole : opts.cop && plan.claimRole === "Cop" ? "Cop" : opts.journalist && opts.liveCop ? "Journalist" : null;
   if (!role) return null;
-  if (role === "Journalist") return opts.liveCop ? { role, target: opts.liveCop, line: `im journalist. ${nameOf(view, opts.liveCop)} got no report, fake cop` } : null;
-  const target = plan.lynchTarget && alive(view, plan.lynchTarget) && !allies(view).has(plan.lynchTarget) ? plan.lynchTarget : pushTarget(view, reads);
-  return target ? { role, target, line: `im cop. ${nameOf(view, target)} guilty` } : null;
+  if (role === "Journalist") return opts.liveCop ? { role, target: opts.liveCop, line: `im journalist. ${nameOf(view, opts.liveCop)} got no report, fake cop`,
+    ...(plan.claimRole === "Cop" ? { adapt: `cop already claimed by ${nameOf(view, opts.liveCop)}: counterclaim as journalist` } : {}) } : null;
+  // Never a fake guilty on the Sheriff (rule 3: mafia don't call him suspicious; it also gets the liar shot).
+  const sheriff = sheriffSeat(view);
+  // The plan was drafted at night. If a Journalist or Cop claimer has since named me or a teammate, a guilty on
+  // some third player leaves that report standing: the fake Cop answers it instead (guilty on the accuser).
+  const exposed = exposedTeam(view);
+  if (exposed && exposed.by !== sheriff) {
+    return { role, target: exposed.by, line: `im cop. ${nameOf(view, exposed.by)} guilty`,
+      adapt: `${exposed.role} ${nameOf(view, exposed.by)} named ${nameOf(view, exposed.mate)}: guilty moves from ${nameOf(view, plan.lynchTarget) || "-"} to the accuser` };
+  }
+  const target = plan.lynchTarget && plan.lynchTarget !== sheriff && alive(view, plan.lynchTarget) && !allies(view).has(plan.lynchTarget) ? plan.lynchTarget : pushTarget(view, reads, sheriff ? [sheriff] : []);
+  const moved = target && plan.lynchTarget && target !== plan.lynchTarget
+    ? `planned guilty ${nameOf(view, plan.lynchTarget)} is ${plan.lynchTarget === sheriff ? "the Sheriff" : !alive(view, plan.lynchTarget) ? "dead" : "a teammate"}: guilty on ${nameOf(view, target)}` : null;
+  return target ? { role, target, line: `im cop. ${nameOf(view, target)} guilty`, ...(moved ? { adapt: moved } : {}) } : null;
 }
 
 /**
@@ -191,7 +241,7 @@ export function adaptivePressureLine(view, reads = publicReads(view)) {
   if (mine.some((m) => /\b(?:im|i'?m|i am)\s+(?:just\s+)?(?:a\s+)?(cop|journalist|villager|sheriff)\b/i.test(String(m.content || "")))) return null;
   const opts = claimOptions(view, reads);
   if (opts.journalist && stateHash(view.stateId, view.selfId, "pressure") < 0.5) return { role: "Journalist", line: "im journalist, nothing useful yet. not me" };
-  return { role: "Villager", line: "im just a villager, no power role. not me" };
+  return { role: "Villager", line: villagerDefense(view) };
 }
 
 /** This scum seat's day vote target. */
@@ -202,7 +252,9 @@ export function adaptiveVote(view, village, plan, reads = publicReads(view)) {
   const livingTeam0 = [...team].filter((id) => alive(view, id)).length;
   const livingTown0 = Object.keys(view.players || {}).filter((id) => alive(view, id) && !team.has(id)).length;
   // Voting a player the server revealed as town (a Sheriff who shot) is an obvious tell, short of the endgame.
-  const valid = (t) => t && targets.includes(t) && !team.has(t) && alive(view, t)
+  // Vinman 10/18: never the revealed Sheriff, not even in the endgame (legalActions refuses it).
+  const sheriff = revealedSheriff(view);
+  const valid = (t) => t && targets.includes(t) && !team.has(t) && alive(view, t) && t !== sheriff
     && (livingTeam0 >= livingTown0 - 1 || alignmentOf(view.reveals?.[t]) !== "Village");
   const votes = village?.votes || {};
   const scumOn = (t) => Object.entries(votes).filter(([v, x]) => mates.has(v) && x === t).length;

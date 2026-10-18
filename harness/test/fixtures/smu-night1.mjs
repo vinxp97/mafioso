@@ -1,15 +1,15 @@
-// Night 1 of dev game SmU_gzL7q (2026-10-16), rebuilt from the live log and the server's meeting
+// Night 1 of dev game GAME06 (2026-10-16), rebuilt from the live log and the server's meeting
 // definitions (MeetingFaction: "Mafia" chat, "Mafia Kill", "Mafia Action"; CleanDeath; FlipAlignment "Litigate"; VegKickMeeting).
 export const seats = [
-  { acc: "ZVJMoeEWY-", pid: "a0BHWAcOIlw", name: "Ash", role: "Cop" },
-  { acc: "La47Yp7oeL", pid: "rhyFPKXcnH", name: "Bea", role: "Villager" },
-  { acc: "fDR8JD4HVj", pid: "otU9CsNlbw", name: "Cal", role: "Mafioso" },
-  { acc: "d73bK8IqgR", pid: "jVE7zbEozZZ", name: "Dot", role: "Villager" },
-  { acc: "Z3-YWw9ZK_", pid: "k9xFo5YsB11", name: "Eli", role: "Villager" },
-  { acc: "oTYj_k22sz", pid: "BXHO_QetVp", name: "Fin", role: "Journalist" },
-  { acc: "bQiXScUc8-", pid: "q7Rt2LmXw0a", name: "Gil", role: "Sheriff" },
-  { acc: "9yy7vCpjSn", pid: "Hsd2JfBMtVt", name: "Hap", role: "Lawyer" },
-  { acc: "X73-QPPVKT", pid: "kCMt06jKvBp", name: "Ivo", role: "Janitor" },
+  { acc: "BdfxxtT8aV", pid: "a0BHWAcOIlw", name: "Ash", role: "Cop" },
+  { acc: "7bCA7smJCA", pid: "rhyFPKXcnH", name: "Bea", role: "Villager" },
+  { acc: "UqLogAKcXV", pid: "otU9CsNlbw", name: "Cal", role: "Mafioso" },
+  { acc: "5GQkDserB7", pid: "jVE7zbEozZZ", name: "Dot", role: "Villager" },
+  { acc: "uHrDvSLMrm", pid: "k9xFo5YsB11", name: "Eli", role: "Villager" },
+  { acc: "LvfgopzSZY", pid: "BXHO_QetVp", name: "Fin", role: "Journalist" },
+  { acc: "Nmok5Hx23k", pid: "q7Rt2LmXw0a", name: "Gil", role: "Sheriff" },
+  { acc: "iuxCERYkJU", pid: "Hsd2JfBMtVt", name: "Hap", role: "Lawyer" },
+  { acc: "f6afPipwwT", pid: "kCMt06jKvBp", name: "Ivo", role: "Janitor" },
 ];
 export const MAFIA = new Set(["Mafioso", "Lawyer", "Janitor"]);
 export const players = Object.fromEntries(seats.map((s) => [s.pid, { id: s.pid, name: s.name }]));

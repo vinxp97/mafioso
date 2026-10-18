@@ -1,12 +1,12 @@
 import { planClaim } from "./adaptiveMafia.js";
-import { applySheriffRule } from "./sheriffGate.js";
-import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed, accusedReply } from "./chatStyle.js";
+import { applySheriffRule, sheriffRuleOf } from "./sheriffGate.js";
+import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed, accusedReply, capSpeechWords } from "./chatStyle.js";
 import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
 // JSON action shape follows UM-Autobot-Player agent.js ({action, meeting, target, text}).
 import { humanizeSpeak } from "./speechNames.js";
-import { validateAction, legalVotes } from "./legal.js";
+import { validateAction, legalVotes, revealedSheriff, NEVER_LYNCH_SHERIFF } from "./legal.js";
 import { decide, supplementActions } from "./decide.js";
 import { isAlive } from "./reducer.js";
 import { allies, enemies, myFaction } from "./faction.js";
@@ -24,7 +24,8 @@ import { amendmentLine, decideSpeech, isPublicSpeak, publicSpeechMeeting, schedu
 import { selectAction } from "./selector.js";
 import { defang, sanitizeChat } from "./sanitize.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
-import { NO_LYNCH_LOSES, noLynchLoses, townSeat } from "./lynchMath.js";
+import { speechFacts } from "./speechFacts.js";
+import { DAY1_LYNCH_OWED, LYLO, METEOR_DAY, METEOR_NIGHT, NO_LYNCH_LOSES, dayOneLynchOwed, lyloToday, meteorOn, noLynchLoses, townSeat } from "./lynchMath.js";
 
 export const SYSTEM_PROMPT = [
   "You are a player in an online Mafia game (Ultimafia). Play to win for your faction.",
@@ -67,6 +68,20 @@ export function buildBriefing(view, { maxMessages = 25 } = {}) {
       : "TEAM PLAN: none");
   }
   if (townSeat(view) && noLynchLoses(view)) L.push(`${NO_LYNCH_LOSES.toUpperCase()}: a no-one vote is illegal; vote your top read.`);
+  else if (townSeat(view) && dayOneLynchOwed(view)) L.push(`${DAY1_LYNCH_OWED.toUpperCase()}: a no-one vote is illegal; vote your top read.`);
+  else if (townSeat(view) && view.phase?.phase === "Day") L.push("NO LYNCH IS ALLOWED today: the night kill after it would not end the game.");
+  if (townSeat(view) && lyloToday(view)) L.push(`${LYLO.toUpperCase()}.`);
+  const sheriff = revealedSheriff(view);
+  if (sheriff && sheriff !== view.selfId && view.phase?.phase === "Day") {
+    L.push(scumFaction(view)
+      ? `REVEALED SHERIFF ${sheriff}: never vote him and never call him suspicious, fake or scum in chat.`
+      : `REVEALED SHERIFF ${sheriff}: confirmed town. ${NEVER_LYNCH_SHERIFF.toUpperCase()}: a vote on him is illegal.`);
+  }
+  const meteor = meteorOn(view);
+  if (meteor === "Day") L.push(`${METEOR_DAY.toUpperCase()}: do not vote no-one.`);
+  if (scumFaction(view) && view.phase?.phase === "Night") {
+    L.push(meteor === "Night" ? `${METEOR_NIGHT.toUpperCase()}: kill.` : "NO METEOR ON YOU TONIGHT: the kill is optional, but kill a claimed Cop first, then the Sheriff, then a Journalist.");
+  }
   const guide = roleGuideForView(view);
   if (guide) L.push(guide);
   L.push("LEGAL ACTIONS:");
@@ -97,6 +112,7 @@ function formatNotes(view) {
     `claims: ${claims.map(([id, claim]) => `${id} ${claim.kind} ${claim.role || "-"}`).join("; ") || "none"}`,
     `checks: ${checks.join("; ") || "none"}`,
     `cleared: ${[...memory.cleared].join(", ") || "none"}`,
+    ...(memory.softCleared?.size ? [`soft clears (Village check, a living Lawyer could fake it): ${[...memory.softCleared].join(", ")}`] : []),
     `suspects: ${[...memory.suspects].join(", ") || "none"}`,
     `deaths: ${memory.deaths.map((death) => death.id).join(", ") || "none"}`,
     `votes: ${memory.votes.slice(-12).map((vote) => `${vote.voterId}->${vote.target}`).join("; ") || "none"}`,
@@ -240,7 +256,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
   }
   // Cop and Journalist claims are rules-only (roleClaimLine); the model never claims for them.
   const may = !/^(cop|journalist)$/i.test(String(view.role || "")) && claimAllowed(view, { planSpeaker: planClaim(view).planSpeaker });
-  const chat = buildChatPrompt(view, meeting, { goal, may });
+  const chat = buildChatPrompt(view, meeting, { goal, may, facts: speechFacts(view) });
   // One extra try when the only problem was repeating recent chat.
   let bonus = 0;
   let budget = view.config?.reasoning === true ? SPEECH_TOKENS.reasoning : SPEECH_TOKENS.plain;
@@ -254,7 +270,7 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     const content = cleanChatReply(out, view, chat.addressed);
     if (!content) { rejections.push(String(out || "").trim() ? "empty line (only reasoning)" : "empty line"); grow(); continue; }
     const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });
-    action.data.content = chatShorten(action.data.content);
+    action.data.content = capSpeechWords(chatShorten(action.data.content));
     const checked = validateAction(view, action);
     if (!checked.ok) { rejections.push(checked.reason); if (!bonus && /too similar/.test(checked.reason)) bonus = 1; continue; }
     const again = speechCap(view, { now });
@@ -333,30 +349,32 @@ export async function proposeSeatActions(view, { complete, rng, seed, now, maxRe
     rules.actions,
     view,
   ).filter((action) => validateAction(view, action).ok);
+  // Who wrote the public line: logged per send (scorecard llm_share), not inherited from the vote's label.
+  let speechSource = actions.some((action) => isPublicSpeak(view, action)) ? (decided.source === "llm" ? "llm" : "rules") : null;
   if (allowSpeech && !actions.some((action) => isPublicSpeak(view, action))) {
     if (model) {
       const outGoal = (sched.reasons || []).includes("sheriff out")
-        ? "Out yourself as Sheriff now and say who you will shoot or why you are holding the shot."
+        ? (sheriffRuleOf(view) === "vinman" ? "Out yourself as Sheriff now: you always shoot on Day 1, and you ask your target to claim before you shoot." : "Out yourself as Sheriff now: ask your target to claim before you shoot, or say why you are holding the shot.")
         : null;
       const goal = [outGoal, speechGoal].filter(Boolean).join(" ") || null;
       const generated = await generatePublicSpeech(view, { complete, schedule: sched, now, maxRetries, goal });
-      if (generated.action && validateAction(view, generated.action).ok) actions.push(generated.action);
+      if (generated.action && validateAction(view, generated.action).ok) { actions.push(generated.action); speechSource = "llm"; }
       else speechRejections.push(...(generated.rejections.length ? generated.rejections : ["invalid line"]));
     }
     if (!actions.some((action) => isPublicSpeak(view, action))) {
       const line = rulesSeatActions(view, { rng, now, speechSchedule: sched }).actions.find((action) => isPublicSpeak(view, action));
-      if (line) actions.push(line);
+      if (line) { actions.push(line); speechSource = "rules"; }
     }
     // Named or voted and still nothing to say: a rules reply, not silence.
     const pm = publicSpeechMeeting(view);
     if (pm && !actions.some((action) => isPublicSpeak(view, action))) {
       const content = accusedReply(view, pm.id, rng || Math.random);
       const reply = content ? { event: "speak", data: { meetingId: pm.id, content } } : null;
-      if (reply && validateAction(view, reply).ok) actions.push(reply);
+      if (reply && validateAction(view, reply).ok) { actions.push(reply); speechSource = "accused-rule"; }
     }
   }
   const aimed = applySheriffRule(view, actions, { now });
   const named = aimed.map((action) => (isPublicSpeak(view, action) ? humanizeSpeak(view, action) : action))
     .filter((action) => action.event !== "speak" || String(action.data?.content || "").trim());
-  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal, speechRejections };
+  return { actions: named, schedule: sched, source: decided.source, rejections: decided.rejections, speechGoal, speechRejections, speechSource };
 }

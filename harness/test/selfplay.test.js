@@ -1,7 +1,8 @@
 // Offline self-play: full FJ 9p games on the real harness path with an in-process server.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildScorecard, createOfflineComplete, playSelfplayGame, runSelfplay } from "../src/selfplay.js";
+import { createBotTable } from "../src/live.js";
+import { buildScorecard, createOfflineComplete, mafiaKillTarget, playSelfplayGame, runSelfplay } from "../src/selfplay.js";
 
 const strip = (r) => JSON.parse(JSON.stringify(r));
 
@@ -75,6 +76,8 @@ test("copRule reaches every seat's view, and the CLI-level option is recorded on
     const views = Object.values(r.server.table.views);
     assert.ok(views.length === 9 && views.every((v) => v.config?.copRule === copRule), copRule);
   }
+  const plain = await playSelfplayGame({ seed: 3, game: 0, lawyer: "plain", keepServer: true });
+  assert.ok(Object.values(plain.server.table.views).every((v) => v.config?.lawyer === "plain"), "the town's reads know a plain Lawyer can frame");
   const { scorecard } = await runSelfplay({ games: 1, seed: 3, copRule: "wait" });
   assert.equal(scorecard.copRule, "wait");
   assert.equal(scorecard.lawyer, "loyal");
@@ -87,4 +90,54 @@ test("Loyal Lawyer (FJ): Litigate on a town player is blocked, so every Cop Guil
   assert.ok(checks.filter((c) => c.result === "Guilty").every((c) => c.correct), "no false Guilty under a Loyal Lawyer");
   assert.ok(checks.filter((c) => !c.correct).every((c) => c.result === "Innocent" && c.litigated), "only lawyered Innocents are wrong");
   for (const l of results.flatMap((r) => r.stats.litigates)) assert.equal(l.blocked, !l.teammate);
+});
+
+test("the offline server tallies the Mafia Kill like Meeting.js: a no-kill ballot counts, a tie kills nobody", () => {
+  assert.equal(mafiaKillTarget({ m1: "v1", m2: "v1", m3: "*" }), "v1");
+  assert.equal(mafiaKillTarget({ m1: "v1", m2: "*" }), null, "one for v1, one for no-kill: a tie");
+  assert.equal(mafiaKillTarget({ m1: "v1", m2: "*", m3: "*" }), null);
+  assert.equal(mafiaKillTarget({ m1: "v1", m2: "v2" }), null);
+  assert.equal(mafiaKillTarget({}), null);
+});
+
+test("town vote arms (random legal, suspicion model) play full games with no illegal action", async () => {
+  for (const town of ["random", "suspicion"]) {
+    const { scorecard } = await runSelfplay({ games: 3, seed: 2, town });
+    assert.equal(scorecard.town, town);
+    assert.equal(scorecard.illegalActions.total, 0, `${town}: ${JSON.stringify(scorecard.illegalActions.samples)}`);
+    assert.ok(scorecard.townVotes.ballots > 0, `${town}: town seats voted`);
+  }
+});
+
+test("--plant-audit is a test-only positive control: off by default, never changes the game, reports recall", async () => {
+  const plain = await runSelfplay({ games: 2, seed: 2 });
+  assert.equal(plain.scorecard.plantAudit, undefined);
+  assert.ok(plain.results.every((r) => r.stats.planted.length === 0));
+  const planted = await runSelfplay({ games: 2, seed: 2, plantAudit: true });
+  assert.deepEqual(planted.results.map((r) => strip(r.log)), plain.results.map((r) => strip(r.log)), "planted lines are audited, never sent");
+  for (const [cat, r] of Object.entries(planted.scorecard.plantAudit)) {
+    assert.ok(r.planted > 0, `${cat} planted`);
+    if (r.expect === "CLEAN") assert.equal(r.falsePositives, 0, `${cat}: ${r.examples}`);
+    else assert.equal(r.flagged, r.planted, `${cat}: ${r.examples}`);
+  }
+});
+
+test("sheriffRule: vinman by default, evidence reaches every view and the scorecard, no illegal shot", async () => {
+  assert.equal((await runSelfplay({ games: 1, seed: 3 })).scorecard.sheriffRule, "vinman");
+  const r = await playSelfplayGame({ seed: 3, game: 0, sheriffRule: "evidence", keepServer: true });
+  assert.ok(Object.values(r.server.table.views).every((v) => v.config?.sheriffRule === "evidence"));
+  const { scorecard } = await runSelfplay({ games: 3, seed: 3, sheriffRule: "evidence" });
+  assert.equal(scorecard.sheriffRule, "evidence");
+  assert.equal(scorecard.illegalActions.total, 0, JSON.stringify(scorecard.illegalActions.samples));
+});
+
+test("vinman Day 1: the Sheriff alive with the gun always shoots, and no town seat votes no-one while he lives", async () => {
+  const { results, scorecard } = await runSelfplay({ games: 10, seed: 5 });
+  assert.equal(scorecard.town, "rules", "the suspicion model stays off by default");
+  assert.equal(createBotTable([]).config.town, "rules", "live too");
+  assert.ok(scorecard.day1.sheriffAlive > 0);
+  assert.equal(scorecard.day1.shot, scorecard.day1.sheriffAlive, JSON.stringify(scorecard.day1));
+  assert.equal(scorecard.day1.townNoOneSheriffAlive, 0);
+  assert.equal(scorecard.illegalActions.total, 0, JSON.stringify(scorecard.illegalActions.samples));
+  for (const r of results) assert.deepEqual(r.stats.vegs, [], `game ${r.game}: holding the Village vote for the shot never veg-kicks the Sheriff`);
 });

@@ -89,12 +89,23 @@ test("mafia follows Cop over Sheriff over Journalist when those claims are visib
   assert.doesNotMatch(plan.data.content, /PLAN|=|\bp2\b/);
 });
 
-test("town votes the most suspected player, or no lynch when nobody is suspected", () => {
-  const quiet = seat([
+test("town votes the most suspected player, or no lynch when nobody is suspected (never on Day 1 with the Sheriff alive)", () => {
+  const d1 = seat([
     { event: "self", data: "p1" },
     { event: "players", data: players },
     { event: "reveal", data: { playerId: "p1", role: "Villager" } },
     { event: "state", data: { id: 1, name: "Day 1" } },
+    { event: "meeting", data: { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "*"], votes: {} } },
+  ]);
+  const owed = ruleBotActions(d1, { seed: 1 });
+  assertLegal(d1, owed.actions);
+  assert.ok(["p2", "p3"].includes(owed.actions.find((action) => action.data.meetingId === "vil").data.selection), "Day 1, Sheriff alive: a lynch vote");
+
+  const quiet = seat([
+    { event: "self", data: "p1" },
+    { event: "players", data: players },
+    { event: "reveal", data: { playerId: "p1", role: "Villager" } },
+    { event: "state", data: { id: 1, name: "Day 2" } },
     { event: "meeting", data: { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p1", "p2", "p3", "*"], votes: {} } },
   ]);
   const hold = ruleBotActions(quiet, { seed: 1 });
