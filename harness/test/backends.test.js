@@ -4,8 +4,9 @@ import fs from "node:fs";
 import { validateAction } from "mafioso-engine";
 import {
   createExperientialComplete, createLmStudioComplete, createOpenAICompatibleComplete, createOpenCodeGoComplete,
-  createOpenRouterComplete, createBackendComplete, OPENROUTER_DEFAULT_MODEL,
+  createOpenRouterComplete, createBackendComplete, OPENROUTER_DEFAULT_MODEL, parseOpenRouterReasoning,
   explabsConfigFromEnv, opencodeGoConfigFromEnv, openrouterConfigFromEnv, parseSse, runLoopAsync, OPENCODE_GO_USER_AGENT,
+  reasoningModel,
 } from "../src/index.js";
 
 function mockFetch(responder) {
@@ -180,7 +181,7 @@ test("explicit session option wins over a header and env", async () => {
   assert.equal(f.calls[0].init.headers["user-agent"], OPENCODE_GO_USER_AGENT);
 });
 
-test("OpenRouter posts bearer and the default MiniMax model", async () => {
+test("OpenRouter posts bearer, default MiniMax, and reasoning effort low", async () => {
   const f = mockFetch(() => chatOk('{"action":"wait"}'));
   const complete = createOpenRouterComplete({ apiKey: "sk-or-test", fetch: f, env: {} });
   assert.equal(await complete({ system: "s", user: "u" }), '{"action":"wait"}');
@@ -193,6 +194,8 @@ test("OpenRouter posts bearer and the default MiniMax model", async () => {
   assert.equal(f.calls[0].init.headers["X-Title"], undefined);
   assert.deepEqual(f.calls[0].body.response_format, { type: "json_object" });
   assert.equal(f.calls[0].body.stream, false);
+  assert.deepEqual(f.calls[0].body.reasoning, { effort: "low", exclude: true });
+  assert.equal(f.calls[0].body.max_tokens, 1024);
 });
 
 test("OpenRouter reads env, optional headers, and refuses a missing key without fetching", async () => {
@@ -230,15 +233,21 @@ test("OpenRouter reads env, optional headers, and refuses a missing key without 
   );
 });
 
-test("openrouter env helper defaults the model and leaves the key and headers empty", () => {
+test("openrouter env helper defaults the model, low reasoning, and leaves the key and headers empty", () => {
   assert.deepEqual(openrouterConfigFromEnv({}), {
     baseUrl: "https://openrouter.ai/api/v1",
     model: "minimax/minimax-m3.1-flash",
     apiKey: "",
     referer: "",
     title: "",
+    reasoning: { effort: "low", exclude: true },
   });
   assert.equal(openrouterConfigFromEnv({ OPENROUTER_TITLE: " mafioso " }).title, "mafioso");
+  assert.equal(openrouterConfigFromEnv({ OPENROUTER_REASONING: "off" }).reasoning, null);
+  assert.deepEqual(openrouterConfigFromEnv({ OPENROUTER_REASONING: "high" }).reasoning, { effort: "high", exclude: true });
+  assert.deepEqual(parseOpenRouterReasoning(""), { effort: "low", exclude: true });
+  assert.equal(parseOpenRouterReasoning("none"), null);
+  assert.throws(() => parseOpenRouterReasoning("banana"), /OPENROUTER_REASONING/);
 });
 
 test("MAFIOSO_LLM=openrouter uses the OpenRouter factory", async () => {
@@ -251,7 +260,49 @@ test("MAFIOSO_LLM=openrouter uses the OpenRouter factory", async () => {
   assert.equal(f.calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
   assert.equal(f.calls[0].body.model, "minimax/minimax-m3.1-flash");
   assert.equal(f.calls[0].init.headers.authorization, "Bearer sk-or-test");
+  assert.deepEqual(f.calls[0].body.reasoning, { effort: "low", exclude: true });
   assert.throws(() => createBackendComplete({ MAFIOSO_LLM: "nope" }, { fetch: f }), /openrouter/);
+});
+
+test("OpenRouter speech keeps reasoning low and never returns CoT as content", async () => {
+  const f = mockFetch(() => ({
+    body: {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: "watching the votes",
+          reasoning: "I should not leak this chain of thought into game chat",
+          reasoning_details: [{ type: "reasoning.text", text: "secret think" }],
+        },
+      }],
+    },
+  }));
+  const complete = createOpenRouterComplete({ apiKey: "sk-or-test", fetch: f, env: {} });
+  // Speech always asks for reasoningEffort "none"; MiniMax still needs OpenRouter reasoning.
+  const out = await complete({ system: "s", user: "u", maxTokens: 640, json: false, reasoningEffort: "none" });
+  assert.equal(out, "watching the votes");
+  assert.equal(out.includes("chain of thought"), false);
+  assert.equal(out.includes("secret think"), false);
+  assert.deepEqual(f.calls[0].body.reasoning, { effort: "low", exclude: true });
+  assert.equal(f.calls[0].body.reasoning_effort, undefined);
+  assert.equal(f.calls[0].body.max_tokens, 640);
+  assert.equal(f.calls[0].body.response_format, undefined);
+});
+
+test("OpenRouter OPENROUTER_REASONING=off omits the reasoning field", async () => {
+  const f = mockFetch(() => chatOk("ok"));
+  const complete = createOpenRouterComplete({
+    apiKey: "sk-or-test", fetch: f, env: { OPENROUTER_REASONING: "off" },
+  });
+  await complete({ system: "s", user: "u", reasoningEffort: "none" });
+  assert.equal(f.calls[0].body.reasoning, undefined);
+  assert.equal(f.calls[0].body.reasoning_effort, "none");
+});
+
+test("minimax OpenRouter model is treated as a reasoning model for speech budget", () => {
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "minimax/minimax-m3.1-flash:free" }), true);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "minimax/minimax-m3.1-flash" }), true);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "lmstudio", LM_STUDIO_MODEL: "qwen2.5-7b" }), false);
 });
 
 test("LM Studio still forwards extra headers through the shared client", async () => {
