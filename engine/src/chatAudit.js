@@ -141,6 +141,8 @@ export function chatAudit(view, content) {
     if (at) shots.push({ by, at });
   }
   const each = (re, fn) => { for (const m of text.matchAll(new RegExp(re, "gi"))) fn(m); };
+  // config.auditTight "on" (10/19, off by default): extra held-out phrasings; tighten only.
+  const tight = view.config?.auditTight === "on";
 
   // Talking about myself by my own handle ("vote saga instead" from Saga, "riley's lawyer" from Riley).
   for (const m of text.matchAll(new RegExp(N, "gi"))) {
@@ -157,6 +159,7 @@ export function chatAudit(view, content) {
 
   // Scum admitting the side in other words, or putting a teammate on its side.
   if (scum && /\b(?:on|in) the (?:mafia|scum) (?:team|side)\b|\bus (?:mafia|scum)\b|\b(?:as|being) (?:the )?(?:mafia|scum)\b|\bwe(?:'re| are) (?:the )?(?:mafia|scum)\b|\b(?:i'?m|i am|im)\s+(?:(?:one|part) of\s+|with\s+)?(?:the\s+)?(?:mafia|scum)\b|\b(?:mafia|scum)(?: team| side)?,? (?:here|checking in|reporting)\b/.test(text)) flag("LEAK", "faction-admit", "admits the mafia side");
+  if (tight && scum && !flags.some((f) => f.rule === "faction-admit") && /\b(?:mafia|scum) speaking\b|\byou got me\b[^.;!?]*\b(?:mafia|scum)\b|\b(?:mafia|scum)\b[^.;!?]*\byou got me\b|\bpart of the (?:mafia|scum)\b|\b(?:mafia|scum) (?:here|checking in)\b/.test(text)) flag("LEAK", "faction-admit", "admits the mafia side");
   for (const id of mates) {
     const n = esc(nm(id));
     if (new RegExp(`(?<![a-z0-9_])${n}(?:\\s+is|'s)\\s+(?:with me|on my (?:side|team)|one of us)\\b`).test(text)
@@ -164,7 +167,7 @@ export function chatAudit(view, content) {
   }
 
   // Flips and deaths.
-  each(`${N}(?:\\s+(?:(?:already\\s+)?flipped(?:\\s+as)?|turned up|was revealed as|revealed(?:\\s+as)?|died as|was(?:\\s+(?:a|the))?)|'s (?:flip|role) was)\\s+(?:a\\s+|the\\s+)?(${ROLE}|loyal|town|mafia|scum)\\b`, (m) => {
+  const flipSaid = (m) => {
     const id = idOf(m[1]); const said = m[2];
     if (!id || id === view.selfId) return;
     const shown = flipped(id);
@@ -175,7 +178,10 @@ export function chatAudit(view, content) {
       : ROLES[said] ? (ROLES[said] !== shown ? `flipped ${shown}` : null)
         : ((said === "town") !== (alignmentOf(shown) === "Village") ? `flipped ${shown}` : null);
     if (wrong) flag("CONTRADICTION", "flip", `${nm(id)} ${said}? ${nm(id)} ${wrong}`);
-  });
+  };
+  each(`${N}(?:\\s+(?:(?:already\\s+)?flipped(?:\\s+as)?|turned up|was revealed as|revealed(?:\\s+as)?|died as|was(?:\\s+(?:a|the))?)|'s (?:flip|role) was)\\s+(?:a\\s+|the\\s+)?(${ROLE}|loyal|town|mafia|scum)\\b`, flipSaid);
+  // config.auditTight "on" (10/19, off by default; tighten only): held-out flip phrasings.
+  if (tight) each(`${N}\\s+(?:showed|came up|ended up(?:\\s+being)?|was (?:lynched|killed|shot|hanged) as|got lynched as|flipped up)\\s+(?:a\\s+|the\\s+)?(${ROLE}|town|mafia|scum)\\b`, flipSaid);
   // "riley's flip is sus" with Riley alive: there is no flip to talk about (L2-1018).
   if (!flags.some((f) => f.rule === "flip")) each(`${N}(?:'s|s)?\\s+flip\\b`, (m) => {
     const id = idOf(m[1]);
@@ -234,6 +240,15 @@ export function chatAudit(view, content) {
     const voter = idOf(m[1]); const target = idOf(m[2]);
     if (voter && target && votes.standing[voter] !== target) flag("CONTRADICTION", "vote", `${nm(voter)} is on ${nm(target)}: no such vote`);
   });
+  if (tight) {
+    const onVote = (m) => {
+      const voter = idOf(m[1]); const target = idOf(m[2]);
+      if (voter && target && voter !== target && votes.standing[voter] !== target && !flags.some((f) => f.rule === "vote")) flag("CONTRADICTION", "vote", `${nm(voter)} is on ${nm(target)}: no such vote`);
+    };
+    each(`${N}\\s+(?:jumped|hopped|piled)\\s+on\\s+${N.replace("(?<![a-z0-9_])(", "(?<![a-z0-9_])(me|")}`, onVote);
+    // "x has y" as a whole clause (a vote shorthand); "x has 2 votes" is a count, "x has a point" no player.
+    each(`(?:^|[.;!?,]\\s*)${N}\\s+has\\s+${N.replace("(?<![a-z0-9_])(", "(?<![a-z0-9_])(me|")}\\s*(?=$|[.;!?,])`, onVote);
+  }
   const count = (n) => (/^\d$/.test(n) ? Number(n) : NUM[n]);
   const NUMS = `\\d|${Object.keys(NUM).join("|")}`;
   each(`${N}(?:\\s+has|(?:\\s+is|'s)(?:\\s+sitting)?\\s+at|\\s+at|\\s+on|\\s*:)\\s+(${NUMS})(?:\\s+votes?\\b|\\s+on (?:them|him|her)\\b|(?=\\s*$|[.,;!?]))`, (m) => {
@@ -245,6 +260,12 @@ export function chatAudit(view, content) {
     if (id && n !== (votes.tally[id] || 0)) flag("CONTRADICTION", "vote-count", `${nm(id)} has ${votes.tally[id] || 0} votes, not ${n}`);
   });
 
+  if (tight) {
+    const wrongCount = (id, n) => { if (id && n != null && n !== (votes.tally[id] || 0) && !flags.some((f) => f.rule === "vote-count")) flag("CONTRADICTION", "vote-count", `${nm(id)} has ${votes.tally[id] || 0} votes, not ${n}`); };
+    each(`${N}\\s+(?:with|is on|is at)\\s+(${NUMS})(?:\\s+votes?\\b|(?=\\s*$|[.,;!?]))`, (m) => wrongCount(idOf(m[1]), count(m[2])));
+    each(`(?<![a-z0-9_])(${NUMS})\\s+votes?\\s+(?:are|is)\\s+on\\s+${N}`, (m) => wrongCount(idOf(m[2]), count(m[1])));
+    each(`\\bcount:?\\s+${N}\\s*(?:-|:|=|at)?\\s*(${NUMS})\\b`, (m) => wrongCount(idOf(m[1]), count(m[2])));
+  }
   // "two cops": two living Cop claimers in the public record. Negation and past tense are not a count.
   if (/\btwo cops\b/.test(text) && !/\b(?:not|no|never|weren'?t|wasn'?t|were|was|had)\s+two cops\b/.test(text)) {
     const cops = Object.keys(view.players || {}).filter((id) => alive(view, id) && claimOf(id).has("Cop"));
@@ -258,7 +279,7 @@ export function chatAudit(view, content) {
   });
 
   // "x is <role>": a role assertion about another player.
-  each(`${N}(?:\\s+is|'s|\\s+(?:has to|must|should|has got to) be|\\s*=)(?:\\s+(?:definitely|obviously|clearly|surely|certainly|totally|def|100%|confirmed))?\\s*(?:the\\s+|a\\s+|our\\s+)?(${ROLE})\\b(?!\\s+claim)`, (m) => {
+  const roleSaid = (m) => {
     const id = idOf(m[1]); const role = ROLES[m[2]];
     if (!id || id === view.selfId) return;
     const shown = flipped(id);
@@ -275,10 +296,12 @@ export function chatAudit(view, content) {
       || (check && new RegExp(`\\b${role}\\b`, "i").test(`${check.result || ""} ${check.detail || ""}`))
       || (role === "Janitor" && /^reports?:/i.test(String(check?.detail || "")) && JANITOR_REPORT.test(String(check.detail)));
     if (!sourced) flag("LEAK", "unknown-role", `${nm(id)} is ${role}: no flip, claim, report or own result says so`);
-  });
+  };
+  each(`${N}(?:\\s+is|'s|\\s+(?:has to|must|should|has got to) be|\\s*=)(?:\\s+(?:definitely|obviously|clearly|surely|certainly|totally|def|100%|confirmed))?\\s*(?:the\\s+|a\\s+|our\\s+)?(${ROLE})\\b(?!\\s+claim)`, roleSaid);
+  if (tight && !flags.some((f) => /^(?:unknown-role|role|teammate-role)$/.test(f.rule))) each(`${N}\\s+(?:plays|is playing|is the town|is our town|is town|is (?:clearly |obviously |definitely )?the (?:real|actual|town))\\s+(?:the\\s+|a\\s+)?(${ROLE})\\b(?!\\s+claim)`, roleSaid);
 
   // Night results: only first-person investigator lines (or a seat that already claimed Cop/Journalist).
-  const investigator = INVESTIGATOR_LINE.test(text) || ["Cop", "Journalist"].includes(recOf().claims[view.selfId]);
+  const investigator = INVESTIGATOR_LINE.test(text) || ["Cop", "Journalist"].includes(recOf().claims[view.selfId]) || (tight && /\bi (?:watched|followed|tracked)\b|\bwatched\b[^.;!?]*\bno reports?\b|\b(?:night|n)\s*\d+\s+check\b/.test(text));
   if (investigator) {
     let rest = text;
     const result = (id, kind, said, why) => {
@@ -305,6 +328,10 @@ export function chatAudit(view, content) {
     });
     each(`${N}\\s+got\\s+(no|a cop)\\s+reports?`, (m) => result(idOf(m[1]), "journalist", m[2] === "no" ? "noreport" : "copreport", `report on ${m[1]}`));
     each(`no reports? on\\s+${N}`, (m) => { rest = rest.replace(m[0], " "); result(idOf(m[1]), "journalist", "noreport", `no report on ${m[1]}`); });
+    if (tight) {
+      each(`${N}\\s+(?:received|had|gets|got)\\s+(no|a cop)\\s+reports?`, (m) => { rest = rest.replace(m[0], " "); result(idOf(m[1]), "journalist", m[2] === "no" ? "noreport" : "copreport", `report on ${m[1]}`); });
+      each(`(?:watched|followed|tracked)\\s+${N}[^.;!?]*?\\b(no reports?|nothing|a cop report)\\b`, (m) => { rest = rest.replace(m[0], " "); result(idOf(m[1]), "journalist", /cop/.test(m[2]) ? "copreport" : "noreport", `watched ${m[1]}`); });
+    }
     each(`(?:checked|investigated|looked at|my (?:check|report) on)\\s+${N}[^.;!?]*?(guilty|mafia|scum|inno|innocent|town|clean|nothing|no reports?)\\b`, (m) => {
       rest = rest.replace(m[0], " ");
       const said = /guilty|mafia|scum/.test(m[2]) ? "guilty" : /nothing|no report/.test(m[2]) ? "noreport" : "inno";
@@ -441,10 +468,12 @@ export function chatAudit(view, content) {
   }
 
   // Quoting another player for something they never said ("ash said she was scum", "bea said vote cal").
-  each(`${N}\\s+(?:just\\s+|literally\\s+|already\\s+)?(?:said|says|wrote|typed)\\s+(?:that\\s+)?["“']?([^"”.;!?]{3,})`, (m) => {
+  each(`${N}\\s+(?:just\\s+|literally\\s+|already\\s+)?(?:said|says|wrote|typed)\\s+(?:that\\s+)?(["“'])?([^"”.;!?]{3,})`, (m) => {
     const id = idOf(m[1]);
     if (!id || id === view.selfId) return;
-    const quote = m[2].trim();
+    // Unquoted reported speech is checked on its first clause only: what follows a comma or "so/but/right" is
+    // the speaker's own commentary ("x said y inno, so lynch z"; audit-fp 10/19: 5 false misquotes in L3/L8).
+    const quote = (m[2] ? m[3] : m[3].split(/,|\s+(?:but|so|and|right|lol|though|tho|which|because|cause|cuz|yet)\b/)[0]).trim();
     if (/^(nothing|anything|no(?:thing)?|they were|he was|she was|hi|hello|it|so|this|that)\b/.test(quote)) return;
     const words = contentWords(quote);
     if (!words.length) return;

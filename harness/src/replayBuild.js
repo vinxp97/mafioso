@@ -45,12 +45,18 @@ export function parseLog(text) {
       if (!g.dead.some((d) => d.seat === m[1])) g.dead.push({ seat: m[1], phase: lastPhase });
     } else if ((m = /^meeting (\S+) \[([^\]]*)\] (\S+) name="([^"]*)" role=(\S+) vote=(\S+) canVote=(\S+) targets=(\d+)/.exec(line))) {
       g.items.push({ k: "meeting", seat: m[1], phase: m[2] || "Pregame", mid: m[3], name: m[4], role: m[5], voting: m[6] === "true", canVote: m[7] === "true", n: Number(m[8]) });
-    } else if ((m = /^send (\S+) (?:\[([^\]]*)\] )?(vote|speak) (\S+) (.*?) source=(\S+)/.exec(line))) {
+    // L4+ logs (10/18) carry "t=<ms>" after the phase tag on sends and after the text on chat lines.
+    } else if ((m = /^send (\S+) (?:\[([^\]]*)\] )?(?:t=\d+ )?(vote|speak) (\S+) (.*?) source=(\S+)/.exec(line))) {
       const val = m[3] === "speak" ? (() => { try { return JSON.parse(m[5]); } catch { return m[5]; } })() : m[5];
       g.items.push({ k: m[3], seat: m[1], phase: m[2] || phaseNow(), tagged: !!m[2], mid: m[4], val, source: m[6] });
-    } else if ((m = /^chat \[([^\]]*)\] (\S+) (\S+): (.*)$/.exec(line))) {
+    } else if ((m = /^chat \[([^\]]*)\] (\S+) (\S+): (.*?)(?: t=\d+)?$/.exec(line))) {
       let content = m[4]; try { content = JSON.parse(content); } catch {}
       g.items.push({ k: "chat", phase: m[1], meeting: m[2], sender: m[3], content });
+    } else if ((m = /^speech-reject (\S+) \[([^\]]*)\] source=(\S+) reasons=(\[.*?\])(?: line=("(?:[^"\\]|\\.)*"))?$/.exec(line))) {
+      // A line the harness held or rejected (chatAudit, validators, pacing). Not a frame: kept as a sidecar.
+      let reasons = []; try { reasons = JSON.parse(m[4]); } catch { reasons = [m[4]]; }
+      let text = null; if (m[5]) { try { text = JSON.parse(m[5]); } catch { text = m[5]; } }
+      g.items.push({ k: "reject", seat: m[1], phase: m[2], source: m[3], reasons, line: text });
     } else if ((m = /^alert (\S+) \[([^\]]*)\] kind=(\S+) target=("(?:[^"\\]|\\.)*") result=("(?:[^"\\]|\\.)*")/.exec(line))) {
       g.items.push({ k: "alert", seat: m[1], phase: m[2], kind: m[3], target: JSON.parse(m[4]), result: JSON.parse(m[5]) });
     } else if ((m = /^winners (?:game=\S+ )?(\{.*\})$/.exec(line))) {
@@ -116,7 +122,10 @@ function deathsFrom(g, type, seatPid, mafiaPids) {
       if (clean) cleanUsed = true;
       if (victim) die(victim, "mafia", !!clean);
     } else {
-      for (const t of Object.values(ballots("Shoot Gun"))) if (!NON_PLAYER.test(t) && !dead.has(t)) { die(t, "gun"); break; }
+      // The gun is instant: the first gun vote fires. Re-aims after it went nowhere (L4: the server ignored them).
+      const firstGun = {};
+      for (const it of g.items) if (it.k === "vote" && it.phase === phase && type.get(`${phase}|${it.mid}`) === "Shoot Gun" && live(it.seat) && !(it.seat in firstGun)) firstGun[it.seat] = it.val;
+      for (const [s, t] of Object.entries(firstGun)) if (!NON_PLAYER.test(t) && !dead.has(t)) { die(t, "gun"); out[out.length - 1].by = s; break; }
       const vote = Object.fromEntries(Object.entries(ballots("Village")).filter(([s, t]) => live(s) && (NON_PLAYER.test(t) || !dead.has(t))));
       const t = tally(vote);
       if (t && !NON_PLAYER.test(t)) die(t, "condemn");
@@ -324,6 +333,8 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
     });
     s = s.replace(/(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]{9,12}(?![A-Za-z0-9_-]))(?=[A-Za-z0-9_-]*(?:\d|_|-|[a-z][A-Z]))[A-Za-z0-9_-]{9,12}/g, (hit) => {
       if (/^(player|guest)\d+$/i.test(hit)) return hit;
+      // "self-vote", "fake-claim": a lowercase hyphenated word is an id only when the log saw that exact raw id.
+      if (/^[a-z]+(?:-[a-z]+)+$/.test(hit) && !allRaw.includes(hit)) return hit;
       if (!extraIds.has(hit)) extraIds.set(hit, `x${String(extraIds.size + 1).padStart(2, "0")}`);
       return extraIds.get(hit);
     });
@@ -338,8 +349,8 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
   // Meetings per phase from meeting lines and sends; a dead seat's late send is dropped (the server rejects it).
   const phases = [];
   const phaseOf = (p) => { let x = phases.find((q) => q.name === p); if (!x) { x = { name: p, meetings: new Map(), votes: [], speech: [] }; phases.push(x); } return x; };
-  for (const it of g.items) {
-    if (it.k === "chat" || it.k === "alert" || !it.phase) continue;
+  for (const [at, it] of g.items.entries()) {
+    if (it.k === "chat" || it.k === "alert" || it.k === "reject" || !it.phase) continue;
     if (it.k !== "meeting" && deadBy(it.seat, idx(it.phase))) continue;
     const ph = phaseOf(it.phase);
     const id = mid(it.mid);
@@ -347,13 +358,21 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
     if (!m) { m = { id, name: type.get(`${it.phase}|${it.mid}`) || null, members: new Set(), voting: true, speech: false, n: null, targets: new Set() }; ph.meetings.set(id, m); }
     m.members.add(it.seat);
     if (it.k === "meeting") { m.voting = it.voting; m.speech = it.role === "chat" || it.name === "Village"; m.n = it.n; m.canVote = it.canVote; }
-    if (it.k === "vote") { m.targets.add(mapSel(it.val)); ph.votes.push({ seat: it.seat, mid: id, sel: mapSel(it.val) }); }
-    if (it.k === "speak") { m.speech = true; ph.speech.push({ seat: it.seat, mid: id, content: scrub(it.val) }); }
+    if (it.k === "vote") { m.targets.add(mapSel(it.val)); ph.votes.push({ seat: it.seat, mid: id, sel: mapSel(it.val), at }); }
+    if (it.k === "speak") { m.speech = true; ph.speech.push({ seat: it.seat, mid: id, content: scrub(it.val), at }); }
   }
-  for (const it of g.items) if (it.k === "chat" && nameToPid.has(it.sender)) {
+  for (const [at, it] of g.items.entries()) if (it.k === "chat" && nameToPid.has(it.sender)) {
     const ph = phaseOf(it.phase);
     ph.chat = ph.chat || [];
-    ph.chat.push({ sender: nameToPid.get(it.sender), meeting: it.meeting, content: scrub(it.content) });
+    ph.chat.push({ sender: nameToPid.get(it.sender), meeting: it.meeting, content: scrub(it.content), at });
+  }
+  // Rejected/held lines (sidecar): placed among the phase's own sends in log order; they emit no frame.
+  const rejects = [];
+  for (const [at, it] of g.items.entries()) if (it.k === "reject") {
+    const ph = phases.find((p) => p.name === it.phase);
+    const rec = { accountId: acc.get(it.seat), phase: it.phase, source: it.source, reasons: it.reasons.map((r) => String(r).replace(/^((?:held line invalid at send: )?chat-audit: [A-Z_]+ [a-z-]+ )?([\s\S]*)$/, (_, head = "", rest) => head + scrub(rest))), line: it.line == null ? null : scrub(it.line), outIndex: null };
+    rejects.push(rec);
+    if (ph) (ph.rejects ||= []).push({ at, rec });
   }
   phases.sort((a, b) => idx(a.name) - idx(b.name));
   for (const ph of phases) for (const m of ph.meetings.values()) {
@@ -463,15 +482,44 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
       to(it.seat, "message", { id: `msg${stateId}-${++mi}`, senderId: "server", content: alertText(it, alertTarget(it)), time: t });
       alertCount += 1;
     }
-    for (const s of ph.speech) for (const a of ph.meetings.get(s.mid)?.members || []) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: seatPid.get(s.seat), content: s.content, meetingId: s.mid, time: t });
+    // The Sheriff's shot lands where the log had it: his gun vote, the server's gun line (live logs never
+    // printed it; items/Gun.js text), the gunshot, the death and the reveal, then the rest of the day's chat.
+    const shot = has("vote") && /^Day/.test(ph.name) ? deaths.find((d) => d.phase === ph.name && d.cause === "gun" && d.by) : null;
+    const shotVote = shot ? ph.votes.find((v) => v.seat === shot.by && v.sel === fakePid.get(shot.pid) && ph.meetings.get(v.mid)?.name === "Shoot Gun") : null;
+    const fire = () => {
+      const kill = fakePid.get(shot.pid);
+      for (const a of ph.meetings.get(shotVote.mid)?.members || []) to(a, "vote", { voterId: seatPid.get(shotVote.seat), target: shotVote.sel, meetingId: shotVote.mid });
+      if (has("message")) for (const a of alive) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: "server", content: `:gun: ${name(seatPid.get(shot.by))} pulls a gun and shoots at ${name(kill)}!`, meetingId: vil?.id, time: t });
+      if (has("gunshot")) for (const a of alive) to(a, "gunshot");
+      for (const a of alive) to(a, "death", kill);
+      if (has("deathSounds")) for (const a of alive) to(a, "deathSounds", ["/audio/death.mp3"]);
+      if (has("obituaries")) for (const a of alive) to(a, "obituaries", { id: `${stateId}:Day:gun`, obituaries: [{ id: kill, playerInfo: playerInfo(kill), snippets: ["was shot"] }], source: "Day", time: t, dayCount: Number(ph.name.split(" ")[1]) || 0 });
+      if (has("reveal")) for (const a of alive) to(a, "reveal", { playerId: kill, role: roleOfPid(kill) });
+      dead.add(kill);
+      const victim = g.accounts.find((a) => seatPid.get(a) === kill);
+      if (victim && has("isSpectator")) emit(victim, "isSpectator");
+    };
     const spoken = new Set(ph.speech.map((x) => x.content));
-    for (const c of ph.chat || []) if (vil && has("message") && !spoken.has(c.content)) for (const a of alive) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: c.sender, content: c.content, meetingId: vil.id, time: t });
-    if (has("vote")) for (const v of ph.votes) for (const a of ph.meetings.get(v.mid)?.members || []) to(a, "vote", { voterId: seatPid.get(v.seat), target: v.sel, meetingId: v.mid });
+    const lines = [
+      ...ph.speech.map((s) => ({ at: s.at, send: () => { for (const a of ph.meetings.get(s.mid)?.members || []) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: seatPid.get(s.seat), content: s.content, meetingId: s.mid, time: t }); } })),
+      ...(ph.rejects || []).map((r) => ({ at: r.at, send: () => { r.rec.outIndex = out.length; } })),
+      ...(ph.chat || []).filter((c) => vil && has("message") && !spoken.has(c.content)).map((c) => ({ at: c.at, chat: true, send: () => { for (const a of alive) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: c.sender, content: c.content, meetingId: vil.id, time: t }); } })),
+    ];
+    // Speech first, then chat (the old order) unless a shot splits the day.
+    const before = shotVote ? lines.filter((l) => l.at < shotVote.at) : lines;
+    const after = shotVote ? lines.filter((l) => l.at >= shotVote.at) : [];
+    for (const group of [before, after]) {
+      for (const l of group.filter((x) => !x.chat).sort((a, b) => a.at - b.at)) l.send();
+      for (const l of group.filter((x) => x.chat)) l.send();
+      if (group === before && shotVote) fire();
+    }
+    const reAim = (v) => shotVote && v.seat === shotVote.seat && v.mid === shotVote.mid;
+    if (has("vote")) for (const v of ph.votes) if (v !== shotVote && !reAim(v)) for (const a of ph.meetings.get(v.mid)?.members || []) to(a, "vote", { voterId: seatPid.get(v.seat), target: v.sel, meetingId: v.mid });
     if (has("youAreBeingVoteKicked") && /^Day/.test(ph.name)) { const lazy = alive.find((a) => !ph.votes.some((v) => v.seat === a)); if (lazy) { to(lazy, "youAreBeingVoteKicked", { status: true }); } }
     if (has("clearTimer")) for (const a of alive) to(a, "clearTimer", "main");
     if (has("leftMeeting")) for (const m of meetings) if (m.name !== "Village") for (const a of m.members) if (alive.includes(a)) to(a, "leftMeeting", m.id);
     const here = deaths.filter((d) => d.phase === ph.name);
-    if (has("gunshot") && here.some((d) => d.cause === "gun")) for (const a of alive) to(a, "gunshot");
+    if (has("gunshot") && !shotVote && here.some((d) => d.cause === "gun")) for (const a of alive) to(a, "gunshot");
     if (here.some((d) => d.cause === "condemn") && has("condemn")) for (const a of alive) to(a, "condemn");
     if (here.some((d) => d.cause === "condemn") && has("audio")) for (const a of alive) to(a, "audio", "veg");
     for (const d of here) {
@@ -518,11 +566,12 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
   const missing = types.filter((ty) => !out.some((e) => e.event === ty));
   if (missing.length) throw new Error(`${g.id}: missing ${missing.join(",")}`);
   // Nothing real leaks: no raw account/player/meeting/game id and no chat or alert name survives.
-  const blob = JSON.stringify(out);
+  for (const r of rejects) if (r.outIndex == null) r.outIndex = out.length; // Postgame and other unplaced lines: at the end
+  const blob = JSON.stringify(out) + JSON.stringify(rejects);
   for (const raw of [...allRaw, ...mids.keys(), ...realNames, ...REAL_NAMES]) if (raw.length >= 5 && blob.toLowerCase().includes(raw.toLowerCase())) throw new Error(`${g.id}: raw id/name leaked`);
   const confirmed = deaths.filter((d) => g.dead.some((x) => rawSeatPid.get(x.seat) === d.pid)).length;
   return {
-    out, types: Object.fromEntries(types.map((ty) => [ty, F[`game:${ty}`]])), source, phases: phases.map((p) => p.name), seats: n,
+    out, rejects, types: Object.fromEntries(types.map((ty) => [ty, F[`game:${ty}`]])), source, phases: phases.map((p) => p.name), seats: n,
     seatBinding: bind.quality, ambiguousSeats: bind.ambiguous.map((a) => acc.get(a)),
     roles: haveMeetingLines ? "meetings" : evidence ? "inferred" : "setup order",
     phaseTags: g.items.some((it) => it.k === "vote" && it.tagged) ? "logged" : phases.some((p) => p.name !== "Pregame") ? "frame counts" : "none",
@@ -533,12 +582,26 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
 
 // Nickname matching for dev display names ("FirstLast12" in the logs).
 const STOP = new Set("left lefty shut wash ward warden wardrobe bell belly bells burn burns burned burning fish fishy germ german mild glance glanced clarify clarity clarified strike strip strict string strong cotton cottage pinch prudent patrol patron array calibrate alliance ally malaria melody melon nappy silo christ cathedral hesitate robe robot robust mare dowel balsa balsam glen glens takeaway inside fishing fished fisher".split(" "));
-export function realNamesIn(texts) { return [...new Set(texts.flatMap((t) => t.match(/\b[A-Z][a-z]+[A-Z][a-z]+\d{1,3}\b/g) || []))]; }
+// Three-part names count too ("McQuarrieDell30" is Mc + Quarrie + Dell).
+export function realNamesIn(texts) { return [...new Set(texts.flatMap((t) => t.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\d{1,3}\b/g) || []))]; }
+function editsAtMostOne(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return a.length === b.length ? a.slice(i + 1) === b.slice(i + 1) : a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+
 function ownerOf(word, PARTS) {
   const w = word.toLowerCase(); const letters = w.replace(/\d+$/, "");
   if (/^(player|guest)$/.test(letters)) return null;
   for (const p of PARTS) if (letters === p.letters) return p.full;
   if (letters.length >= 8) for (const p of PARTS) if (p.parts.some((x) => x.length >= 5 && letters.includes(x))) return p.full;
+  // A run-on nickname past the first part ("osrinav" for OsrinAvelina70, L4).
+  if (letters.length >= 5) for (const p of PARTS) if (p.letters.startsWith(letters) && letters.length > p.parts[0].length) return p.full;
+  // ...or one typo off such a run-on ("mcphal" for McPhailBrennan7, L5). 6+ letters keeps plain words out.
+  if (letters.length >= 6 && !STOP.has(letters)) for (const p of PARTS) for (const n of [letters.length - 1, letters.length, letters.length + 1]) {
+    if (n > p.parts[0].length && n >= 5 && n <= p.letters.length && editsAtMostOne(letters, p.letters.slice(0, n))) return p.full;
+  }
   // A surname split off with the number ("kestrel barlow91"): the part plus the full name's digits.
   const digits = /\d+$/.exec(w)?.[0];
   if (digits) for (const p of PARTS) if (p.parts.includes(letters) && p.full.endsWith(digits)) return p.full;

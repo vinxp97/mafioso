@@ -1,0 +1,1022 @@
+{"accountId":"acc01","seq":1,"t":1800000000037,"event":"connected"}
+{"accountId":"acc02","seq":1,"t":1800000000074,"event":"connected"}
+{"accountId":"acc03","seq":1,"t":1800000000111,"event":"connected"}
+{"accountId":"acc04","seq":1,"t":1800000000148,"event":"connected"}
+{"accountId":"acc05","seq":1,"t":1800000000185,"event":"connected"}
+{"accountId":"acc06","seq":1,"t":1800000000222,"event":"connected"}
+{"accountId":"acc07","seq":1,"t":1800000000259,"event":"connected"}
+{"accountId":"acc08","seq":1,"t":1800000000296,"event":"connected"}
+{"accountId":"acc09","seq":1,"t":1800000000333,"event":"connected"}
+{"accountId":"acc01","seq":2,"t":1800000000370,"event":"authSuccess"}
+{"accountId":"acc02","seq":2,"t":1800000000407,"event":"authSuccess"}
+{"accountId":"acc03","seq":2,"t":1800000000444,"event":"authSuccess"}
+{"accountId":"acc04","seq":2,"t":1800000000481,"event":"authSuccess"}
+{"accountId":"acc05","seq":2,"t":1800000000518,"event":"authSuccess"}
+{"accountId":"acc06","seq":2,"t":1800000000555,"event":"authSuccess"}
+{"accountId":"acc07","seq":2,"t":1800000000592,"event":"authSuccess"}
+{"accountId":"acc08","seq":2,"t":1800000000629,"event":"authSuccess"}
+{"accountId":"acc09","seq":2,"t":1800000000666,"event":"authSuccess"}
+{"accountId":"acc01","seq":3,"t":1800000000703,"event":"self","data":"p01"}
+{"accountId":"acc02","seq":3,"t":1800000000740,"event":"self","data":"p02"}
+{"accountId":"acc03","seq":3,"t":1800000000777,"event":"self","data":"p03"}
+{"accountId":"acc04","seq":3,"t":1800000000814,"event":"self","data":"p04"}
+{"accountId":"acc05","seq":3,"t":1800000000851,"event":"self","data":"p05"}
+{"accountId":"acc06","seq":3,"t":1800000000888,"event":"self","data":"p06"}
+{"accountId":"acc07","seq":3,"t":1800000000925,"event":"self","data":"p07"}
+{"accountId":"acc08","seq":3,"t":1800000000962,"event":"self","data":"p08"}
+{"accountId":"acc09","seq":3,"t":1800000000999,"event":"self","data":"p09"}
+{"accountId":"acc01","seq":4,"t":1800000001036,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc02","seq":4,"t":1800000001073,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc03","seq":4,"t":1800000001110,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc04","seq":4,"t":1800000001147,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc05","seq":4,"t":1800000001184,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc06","seq":4,"t":1800000001221,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc07","seq":4,"t":1800000001258,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc08","seq":4,"t":1800000001295,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc09","seq":4,"t":1800000001332,"event":"players","data":{"p01":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"p02":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"p03":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false},"p04":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false},"p05":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"p06":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"p07":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"p08":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false},"p09":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}}
+{"accountId":"acc01","seq":5,"t":1800000001369,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc02","seq":5,"t":1800000001406,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc03","seq":5,"t":1800000001443,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc04","seq":5,"t":1800000001480,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc05","seq":5,"t":1800000001517,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc06","seq":5,"t":1800000001554,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc07","seq":5,"t":1800000001591,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc08","seq":5,"t":1800000001628,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc09","seq":5,"t":1800000001665,"event":"options","data":{"private":true,"anonymousGame":false,"spectating":false,"voiceChat":false,"readyCheck":false}}
+{"accountId":"acc01","seq":6,"t":1800000001702,"event":"history","data":{}}
+{"accountId":"acc02","seq":6,"t":1800000001739,"event":"history","data":{}}
+{"accountId":"acc03","seq":6,"t":1800000001776,"event":"history","data":{}}
+{"accountId":"acc04","seq":6,"t":1800000001813,"event":"history","data":{}}
+{"accountId":"acc05","seq":6,"t":1800000001850,"event":"history","data":{}}
+{"accountId":"acc06","seq":6,"t":1800000001887,"event":"history","data":{}}
+{"accountId":"acc07","seq":6,"t":1800000001924,"event":"history","data":{}}
+{"accountId":"acc08","seq":6,"t":1800000001961,"event":"history","data":{}}
+{"accountId":"acc09","seq":6,"t":1800000001998,"event":"history","data":{}}
+{"accountId":"acc01","seq":7,"t":1800000002035,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc02","seq":7,"t":1800000002072,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc03","seq":7,"t":1800000002109,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc04","seq":7,"t":1800000002146,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc05","seq":7,"t":1800000002183,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc06","seq":7,"t":1800000002220,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc07","seq":7,"t":1800000002257,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc08","seq":7,"t":1800000002294,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc09","seq":7,"t":1800000002331,"event":"state","data":{"id":0,"name":"Pregame","dayCount":0}}
+{"accountId":"acc01","seq":8,"t":1800000002368,"event":"stateEvents","data":[]}
+{"accountId":"acc02","seq":8,"t":1800000002405,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":8,"t":1800000002442,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":8,"t":1800000002479,"event":"stateEvents","data":[]}
+{"accountId":"acc05","seq":8,"t":1800000002516,"event":"stateEvents","data":[]}
+{"accountId":"acc06","seq":8,"t":1800000002553,"event":"stateEvents","data":[]}
+{"accountId":"acc07","seq":8,"t":1800000002590,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":8,"t":1800000002627,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":8,"t":1800000002664,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":9,"t":1800000002701,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc02","seq":9,"t":1800000002738,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc03","seq":9,"t":1800000002775,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc04","seq":9,"t":1800000002812,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc05","seq":9,"t":1800000002849,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc06","seq":9,"t":1800000002886,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc07","seq":9,"t":1800000002923,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc08","seq":9,"t":1800000002960,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc09","seq":9,"t":1800000002997,"event":"setup","data":{"id":"setup01","name":"Frontier Justice","total":9,"roles":[{"Cop:":1,"Villager:":1,"Mafioso:":1,"Journalist:":1,"Sheriff:":1,"Lawyer:":1,"Janitor:":1}]}}
+{"accountId":"acc01","seq":10,"t":1800000003034,"event":"emojis","data":{}}
+{"accountId":"acc02","seq":10,"t":1800000003071,"event":"emojis","data":{}}
+{"accountId":"acc03","seq":10,"t":1800000003108,"event":"emojis","data":{}}
+{"accountId":"acc04","seq":10,"t":1800000003145,"event":"emojis","data":{}}
+{"accountId":"acc05","seq":10,"t":1800000003182,"event":"emojis","data":{}}
+{"accountId":"acc06","seq":10,"t":1800000003219,"event":"emojis","data":{}}
+{"accountId":"acc07","seq":10,"t":1800000003256,"event":"emojis","data":{}}
+{"accountId":"acc08","seq":10,"t":1800000003293,"event":"emojis","data":{}}
+{"accountId":"acc09","seq":10,"t":1800000003330,"event":"emojis","data":{}}
+{"accountId":"acc01","seq":11,"t":1800000003367,"event":"isStarted","data":false}
+{"accountId":"acc02","seq":11,"t":1800000003404,"event":"isStarted","data":false}
+{"accountId":"acc03","seq":11,"t":1800000003441,"event":"isStarted","data":false}
+{"accountId":"acc04","seq":11,"t":1800000003478,"event":"isStarted","data":false}
+{"accountId":"acc05","seq":11,"t":1800000003515,"event":"isStarted","data":false}
+{"accountId":"acc06","seq":11,"t":1800000003552,"event":"isStarted","data":false}
+{"accountId":"acc07","seq":11,"t":1800000003589,"event":"isStarted","data":false}
+{"accountId":"acc08","seq":11,"t":1800000003626,"event":"isStarted","data":false}
+{"accountId":"acc09","seq":11,"t":1800000003663,"event":"isStarted","data":false}
+{"accountId":"acc01","seq":12,"t":1800000003700,"event":"spectatorCount","data":0}
+{"accountId":"acc02","seq":12,"t":1800000003737,"event":"spectatorCount","data":0}
+{"accountId":"acc03","seq":12,"t":1800000003774,"event":"spectatorCount","data":0}
+{"accountId":"acc04","seq":12,"t":1800000003811,"event":"spectatorCount","data":0}
+{"accountId":"acc05","seq":12,"t":1800000003848,"event":"spectatorCount","data":0}
+{"accountId":"acc06","seq":12,"t":1800000003885,"event":"spectatorCount","data":0}
+{"accountId":"acc07","seq":12,"t":1800000003922,"event":"spectatorCount","data":0}
+{"accountId":"acc08","seq":12,"t":1800000003959,"event":"spectatorCount","data":0}
+{"accountId":"acc09","seq":12,"t":1800000003996,"event":"spectatorCount","data":0}
+{"accountId":"acc01","seq":13,"t":1800000004033,"event":"spectators","data":{}}
+{"accountId":"acc02","seq":13,"t":1800000004070,"event":"spectators","data":{}}
+{"accountId":"acc03","seq":13,"t":1800000004107,"event":"spectators","data":{}}
+{"accountId":"acc04","seq":13,"t":1800000004144,"event":"spectators","data":{}}
+{"accountId":"acc05","seq":13,"t":1800000004181,"event":"spectators","data":{}}
+{"accountId":"acc06","seq":13,"t":1800000004218,"event":"spectators","data":{}}
+{"accountId":"acc07","seq":13,"t":1800000004255,"event":"spectators","data":{}}
+{"accountId":"acc08","seq":13,"t":1800000004292,"event":"spectators","data":{}}
+{"accountId":"acc09","seq":13,"t":1800000004329,"event":"spectators","data":{}}
+{"accountId":"acc01","seq":14,"t":1800000004366,"event":"loaded"}
+{"accountId":"acc02","seq":14,"t":1800000004403,"event":"loaded"}
+{"accountId":"acc03","seq":14,"t":1800000004440,"event":"loaded"}
+{"accountId":"acc04","seq":14,"t":1800000004477,"event":"loaded"}
+{"accountId":"acc05","seq":14,"t":1800000004514,"event":"loaded"}
+{"accountId":"acc06","seq":14,"t":1800000004551,"event":"loaded"}
+{"accountId":"acc07","seq":14,"t":1800000004588,"event":"loaded"}
+{"accountId":"acc08","seq":14,"t":1800000004625,"event":"loaded"}
+{"accountId":"acc09","seq":14,"t":1800000004662,"event":"loaded"}
+{"accountId":"acc01","seq":15,"t":1800000004699,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc02","seq":15,"t":1800000004736,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc03","seq":15,"t":1800000004773,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc04","seq":15,"t":1800000004810,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc05","seq":15,"t":1800000004847,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc06","seq":15,"t":1800000004884,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc07","seq":15,"t":1800000004921,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc08","seq":15,"t":1800000004958,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc09","seq":15,"t":1800000004995,"event":"playerJoin","data":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false}}
+{"accountId":"acc01","seq":16,"t":1800000005032,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc02","seq":16,"t":1800000005069,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc03","seq":16,"t":1800000005106,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc04","seq":16,"t":1800000005143,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc05","seq":16,"t":1800000005180,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc06","seq":16,"t":1800000005217,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc07","seq":16,"t":1800000005254,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc08","seq":16,"t":1800000005291,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc09","seq":16,"t":1800000005328,"event":"playerJoin","data":{"id":"p03","anonId":null,"name":"Player03","userId":"u03","avatar":false}}
+{"accountId":"acc01","seq":17,"t":1800000005365,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc02","seq":17,"t":1800000005402,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc03","seq":17,"t":1800000005439,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc04","seq":17,"t":1800000005476,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc05","seq":17,"t":1800000005513,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc06","seq":17,"t":1800000005550,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc07","seq":17,"t":1800000005587,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc08","seq":17,"t":1800000005624,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc09","seq":17,"t":1800000005661,"event":"playerJoin","data":{"id":"p04","anonId":null,"name":"Player04","userId":"u04","avatar":false}}
+{"accountId":"acc01","seq":18,"t":1800000005698,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc02","seq":18,"t":1800000005735,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc03","seq":18,"t":1800000005772,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc04","seq":18,"t":1800000005809,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc05","seq":18,"t":1800000005846,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc06","seq":18,"t":1800000005883,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc07","seq":18,"t":1800000005920,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc08","seq":18,"t":1800000005957,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc09","seq":18,"t":1800000005994,"event":"playerJoin","data":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false}}
+{"accountId":"acc01","seq":19,"t":1800000006031,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc02","seq":19,"t":1800000006068,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc03","seq":19,"t":1800000006105,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc04","seq":19,"t":1800000006142,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc05","seq":19,"t":1800000006179,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc06","seq":19,"t":1800000006216,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc07","seq":19,"t":1800000006253,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc08","seq":19,"t":1800000006290,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc09","seq":19,"t":1800000006327,"event":"playerJoin","data":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false}}
+{"accountId":"acc01","seq":20,"t":1800000006364,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc02","seq":20,"t":1800000006401,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc03","seq":20,"t":1800000006438,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc04","seq":20,"t":1800000006475,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc05","seq":20,"t":1800000006512,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc06","seq":20,"t":1800000006549,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc07","seq":20,"t":1800000006586,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc08","seq":20,"t":1800000006623,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc09","seq":20,"t":1800000006660,"event":"playerJoin","data":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false}}
+{"accountId":"acc01","seq":21,"t":1800000006697,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc02","seq":21,"t":1800000006734,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc03","seq":21,"t":1800000006771,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc04","seq":21,"t":1800000006808,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc05","seq":21,"t":1800000006845,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc06","seq":21,"t":1800000006882,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc07","seq":21,"t":1800000006919,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc08","seq":21,"t":1800000006956,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc09","seq":21,"t":1800000006993,"event":"playerJoin","data":{"id":"p08","anonId":null,"name":"Player08","userId":"u08","avatar":false}}
+{"accountId":"acc01","seq":22,"t":1800000007030,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc02","seq":22,"t":1800000007067,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc03","seq":22,"t":1800000007104,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc04","seq":22,"t":1800000007141,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc05","seq":22,"t":1800000007178,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc06","seq":22,"t":1800000007215,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc07","seq":22,"t":1800000007252,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc08","seq":22,"t":1800000007289,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc09","seq":22,"t":1800000007326,"event":"playerJoin","data":{"id":"p09","anonId":null,"name":"Player09","userId":"u09","avatar":false}}
+{"accountId":"acc01","seq":23,"t":1800000007363,"event":"readyCheck success","data":{}}
+{"accountId":"acc02","seq":23,"t":1800000007400,"event":"readyCheck success","data":{}}
+{"accountId":"acc03","seq":23,"t":1800000007437,"event":"readyCheck success","data":{}}
+{"accountId":"acc04","seq":23,"t":1800000007474,"event":"readyCheck success","data":{}}
+{"accountId":"acc05","seq":23,"t":1800000007511,"event":"readyCheck success","data":{}}
+{"accountId":"acc06","seq":23,"t":1800000007548,"event":"readyCheck success","data":{}}
+{"accountId":"acc07","seq":23,"t":1800000007585,"event":"readyCheck success","data":{}}
+{"accountId":"acc08","seq":23,"t":1800000007622,"event":"readyCheck success","data":{}}
+{"accountId":"acc09","seq":23,"t":1800000007659,"event":"readyCheck success","data":{}}
+{"accountId":"acc01","seq":24,"t":1800000007696,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc02","seq":24,"t":1800000007733,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc03","seq":24,"t":1800000007770,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":24,"t":1800000007807,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc05","seq":24,"t":1800000007844,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc06","seq":24,"t":1800000007881,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc07","seq":24,"t":1800000007918,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":24,"t":1800000007955,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":24,"t":1800000007992,"event":"meeting","data":{"id":"m20","name":"Pregame","actionName":"Pregame","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p02","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":[],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc01","seq":25,"t":1800000008029,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc02","seq":25,"t":1800000008066,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc03","seq":25,"t":1800000008103,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc04","seq":25,"t":1800000008140,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc05","seq":25,"t":1800000008177,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc06","seq":25,"t":1800000008214,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc07","seq":25,"t":1800000008251,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc08","seq":25,"t":1800000008288,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc09","seq":25,"t":1800000008325,"event":"timerInfo","data":{"name":"pregameCountdown","delay":10000}}
+{"accountId":"acc01","seq":26,"t":1800000008362,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc02","seq":26,"t":1800000008399,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc03","seq":26,"t":1800000008436,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc04","seq":26,"t":1800000008473,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc05","seq":26,"t":1800000008510,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc06","seq":26,"t":1800000008547,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc07","seq":26,"t":1800000008584,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc08","seq":26,"t":1800000008621,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc09","seq":26,"t":1800000008658,"event":"time","data":{"name":"pregameCountdown","time":2000}}
+{"accountId":"acc01","seq":27,"t":1800000008695,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc02","seq":27,"t":1800000008732,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc03","seq":27,"t":1800000008769,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc04","seq":27,"t":1800000008806,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc05","seq":27,"t":1800000008843,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc06","seq":27,"t":1800000008880,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc07","seq":27,"t":1800000008917,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc08","seq":27,"t":1800000008954,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc09","seq":27,"t":1800000008991,"event":"message","data":{"id":"msg0-1","senderId":"server","content":"Player01 has joined.","meetingId":"m20","time":1800000008658}}
+{"accountId":"acc01","seq":28,"t":1800000009028,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc02","seq":28,"t":1800000009065,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc03","seq":28,"t":1800000009102,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc04","seq":28,"t":1800000009139,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc05","seq":28,"t":1800000009176,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc06","seq":28,"t":1800000009213,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc07","seq":28,"t":1800000009250,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc08","seq":28,"t":1800000009287,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc09","seq":28,"t":1800000009324,"event":"clearTimer","data":"pregameCountdown"}
+{"accountId":"acc01","seq":29,"t":1800000009361,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc02","seq":29,"t":1800000009398,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc03","seq":29,"t":1800000009435,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc04","seq":29,"t":1800000009472,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc05","seq":29,"t":1800000009509,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc06","seq":29,"t":1800000009546,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc07","seq":29,"t":1800000009583,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc08","seq":29,"t":1800000009620,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc09","seq":29,"t":1800000009657,"event":"leftMeeting","data":"m20"}
+{"accountId":"acc01","seq":30,"t":1800000009694,"event":"start"}
+{"accountId":"acc02","seq":30,"t":1800000009731,"event":"start"}
+{"accountId":"acc03","seq":30,"t":1800000009768,"event":"start"}
+{"accountId":"acc04","seq":30,"t":1800000009805,"event":"start"}
+{"accountId":"acc05","seq":30,"t":1800000009842,"event":"start"}
+{"accountId":"acc06","seq":30,"t":1800000009879,"event":"start"}
+{"accountId":"acc07","seq":30,"t":1800000009916,"event":"start"}
+{"accountId":"acc08","seq":30,"t":1800000009953,"event":"start"}
+{"accountId":"acc09","seq":30,"t":1800000009990,"event":"start"}
+{"accountId":"acc01","seq":31,"t":1800000010027,"event":"roleReveal","data":{"playerId":"p01","role":"Sheriff","roleData":{"alignment":"Village"}}}
+{"accountId":"acc02","seq":31,"t":1800000010064,"event":"roleReveal","data":{"playerId":"p02","role":"Villager","roleData":{"alignment":"Village"}}}
+{"accountId":"acc03","seq":31,"t":1800000010101,"event":"roleReveal","data":{"playerId":"p03","role":"Villager","roleData":{"alignment":"Village"}}}
+{"accountId":"acc04","seq":31,"t":1800000010138,"event":"roleReveal","data":{"playerId":"p04","role":"Journalist","roleData":{"alignment":"Village"}}}
+{"accountId":"acc05","seq":31,"t":1800000010175,"event":"roleReveal","data":{"playerId":"p05","role":"Cop","roleData":{"alignment":"Village"}}}
+{"accountId":"acc06","seq":31,"t":1800000010212,"event":"roleReveal","data":{"playerId":"p06","role":"Villager","roleData":{"alignment":"Village"}}}
+{"accountId":"acc07","seq":31,"t":1800000010249,"event":"roleReveal","data":{"playerId":"p07","role":"Janitor","roleData":{"alignment":"Mafia"}}}
+{"accountId":"acc08","seq":31,"t":1800000010286,"event":"roleReveal","data":{"playerId":"p08","role":"Lawyer","roleData":{"alignment":"Mafia"}}}
+{"accountId":"acc09","seq":31,"t":1800000010323,"event":"roleReveal","data":{"playerId":"p09","role":"Mafioso","roleData":{"alignment":"Mafia"}}}
+{"accountId":"acc07","seq":32,"t":1800000010360,"event":"reveal","data":{"playerId":"p08","role":"Lawyer"}}
+{"accountId":"acc07","seq":33,"t":1800000010397,"event":"reveal","data":{"playerId":"p09","role":"Mafioso"}}
+{"accountId":"acc08","seq":32,"t":1800000010434,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc08","seq":33,"t":1800000010471,"event":"reveal","data":{"playerId":"p09","role":"Mafioso"}}
+{"accountId":"acc09","seq":32,"t":1800000010508,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc09","seq":33,"t":1800000010545,"event":"reveal","data":{"playerId":"p08","role":"Lawyer"}}
+{"accountId":"acc01","seq":32,"t":1800000010582,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc02","seq":32,"t":1800000010619,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc03","seq":32,"t":1800000010656,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc04","seq":32,"t":1800000010693,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc05","seq":32,"t":1800000010730,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc06","seq":32,"t":1800000010767,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc07","seq":34,"t":1800000010804,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc08","seq":34,"t":1800000010841,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc09","seq":34,"t":1800000010878,"event":"state","data":{"id":1,"name":"Night 1","dayCount":1}}
+{"accountId":"acc01","seq":33,"t":1800000010915,"event":"stateEvents","data":[]}
+{"accountId":"acc02","seq":33,"t":1800000010952,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":33,"t":1800000010989,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":33,"t":1800000011026,"event":"stateEvents","data":[]}
+{"accountId":"acc05","seq":33,"t":1800000011063,"event":"stateEvents","data":[]}
+{"accountId":"acc06","seq":33,"t":1800000011100,"event":"stateEvents","data":[]}
+{"accountId":"acc07","seq":35,"t":1800000011137,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":35,"t":1800000011174,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":35,"t":1800000011211,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":34,"t":1800000011248,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc02","seq":34,"t":1800000011285,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc03","seq":34,"t":1800000011322,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":34,"t":1800000011359,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc05","seq":34,"t":1800000011396,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc06","seq":34,"t":1800000011433,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc07","seq":36,"t":1800000011470,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc08","seq":36,"t":1800000011507,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc09","seq":36,"t":1800000011544,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":35,"t":1800000011581,"event":"meeting","data":{"id":"m01","name":"Receive Reports","actionName":"Receive Reports","members":[{"id":"p04","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc05","seq":35,"t":1800000011618,"event":"meeting","data":{"id":"m02","name":"Investigate","actionName":"Investigate","members":[{"id":"p05","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc07","seq":37,"t":1800000011655,"event":"meeting","data":{"id":"m03","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06","p08"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":37,"t":1800000011692,"event":"meeting","data":{"id":"m03","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06","p07"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":37,"t":1800000011729,"event":"meeting","data":{"id":"m03","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06","p07"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc07","seq":38,"t":1800000011766,"event":"meeting","data":{"id":"m04","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":38,"t":1800000011803,"event":"meeting","data":{"id":"m04","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":38,"t":1800000011840,"event":"meeting","data":{"id":"m04","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":39,"t":1800000011877,"event":"meeting","data":{"id":"m05","name":"Litigate","actionName":"Litigate","members":[{"id":"p08","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p02","p03","p04","p05","p06","p07","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc07","seq":39,"t":1800000011914,"event":"meeting","data":{"id":"m06","name":"Clean Death","actionName":"Clean Death","members":[{"id":"p07","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Yes","No"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":36,"t":1800000011951,"event":"members","data":{"meetingId":"m01","members":[{"id":"p04","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc05","seq":36,"t":1800000011988,"event":"members","data":{"meetingId":"m02","members":[{"id":"p05","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc07","seq":40,"t":1800000012025,"event":"members","data":{"meetingId":"m03","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":40,"t":1800000012062,"event":"members","data":{"meetingId":"m03","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":39,"t":1800000012099,"event":"members","data":{"meetingId":"m03","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc07","seq":41,"t":1800000012136,"event":"members","data":{"meetingId":"m04","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":41,"t":1800000012173,"event":"members","data":{"meetingId":"m04","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":40,"t":1800000012210,"event":"members","data":{"meetingId":"m04","members":[{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":42,"t":1800000012247,"event":"members","data":{"meetingId":"m05","members":[{"id":"p08","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc07","seq":42,"t":1800000012284,"event":"members","data":{"meetingId":"m06","members":[{"id":"p07","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":35,"t":1800000012321,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc02","seq":35,"t":1800000012358,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc03","seq":35,"t":1800000012395,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc04","seq":37,"t":1800000012432,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc05","seq":37,"t":1800000012469,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc06","seq":35,"t":1800000012506,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc07","seq":43,"t":1800000012543,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc08","seq":43,"t":1800000012580,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc09","seq":41,"t":1800000012617,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc01","seq":36,"t":1800000012654,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc02","seq":36,"t":1800000012691,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc03","seq":36,"t":1800000012728,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc04","seq":38,"t":1800000012765,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc05","seq":38,"t":1800000012802,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc06","seq":36,"t":1800000012839,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc07","seq":44,"t":1800000012876,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc08","seq":44,"t":1800000012913,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc09","seq":42,"t":1800000012950,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc01","seq":37,"t":1800000012987,"event":"message","data":{"id":"msg1-1","senderId":"server","content":"Night 1 has begun.","time":1800000012950}}
+{"accountId":"acc02","seq":37,"t":1800000013024,"event":"message","data":{"id":"msg1-2","senderId":"server","content":"Night 1 has begun.","time":1800000012987}}
+{"accountId":"acc03","seq":37,"t":1800000013061,"event":"message","data":{"id":"msg1-3","senderId":"server","content":"Night 1 has begun.","time":1800000013024}}
+{"accountId":"acc04","seq":39,"t":1800000013098,"event":"message","data":{"id":"msg1-4","senderId":"server","content":"Night 1 has begun.","time":1800000013061}}
+{"accountId":"acc05","seq":39,"t":1800000013135,"event":"message","data":{"id":"msg1-5","senderId":"server","content":"Night 1 has begun.","time":1800000013098}}
+{"accountId":"acc06","seq":37,"t":1800000013172,"event":"message","data":{"id":"msg1-6","senderId":"server","content":"Night 1 has begun.","time":1800000013135}}
+{"accountId":"acc07","seq":45,"t":1800000013209,"event":"message","data":{"id":"msg1-7","senderId":"server","content":"Night 1 has begun.","time":1800000013172}}
+{"accountId":"acc08","seq":45,"t":1800000013246,"event":"message","data":{"id":"msg1-8","senderId":"server","content":"Night 1 has begun.","time":1800000013209}}
+{"accountId":"acc09","seq":43,"t":1800000013283,"event":"message","data":{"id":"msg1-9","senderId":"server","content":"Night 1 has begun.","time":1800000013246}}
+{"accountId":"acc07","seq":46,"t":1800000013320,"event":"message","data":{"id":"msg1-10","senderId":"p07","content":"kill Player02 tonight, no fake claims tmrw, lay low and lean Player05, lawyer go on me","meetingId":"m03","time":1800000013283}}
+{"accountId":"acc08","seq":46,"t":1800000013357,"event":"message","data":{"id":"msg1-11","senderId":"p07","content":"kill Player02 tonight, no fake claims tmrw, lay low and lean Player05, lawyer go on me","meetingId":"m03","time":1800000013320}}
+{"accountId":"acc09","seq":44,"t":1800000013394,"event":"message","data":{"id":"msg1-12","senderId":"p07","content":"kill Player02 tonight, no fake claims tmrw, lay low and lean Player05, lawyer go on me","meetingId":"m03","time":1800000013357}}
+{"accountId":"acc07","seq":47,"t":1800000013431,"event":"message","data":{"id":"msg1-13","senderId":"p07","content":"dont all vote the same guy first","meetingId":"m03","time":1800000013394}}
+{"accountId":"acc08","seq":47,"t":1800000013468,"event":"message","data":{"id":"msg1-14","senderId":"p07","content":"dont all vote the same guy first","meetingId":"m03","time":1800000013431}}
+{"accountId":"acc09","seq":45,"t":1800000013505,"event":"message","data":{"id":"msg1-15","senderId":"p07","content":"dont all vote the same guy first","meetingId":"m03","time":1800000013468}}
+{"accountId":"acc07","seq":48,"t":1800000013542,"event":"message","data":{"id":"msg1-16","senderId":"p09","content":"ok Player02 it is","meetingId":"m03","time":1800000013505}}
+{"accountId":"acc08","seq":48,"t":1800000013579,"event":"message","data":{"id":"msg1-17","senderId":"p09","content":"ok Player02 it is","meetingId":"m03","time":1800000013542}}
+{"accountId":"acc09","seq":46,"t":1800000013616,"event":"message","data":{"id":"msg1-18","senderId":"p09","content":"ok Player02 it is","meetingId":"m03","time":1800000013579}}
+{"accountId":"acc07","seq":49,"t":1800000013653,"event":"message","data":{"id":"msg1-19","senderId":"p08","content":"sounds good","meetingId":"m03","time":1800000013616}}
+{"accountId":"acc08","seq":49,"t":1800000013690,"event":"message","data":{"id":"msg1-20","senderId":"p08","content":"sounds good","meetingId":"m03","time":1800000013653}}
+{"accountId":"acc09","seq":47,"t":1800000013727,"event":"message","data":{"id":"msg1-21","senderId":"p08","content":"sounds good","meetingId":"m03","time":1800000013690}}
+{"accountId":"acc04","seq":40,"t":1800000013764,"event":"vote","data":{"voterId":"p04","target":"p06","meetingId":"m01"}}
+{"accountId":"acc05","seq":40,"t":1800000013801,"event":"vote","data":{"voterId":"p05","target":"p02","meetingId":"m02"}}
+{"accountId":"acc08","seq":50,"t":1800000013838,"event":"vote","data":{"voterId":"p08","target":"p07","meetingId":"m05"}}
+{"accountId":"acc07","seq":50,"t":1800000013875,"event":"vote","data":{"voterId":"p07","target":"p02","meetingId":"m04"}}
+{"accountId":"acc08","seq":51,"t":1800000013912,"event":"vote","data":{"voterId":"p07","target":"p02","meetingId":"m04"}}
+{"accountId":"acc09","seq":48,"t":1800000013949,"event":"vote","data":{"voterId":"p07","target":"p02","meetingId":"m04"}}
+{"accountId":"acc07","seq":51,"t":1800000013986,"event":"vote","data":{"voterId":"p09","target":"p02","meetingId":"m04"}}
+{"accountId":"acc08","seq":52,"t":1800000014023,"event":"vote","data":{"voterId":"p09","target":"p02","meetingId":"m04"}}
+{"accountId":"acc09","seq":49,"t":1800000014060,"event":"vote","data":{"voterId":"p09","target":"p02","meetingId":"m04"}}
+{"accountId":"acc07","seq":52,"t":1800000014097,"event":"vote","data":{"voterId":"p07","target":"Yes","meetingId":"m06"}}
+{"accountId":"acc07","seq":53,"t":1800000014134,"event":"vote","data":{"voterId":"p08","target":"p02","meetingId":"m04"}}
+{"accountId":"acc08","seq":53,"t":1800000014171,"event":"vote","data":{"voterId":"p08","target":"p02","meetingId":"m04"}}
+{"accountId":"acc09","seq":50,"t":1800000014208,"event":"vote","data":{"voterId":"p08","target":"p02","meetingId":"m04"}}
+{"accountId":"acc01","seq":38,"t":1800000014245,"event":"clearTimer","data":"main"}
+{"accountId":"acc02","seq":38,"t":1800000014282,"event":"clearTimer","data":"main"}
+{"accountId":"acc03","seq":38,"t":1800000014319,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":41,"t":1800000014356,"event":"clearTimer","data":"main"}
+{"accountId":"acc05","seq":41,"t":1800000014393,"event":"clearTimer","data":"main"}
+{"accountId":"acc06","seq":38,"t":1800000014430,"event":"clearTimer","data":"main"}
+{"accountId":"acc07","seq":54,"t":1800000014467,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":54,"t":1800000014504,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":51,"t":1800000014541,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":42,"t":1800000014578,"event":"leftMeeting","data":"m01"}
+{"accountId":"acc05","seq":42,"t":1800000014615,"event":"leftMeeting","data":"m02"}
+{"accountId":"acc07","seq":55,"t":1800000014652,"event":"leftMeeting","data":"m03"}
+{"accountId":"acc08","seq":55,"t":1800000014689,"event":"leftMeeting","data":"m03"}
+{"accountId":"acc09","seq":52,"t":1800000014726,"event":"leftMeeting","data":"m03"}
+{"accountId":"acc07","seq":56,"t":1800000014763,"event":"leftMeeting","data":"m04"}
+{"accountId":"acc08","seq":56,"t":1800000014800,"event":"leftMeeting","data":"m04"}
+{"accountId":"acc09","seq":53,"t":1800000014837,"event":"leftMeeting","data":"m04"}
+{"accountId":"acc08","seq":57,"t":1800000014874,"event":"leftMeeting","data":"m05"}
+{"accountId":"acc07","seq":57,"t":1800000014911,"event":"leftMeeting","data":"m06"}
+{"accountId":"acc01","seq":39,"t":1800000014948,"event":"death","data":"p02"}
+{"accountId":"acc02","seq":39,"t":1800000014985,"event":"death","data":"p02"}
+{"accountId":"acc03","seq":39,"t":1800000015022,"event":"death","data":"p02"}
+{"accountId":"acc04","seq":43,"t":1800000015059,"event":"death","data":"p02"}
+{"accountId":"acc05","seq":43,"t":1800000015096,"event":"death","data":"p02"}
+{"accountId":"acc06","seq":39,"t":1800000015133,"event":"death","data":"p02"}
+{"accountId":"acc07","seq":58,"t":1800000015170,"event":"death","data":"p02"}
+{"accountId":"acc08","seq":58,"t":1800000015207,"event":"death","data":"p02"}
+{"accountId":"acc09","seq":54,"t":1800000015244,"event":"death","data":"p02"}
+{"accountId":"acc01","seq":40,"t":1800000015281,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc02","seq":40,"t":1800000015318,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc03","seq":40,"t":1800000015355,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":44,"t":1800000015392,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc05","seq":44,"t":1800000015429,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc06","seq":40,"t":1800000015466,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc07","seq":59,"t":1800000015503,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":59,"t":1800000015540,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":55,"t":1800000015577,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":41,"t":1800000015614,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015577,"dayCount":1}}
+{"accountId":"acc02","seq":41,"t":1800000015651,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015614,"dayCount":1}}
+{"accountId":"acc03","seq":41,"t":1800000015688,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015651,"dayCount":1}}
+{"accountId":"acc04","seq":45,"t":1800000015725,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015688,"dayCount":1}}
+{"accountId":"acc05","seq":45,"t":1800000015762,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015725,"dayCount":1}}
+{"accountId":"acc06","seq":41,"t":1800000015799,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015762,"dayCount":1}}
+{"accountId":"acc07","seq":60,"t":1800000015836,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015799,"dayCount":1}}
+{"accountId":"acc08","seq":60,"t":1800000015873,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015836,"dayCount":1}}
+{"accountId":"acc09","seq":56,"t":1800000015910,"event":"obituaries","data":{"id":"1:Night","obituaries":[{"id":"p02","playerInfo":{"id":"p02","anonId":null,"name":"Player02","userId":"u02","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000015873,"dayCount":1}}
+{"accountId":"acc01","seq":42,"t":1800000015947,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc03","seq":42,"t":1800000015984,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc04","seq":46,"t":1800000016021,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc05","seq":46,"t":1800000016058,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc06","seq":42,"t":1800000016095,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc07","seq":61,"t":1800000016132,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc08","seq":61,"t":1800000016169,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc09","seq":57,"t":1800000016206,"event":"state","data":{"id":2,"name":"Day 1","dayCount":1}}
+{"accountId":"acc01","seq":43,"t":1800000016243,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":43,"t":1800000016280,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":47,"t":1800000016317,"event":"stateEvents","data":[]}
+{"accountId":"acc05","seq":47,"t":1800000016354,"event":"stateEvents","data":[]}
+{"accountId":"acc06","seq":43,"t":1800000016391,"event":"stateEvents","data":[]}
+{"accountId":"acc07","seq":62,"t":1800000016428,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":62,"t":1800000016465,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":58,"t":1800000016502,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":44,"t":1800000016539,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc03","seq":44,"t":1800000016576,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc04","seq":48,"t":1800000016613,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc05","seq":48,"t":1800000016650,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc06","seq":44,"t":1800000016687,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc07","seq":63,"t":1800000016724,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc08","seq":63,"t":1800000016761,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc09","seq":59,"t":1800000016798,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc01","seq":45,"t":1800000016835,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc03","seq":45,"t":1800000016872,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":49,"t":1800000016909,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc05","seq":49,"t":1800000016946,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc06","seq":45,"t":1800000016983,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc07","seq":64,"t":1800000017020,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":64,"t":1800000017057,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":60,"t":1800000017094,"event":"meeting","data":{"id":"m07","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc01","seq":46,"t":1800000017131,"event":"meeting","data":{"id":"m08","name":"Shoot Gun","actionName":"Shoot Gun","members":[{"id":"p01","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":true,"anonymous":false,"multi":false,"targets":["p03","p04","p05","p06","p07","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc01","seq":47,"t":1800000017168,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc03","seq":46,"t":1800000017205,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc04","seq":50,"t":1800000017242,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc05","seq":50,"t":1800000017279,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc06","seq":46,"t":1800000017316,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc07","seq":65,"t":1800000017353,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":65,"t":1800000017390,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":61,"t":1800000017427,"event":"members","data":{"meetingId":"m07","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p05","canUpdateVote":true,"canVote":true},{"id":"p06","canUpdateVote":true,"canVote":true},{"id":"p07","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":48,"t":1800000017464,"event":"members","data":{"meetingId":"m08","members":[{"id":"p01","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":49,"t":1800000017501,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc03","seq":47,"t":1800000017538,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc04","seq":51,"t":1800000017575,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc05","seq":51,"t":1800000017612,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc06","seq":47,"t":1800000017649,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc07","seq":66,"t":1800000017686,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc08","seq":66,"t":1800000017723,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc09","seq":62,"t":1800000017760,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc01","seq":50,"t":1800000017797,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc03","seq":48,"t":1800000017834,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc04","seq":52,"t":1800000017871,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc05","seq":52,"t":1800000017908,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc06","seq":48,"t":1800000017945,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc07","seq":67,"t":1800000017982,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc08","seq":67,"t":1800000018019,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc09","seq":63,"t":1800000018056,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc01","seq":51,"t":1800000018093,"event":"message","data":{"id":"msg2-1","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018056}}
+{"accountId":"acc03","seq":49,"t":1800000018130,"event":"message","data":{"id":"msg2-2","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018093}}
+{"accountId":"acc04","seq":53,"t":1800000018167,"event":"message","data":{"id":"msg2-3","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018130}}
+{"accountId":"acc05","seq":53,"t":1800000018204,"event":"message","data":{"id":"msg2-4","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018167}}
+{"accountId":"acc06","seq":49,"t":1800000018241,"event":"message","data":{"id":"msg2-5","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018204}}
+{"accountId":"acc07","seq":68,"t":1800000018278,"event":"message","data":{"id":"msg2-6","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018241}}
+{"accountId":"acc08","seq":68,"t":1800000018315,"event":"message","data":{"id":"msg2-7","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018278}}
+{"accountId":"acc09","seq":64,"t":1800000018352,"event":"message","data":{"id":"msg2-8","senderId":"server","content":"Day 1 has begun.","meetingId":"m07","time":1800000018315}}
+{"accountId":"acc05","seq":54,"t":1800000018389,"event":"message","data":{"id":"msg2-9","senderId":"server","content":":invest: After investigating, you learn that Player02 is Innocent!","time":1800000018352}}
+{"accountId":"acc07","seq":69,"t":1800000018426,"event":"message","data":{"id":"msg2-10","senderId":"server","content":":mop: You discover Player02's role is Villager.","time":1800000018389}}
+{"accountId":"acc04","seq":54,"t":1800000018463,"event":"message","data":{"id":"msg2-11","senderId":"server","content":":journ: You learn that Player06 received no reports.","time":1800000018426}}
+{"accountId":"acc01","seq":52,"t":1800000018500,"event":"message","data":{"id":"msg2-12","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018463}}
+{"accountId":"acc03","seq":50,"t":1800000018537,"event":"message","data":{"id":"msg2-13","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018500}}
+{"accountId":"acc04","seq":55,"t":1800000018574,"event":"message","data":{"id":"msg2-14","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018537}}
+{"accountId":"acc05","seq":55,"t":1800000018611,"event":"message","data":{"id":"msg2-15","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018574}}
+{"accountId":"acc06","seq":50,"t":1800000018648,"event":"message","data":{"id":"msg2-16","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018611}}
+{"accountId":"acc07","seq":70,"t":1800000018685,"event":"message","data":{"id":"msg2-17","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018648}}
+{"accountId":"acc08","seq":69,"t":1800000018722,"event":"message","data":{"id":"msg2-18","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018685}}
+{"accountId":"acc09","seq":65,"t":1800000018759,"event":"message","data":{"id":"msg2-19","senderId":"p01","content":"im sheriff","meetingId":"m07","time":1800000018722}}
+{"accountId":"acc01","seq":53,"t":1800000018796,"event":"message","data":{"id":"msg2-20","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018759}}
+{"accountId":"acc03","seq":51,"t":1800000018833,"event":"message","data":{"id":"msg2-21","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018796}}
+{"accountId":"acc04","seq":56,"t":1800000018870,"event":"message","data":{"id":"msg2-22","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018833}}
+{"accountId":"acc05","seq":56,"t":1800000018907,"event":"message","data":{"id":"msg2-23","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018870}}
+{"accountId":"acc06","seq":51,"t":1800000018944,"event":"message","data":{"id":"msg2-24","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018907}}
+{"accountId":"acc07","seq":71,"t":1800000018981,"event":"message","data":{"id":"msg2-25","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018944}}
+{"accountId":"acc08","seq":70,"t":1800000019018,"event":"message","data":{"id":"msg2-26","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000018981}}
+{"accountId":"acc09","seq":66,"t":1800000019055,"event":"message","data":{"id":"msg2-27","senderId":"p05","content":"im cop. inno","meetingId":"m07","time":1800000019018}}
+{"accountId":"acc01","seq":54,"t":1800000019092,"event":"message","data":{"id":"msg2-28","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019055}}
+{"accountId":"acc03","seq":52,"t":1800000019129,"event":"message","data":{"id":"msg2-29","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019092}}
+{"accountId":"acc04","seq":57,"t":1800000019166,"event":"message","data":{"id":"msg2-30","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019129}}
+{"accountId":"acc05","seq":57,"t":1800000019203,"event":"message","data":{"id":"msg2-31","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019166}}
+{"accountId":"acc06","seq":52,"t":1800000019240,"event":"message","data":{"id":"msg2-32","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019203}}
+{"accountId":"acc07","seq":72,"t":1800000019277,"event":"message","data":{"id":"msg2-33","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019240}}
+{"accountId":"acc08","seq":71,"t":1800000019314,"event":"message","data":{"id":"msg2-34","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019277}}
+{"accountId":"acc09","seq":67,"t":1800000019351,"event":"message","data":{"id":"msg2-35","senderId":"p05","content":"results: inno","meetingId":"m07","time":1800000019314}}
+{"accountId":"acc01","seq":55,"t":1800000019388,"event":"message","data":{"id":"msg2-36","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019351}}
+{"accountId":"acc03","seq":53,"t":1800000019425,"event":"message","data":{"id":"msg2-37","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019388}}
+{"accountId":"acc04","seq":58,"t":1800000019462,"event":"message","data":{"id":"msg2-38","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019425}}
+{"accountId":"acc05","seq":58,"t":1800000019499,"event":"message","data":{"id":"msg2-39","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019462}}
+{"accountId":"acc06","seq":53,"t":1800000019536,"event":"message","data":{"id":"msg2-40","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019499}}
+{"accountId":"acc07","seq":73,"t":1800000019573,"event":"message","data":{"id":"msg2-41","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019536}}
+{"accountId":"acc08","seq":72,"t":1800000019610,"event":"message","data":{"id":"msg2-42","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019573}}
+{"accountId":"acc09","seq":68,"t":1800000019647,"event":"message","data":{"id":"msg2-43","senderId":"p06","content":"i'm reading as mafia, vote them","meetingId":"m07","time":1800000019610}}
+{"accountId":"acc01","seq":56,"t":1800000019684,"event":"message","data":{"id":"msg2-44","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019647}}
+{"accountId":"acc03","seq":54,"t":1800000019721,"event":"message","data":{"id":"msg2-45","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019684}}
+{"accountId":"acc04","seq":59,"t":1800000019758,"event":"message","data":{"id":"msg2-46","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019721}}
+{"accountId":"acc05","seq":59,"t":1800000019795,"event":"message","data":{"id":"msg2-47","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019758}}
+{"accountId":"acc06","seq":54,"t":1800000019832,"event":"message","data":{"id":"msg2-48","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019795}}
+{"accountId":"acc07","seq":74,"t":1800000019869,"event":"message","data":{"id":"msg2-49","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019832}}
+{"accountId":"acc08","seq":73,"t":1800000019906,"event":"message","data":{"id":"msg2-50","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019869}}
+{"accountId":"acc09","seq":69,"t":1800000019943,"event":"message","data":{"id":"msg2-51","senderId":"p03","content":"being cleaned really tightens up the board","meetingId":"m07","time":1800000019906}}
+{"accountId":"acc01","seq":57,"t":1800000019980,"event":"message","data":{"id":"msg2-52","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000019943}}
+{"accountId":"acc03","seq":55,"t":1800000020017,"event":"message","data":{"id":"msg2-53","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000019980}}
+{"accountId":"acc04","seq":60,"t":1800000020054,"event":"message","data":{"id":"msg2-54","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020017}}
+{"accountId":"acc05","seq":60,"t":1800000020091,"event":"message","data":{"id":"msg2-55","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020054}}
+{"accountId":"acc06","seq":55,"t":1800000020128,"event":"message","data":{"id":"msg2-56","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020091}}
+{"accountId":"acc07","seq":75,"t":1800000020165,"event":"message","data":{"id":"msg2-57","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020128}}
+{"accountId":"acc08","seq":74,"t":1800000020202,"event":"message","data":{"id":"msg2-58","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020165}}
+{"accountId":"acc09","seq":70,"t":1800000020239,"event":"message","data":{"id":"msg2-59","senderId":"p04","content":"died, who voted for the kill?","meetingId":"m07","time":1800000020202}}
+{"accountId":"acc01","seq":58,"t":1800000020276,"event":"message","data":{"id":"msg2-60","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020239}}
+{"accountId":"acc03","seq":56,"t":1800000020313,"event":"message","data":{"id":"msg2-61","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020276}}
+{"accountId":"acc04","seq":61,"t":1800000020350,"event":"message","data":{"id":"msg2-62","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020313}}
+{"accountId":"acc05","seq":61,"t":1800000020387,"event":"message","data":{"id":"msg2-63","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020350}}
+{"accountId":"acc06","seq":56,"t":1800000020424,"event":"message","data":{"id":"msg2-64","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020387}}
+{"accountId":"acc07","seq":76,"t":1800000020461,"event":"message","data":{"id":"msg2-65","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020424}}
+{"accountId":"acc08","seq":75,"t":1800000020498,"event":"message","data":{"id":"msg2-66","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020461}}
+{"accountId":"acc09","seq":71,"t":1800000020535,"event":"message","data":{"id":"msg2-67","senderId":"p01","content":"Player06 claim?","meetingId":"m07","time":1800000020498}}
+{"accountId":"acc01","seq":59,"t":1800000020572,"event":"message","data":{"id":"msg2-68","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020535}}
+{"accountId":"acc03","seq":57,"t":1800000020609,"event":"message","data":{"id":"msg2-69","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020572}}
+{"accountId":"acc04","seq":62,"t":1800000020646,"event":"message","data":{"id":"msg2-70","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020609}}
+{"accountId":"acc05","seq":62,"t":1800000020683,"event":"message","data":{"id":"msg2-71","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020646}}
+{"accountId":"acc06","seq":57,"t":1800000020720,"event":"message","data":{"id":"msg2-72","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020683}}
+{"accountId":"acc07","seq":77,"t":1800000020757,"event":"message","data":{"id":"msg2-73","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020720}}
+{"accountId":"acc08","seq":76,"t":1800000020794,"event":"message","data":{"id":"msg2-74","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020757}}
+{"accountId":"acc09","seq":72,"t":1800000020831,"event":"message","data":{"id":"msg2-75","senderId":"p06","content":"im vt","meetingId":"m07","time":1800000020794}}
+{"accountId":"acc01","seq":60,"t":1800000020868,"event":"vote","data":{"voterId":"p01","target":"p06","meetingId":"m08"}}
+{"accountId":"acc01","seq":61,"t":1800000020905,"event":"message","data":{"id":"msg2-76","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000020868}}
+{"accountId":"acc03","seq":58,"t":1800000020942,"event":"message","data":{"id":"msg2-77","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000020905}}
+{"accountId":"acc04","seq":63,"t":1800000020979,"event":"message","data":{"id":"msg2-78","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000020942}}
+{"accountId":"acc05","seq":63,"t":1800000021016,"event":"message","data":{"id":"msg2-79","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000020979}}
+{"accountId":"acc06","seq":58,"t":1800000021053,"event":"message","data":{"id":"msg2-80","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000021016}}
+{"accountId":"acc07","seq":78,"t":1800000021090,"event":"message","data":{"id":"msg2-81","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000021053}}
+{"accountId":"acc08","seq":77,"t":1800000021127,"event":"message","data":{"id":"msg2-82","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000021090}}
+{"accountId":"acc09","seq":73,"t":1800000021164,"event":"message","data":{"id":"msg2-83","senderId":"server","content":":gun: Player01 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000021127}}
+{"accountId":"acc01","seq":62,"t":1800000021201,"event":"gunshot"}
+{"accountId":"acc03","seq":59,"t":1800000021238,"event":"gunshot"}
+{"accountId":"acc04","seq":64,"t":1800000021275,"event":"gunshot"}
+{"accountId":"acc05","seq":64,"t":1800000021312,"event":"gunshot"}
+{"accountId":"acc06","seq":59,"t":1800000021349,"event":"gunshot"}
+{"accountId":"acc07","seq":79,"t":1800000021386,"event":"gunshot"}
+{"accountId":"acc08","seq":78,"t":1800000021423,"event":"gunshot"}
+{"accountId":"acc09","seq":74,"t":1800000021460,"event":"gunshot"}
+{"accountId":"acc01","seq":63,"t":1800000021497,"event":"death","data":"p06"}
+{"accountId":"acc03","seq":60,"t":1800000021534,"event":"death","data":"p06"}
+{"accountId":"acc04","seq":65,"t":1800000021571,"event":"death","data":"p06"}
+{"accountId":"acc05","seq":65,"t":1800000021608,"event":"death","data":"p06"}
+{"accountId":"acc06","seq":60,"t":1800000021645,"event":"death","data":"p06"}
+{"accountId":"acc07","seq":80,"t":1800000021682,"event":"death","data":"p06"}
+{"accountId":"acc08","seq":79,"t":1800000021719,"event":"death","data":"p06"}
+{"accountId":"acc09","seq":75,"t":1800000021756,"event":"death","data":"p06"}
+{"accountId":"acc01","seq":64,"t":1800000021793,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc03","seq":61,"t":1800000021830,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":66,"t":1800000021867,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc05","seq":66,"t":1800000021904,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc06","seq":61,"t":1800000021941,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc07","seq":81,"t":1800000021978,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":80,"t":1800000022015,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":76,"t":1800000022052,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":65,"t":1800000022089,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022052,"dayCount":1}}
+{"accountId":"acc03","seq":62,"t":1800000022126,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022089,"dayCount":1}}
+{"accountId":"acc04","seq":67,"t":1800000022163,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022126,"dayCount":1}}
+{"accountId":"acc05","seq":67,"t":1800000022200,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022163,"dayCount":1}}
+{"accountId":"acc06","seq":62,"t":1800000022237,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022200,"dayCount":1}}
+{"accountId":"acc07","seq":82,"t":1800000022274,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022237,"dayCount":1}}
+{"accountId":"acc08","seq":81,"t":1800000022311,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022274,"dayCount":1}}
+{"accountId":"acc09","seq":77,"t":1800000022348,"event":"obituaries","data":{"id":"2:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000022311,"dayCount":1}}
+{"accountId":"acc01","seq":66,"t":1800000022385,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc03","seq":63,"t":1800000022422,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc04","seq":68,"t":1800000022459,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc05","seq":68,"t":1800000022496,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc06","seq":63,"t":1800000022533,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc07","seq":83,"t":1800000022570,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc08","seq":82,"t":1800000022607,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc09","seq":78,"t":1800000022644,"event":"reveal","data":{"playerId":"p06","role":"Villager"}}
+{"accountId":"acc01","seq":67,"t":1800000022681,"event":"message","data":{"id":"msg2-84","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022644}}
+{"accountId":"acc03","seq":64,"t":1800000022718,"event":"message","data":{"id":"msg2-85","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022681}}
+{"accountId":"acc04","seq":69,"t":1800000022755,"event":"message","data":{"id":"msg2-86","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022718}}
+{"accountId":"acc05","seq":69,"t":1800000022792,"event":"message","data":{"id":"msg2-87","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022755}}
+{"accountId":"acc07","seq":84,"t":1800000022829,"event":"message","data":{"id":"msg2-89","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022792}}
+{"accountId":"acc08","seq":83,"t":1800000022866,"event":"message","data":{"id":"msg2-90","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022829}}
+{"accountId":"acc09","seq":79,"t":1800000022903,"event":"message","data":{"id":"msg2-91","senderId":"p08","content":"player05's cop claim is pure bs, vote him now","meetingId":"m07","time":1800000022866}}
+{"accountId":"acc01","seq":68,"t":1800000022940,"event":"message","data":{"id":"msg2-92","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000022903}}
+{"accountId":"acc03","seq":65,"t":1800000022977,"event":"message","data":{"id":"msg2-93","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000022940}}
+{"accountId":"acc04","seq":70,"t":1800000023014,"event":"message","data":{"id":"msg2-94","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000022977}}
+{"accountId":"acc05","seq":70,"t":1800000023051,"event":"message","data":{"id":"msg2-95","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000023014}}
+{"accountId":"acc07","seq":85,"t":1800000023088,"event":"message","data":{"id":"msg2-97","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000023051}}
+{"accountId":"acc08","seq":84,"t":1800000023125,"event":"message","data":{"id":"msg2-98","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000023088}}
+{"accountId":"acc09","seq":80,"t":1800000023162,"event":"message","data":{"id":"msg2-99","senderId":"p07","content":"im journalist, nothing useful yet. not me","meetingId":"m07","time":1800000023125}}
+{"accountId":"acc01","seq":69,"t":1800000023199,"event":"message","data":{"id":"msg2-100","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023162}}
+{"accountId":"acc03","seq":66,"t":1800000023236,"event":"message","data":{"id":"msg2-101","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023199}}
+{"accountId":"acc04","seq":71,"t":1800000023273,"event":"message","data":{"id":"msg2-102","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023236}}
+{"accountId":"acc05","seq":71,"t":1800000023310,"event":"message","data":{"id":"msg2-103","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023273}}
+{"accountId":"acc07","seq":86,"t":1800000023347,"event":"message","data":{"id":"msg2-105","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023310}}
+{"accountId":"acc08","seq":85,"t":1800000023384,"event":"message","data":{"id":"msg2-106","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023347}}
+{"accountId":"acc09","seq":81,"t":1800000023421,"event":"message","data":{"id":"msg2-107","senderId":"p04","content":"is lying, im journalist","meetingId":"m07","time":1800000023384}}
+{"accountId":"acc01","seq":70,"t":1800000023458,"event":"message","data":{"id":"msg2-108","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023421}}
+{"accountId":"acc03","seq":67,"t":1800000023495,"event":"message","data":{"id":"msg2-109","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023458}}
+{"accountId":"acc04","seq":72,"t":1800000023532,"event":"message","data":{"id":"msg2-110","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023495}}
+{"accountId":"acc05","seq":72,"t":1800000023569,"event":"message","data":{"id":"msg2-111","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023532}}
+{"accountId":"acc07","seq":87,"t":1800000023606,"event":"message","data":{"id":"msg2-113","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023569}}
+{"accountId":"acc08","seq":86,"t":1800000023643,"event":"message","data":{"id":"msg2-114","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023606}}
+{"accountId":"acc09","seq":82,"t":1800000023680,"event":"message","data":{"id":"msg2-115","senderId":"p04","content":"is lying","meetingId":"m07","time":1800000023643}}
+{"accountId":"acc01","seq":71,"t":1800000023717,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc03","seq":68,"t":1800000023754,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc04","seq":73,"t":1800000023791,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc05","seq":73,"t":1800000023828,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc07","seq":88,"t":1800000023865,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc08","seq":87,"t":1800000023902,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc09","seq":83,"t":1800000023939,"event":"vote","data":{"voterId":"p03","target":"p07","meetingId":"m07"}}
+{"accountId":"acc01","seq":72,"t":1800000023976,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc03","seq":69,"t":1800000024013,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc04","seq":74,"t":1800000024050,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc05","seq":74,"t":1800000024087,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc07","seq":89,"t":1800000024124,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc08","seq":88,"t":1800000024161,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc09","seq":84,"t":1800000024198,"event":"vote","data":{"voterId":"p05","target":"p07","meetingId":"m07"}}
+{"accountId":"acc01","seq":73,"t":1800000024235,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc03","seq":70,"t":1800000024272,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc04","seq":75,"t":1800000024309,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc05","seq":75,"t":1800000024346,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc07","seq":90,"t":1800000024383,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc08","seq":89,"t":1800000024420,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc09","seq":85,"t":1800000024457,"event":"vote","data":{"voterId":"p07","target":"p04","meetingId":"m07"}}
+{"accountId":"acc01","seq":74,"t":1800000024494,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc03","seq":71,"t":1800000024531,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc04","seq":76,"t":1800000024568,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc05","seq":76,"t":1800000024605,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc07","seq":91,"t":1800000024642,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc08","seq":90,"t":1800000024679,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc09","seq":86,"t":1800000024716,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m07"}}
+{"accountId":"acc01","seq":75,"t":1800000024753,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc03","seq":72,"t":1800000024790,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc04","seq":77,"t":1800000024827,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc05","seq":77,"t":1800000024864,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc07","seq":92,"t":1800000024901,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc08","seq":91,"t":1800000024938,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc09","seq":87,"t":1800000024975,"event":"vote","data":{"voterId":"p01","target":"p07","meetingId":"m07"}}
+{"accountId":"acc01","seq":76,"t":1800000025012,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc03","seq":73,"t":1800000025049,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc04","seq":78,"t":1800000025086,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc05","seq":78,"t":1800000025123,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc07","seq":93,"t":1800000025160,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc08","seq":92,"t":1800000025197,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc09","seq":88,"t":1800000025234,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m07"}}
+{"accountId":"acc01","seq":77,"t":1800000025271,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc03","seq":74,"t":1800000025308,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc04","seq":79,"t":1800000025345,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc05","seq":79,"t":1800000025382,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc07","seq":94,"t":1800000025419,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc08","seq":93,"t":1800000025456,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc09","seq":89,"t":1800000025493,"event":"vote","data":{"voterId":"p04","target":"p07","meetingId":"m07"}}
+{"accountId":"acc01","seq":78,"t":1800000025530,"event":"clearTimer","data":"main"}
+{"accountId":"acc03","seq":75,"t":1800000025567,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":80,"t":1800000025604,"event":"clearTimer","data":"main"}
+{"accountId":"acc05","seq":80,"t":1800000025641,"event":"clearTimer","data":"main"}
+{"accountId":"acc07","seq":95,"t":1800000025678,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":94,"t":1800000025715,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":90,"t":1800000025752,"event":"clearTimer","data":"main"}
+{"accountId":"acc01","seq":79,"t":1800000025789,"event":"leftMeeting","data":"m08"}
+{"accountId":"acc01","seq":80,"t":1800000025826,"event":"condemn"}
+{"accountId":"acc03","seq":76,"t":1800000025863,"event":"condemn"}
+{"accountId":"acc04","seq":81,"t":1800000025900,"event":"condemn"}
+{"accountId":"acc05","seq":81,"t":1800000025937,"event":"condemn"}
+{"accountId":"acc07","seq":96,"t":1800000025974,"event":"condemn"}
+{"accountId":"acc08","seq":95,"t":1800000026011,"event":"condemn"}
+{"accountId":"acc09","seq":91,"t":1800000026048,"event":"condemn"}
+{"accountId":"acc01","seq":81,"t":1800000026085,"event":"death","data":"p07"}
+{"accountId":"acc03","seq":77,"t":1800000026122,"event":"death","data":"p07"}
+{"accountId":"acc04","seq":82,"t":1800000026159,"event":"death","data":"p07"}
+{"accountId":"acc05","seq":82,"t":1800000026196,"event":"death","data":"p07"}
+{"accountId":"acc07","seq":97,"t":1800000026233,"event":"death","data":"p07"}
+{"accountId":"acc08","seq":96,"t":1800000026270,"event":"death","data":"p07"}
+{"accountId":"acc09","seq":92,"t":1800000026307,"event":"death","data":"p07"}
+{"accountId":"acc01","seq":82,"t":1800000026344,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc03","seq":78,"t":1800000026381,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":83,"t":1800000026418,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc05","seq":83,"t":1800000026455,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc07","seq":98,"t":1800000026492,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":97,"t":1800000026529,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":93,"t":1800000026566,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":83,"t":1800000026603,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026566,"dayCount":1}}
+{"accountId":"acc03","seq":79,"t":1800000026640,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026603,"dayCount":1}}
+{"accountId":"acc04","seq":84,"t":1800000026677,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026640,"dayCount":1}}
+{"accountId":"acc05","seq":84,"t":1800000026714,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026677,"dayCount":1}}
+{"accountId":"acc07","seq":99,"t":1800000026751,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026714,"dayCount":1}}
+{"accountId":"acc08","seq":98,"t":1800000026788,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026751,"dayCount":1}}
+{"accountId":"acc09","seq":94,"t":1800000026825,"event":"obituaries","data":{"id":"2:Day","obituaries":[{"id":"p07","playerInfo":{"id":"p07","anonId":null,"name":"Player07","userId":"u07","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000026788,"dayCount":1}}
+{"accountId":"acc01","seq":84,"t":1800000026862,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc03","seq":80,"t":1800000026899,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc04","seq":85,"t":1800000026936,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc05","seq":85,"t":1800000026973,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc07","seq":100,"t":1800000027010,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc08","seq":99,"t":1800000027047,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc09","seq":95,"t":1800000027084,"event":"reveal","data":{"playerId":"p07","role":"Janitor"}}
+{"accountId":"acc01","seq":85,"t":1800000027121,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc03","seq":81,"t":1800000027158,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc04","seq":86,"t":1800000027195,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc05","seq":86,"t":1800000027232,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc08","seq":100,"t":1800000027269,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc09","seq":96,"t":1800000027306,"event":"state","data":{"id":3,"name":"Night 2","dayCount":2}}
+{"accountId":"acc01","seq":86,"t":1800000027343,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":82,"t":1800000027380,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":87,"t":1800000027417,"event":"stateEvents","data":[]}
+{"accountId":"acc05","seq":87,"t":1800000027454,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":101,"t":1800000027491,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":97,"t":1800000027528,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":87,"t":1800000027565,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc03","seq":83,"t":1800000027602,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":88,"t":1800000027639,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc05","seq":88,"t":1800000027676,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc08","seq":102,"t":1800000027713,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc09","seq":98,"t":1800000027750,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":89,"t":1800000027787,"event":"meeting","data":{"id":"m09","name":"Receive Reports","actionName":"Receive Reports","members":[{"id":"p04","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p05","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc05","seq":89,"t":1800000027824,"event":"meeting","data":{"id":"m10","name":"Investigate","actionName":"Investigate","members":[{"id":"p05","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":103,"t":1800000027861,"event":"meeting","data":{"id":"m11","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":99,"t":1800000027898,"event":"meeting","data":{"id":"m11","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p08"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":104,"t":1800000027935,"event":"meeting","data":{"id":"m12","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":100,"t":1800000027972,"event":"meeting","data":{"id":"m12","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":105,"t":1800000028009,"event":"meeting","data":{"id":"m13","name":"Litigate","actionName":"Litigate","members":[{"id":"p08","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p05","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":90,"t":1800000028046,"event":"members","data":{"meetingId":"m09","members":[{"id":"p04","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc05","seq":90,"t":1800000028083,"event":"members","data":{"meetingId":"m10","members":[{"id":"p05","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":106,"t":1800000028120,"event":"members","data":{"meetingId":"m11","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":101,"t":1800000028157,"event":"members","data":{"meetingId":"m11","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":107,"t":1800000028194,"event":"members","data":{"meetingId":"m12","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":102,"t":1800000028231,"event":"members","data":{"meetingId":"m12","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":108,"t":1800000028268,"event":"members","data":{"meetingId":"m13","members":[{"id":"p08","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":88,"t":1800000028305,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc03","seq":84,"t":1800000028342,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc04","seq":91,"t":1800000028379,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc05","seq":91,"t":1800000028416,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc08","seq":109,"t":1800000028453,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc09","seq":103,"t":1800000028490,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc01","seq":89,"t":1800000028527,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc03","seq":85,"t":1800000028564,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc04","seq":92,"t":1800000028601,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc05","seq":92,"t":1800000028638,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc08","seq":110,"t":1800000028675,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc09","seq":104,"t":1800000028712,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc01","seq":90,"t":1800000028749,"event":"message","data":{"id":"msg3-1","senderId":"server","content":"Night 2 has begun.","time":1800000028712}}
+{"accountId":"acc03","seq":86,"t":1800000028786,"event":"message","data":{"id":"msg3-2","senderId":"server","content":"Night 2 has begun.","time":1800000028749}}
+{"accountId":"acc04","seq":93,"t":1800000028823,"event":"message","data":{"id":"msg3-3","senderId":"server","content":"Night 2 has begun.","time":1800000028786}}
+{"accountId":"acc05","seq":93,"t":1800000028860,"event":"message","data":{"id":"msg3-4","senderId":"server","content":"Night 2 has begun.","time":1800000028823}}
+{"accountId":"acc08","seq":111,"t":1800000028897,"event":"message","data":{"id":"msg3-5","senderId":"server","content":"Night 2 has begun.","time":1800000028860}}
+{"accountId":"acc09","seq":105,"t":1800000028934,"event":"message","data":{"id":"msg3-6","senderId":"server","content":"Night 2 has begun.","time":1800000028897}}
+{"accountId":"acc08","seq":112,"t":1800000028971,"event":"message","data":{"id":"msg3-7","senderId":"p09","content":"kill Player05 tonight, no fake claims tmrw, lay low and lean Player03, lawyer go on me","meetingId":"m11","time":1800000028934}}
+{"accountId":"acc09","seq":106,"t":1800000029008,"event":"message","data":{"id":"msg3-8","senderId":"p09","content":"kill Player05 tonight, no fake claims tmrw, lay low and lean Player03, lawyer go on me","meetingId":"m11","time":1800000028971}}
+{"accountId":"acc08","seq":113,"t":1800000029045,"event":"message","data":{"id":"msg3-9","senderId":"p09","content":"who do we think cop is","meetingId":"m11","time":1800000029008}}
+{"accountId":"acc09","seq":107,"t":1800000029082,"event":"message","data":{"id":"msg3-10","senderId":"p09","content":"who do we think cop is","meetingId":"m11","time":1800000029045}}
+{"accountId":"acc08","seq":114,"t":1800000029119,"event":"message","data":{"id":"msg3-11","senderId":"p08","content":"if pressed i fakeclaim villager","meetingId":"m11","time":1800000029082}}
+{"accountId":"acc09","seq":108,"t":1800000029156,"event":"message","data":{"id":"msg3-12","senderId":"p08","content":"if pressed i fakeclaim villager","meetingId":"m11","time":1800000029119}}
+{"accountId":"acc05","seq":94,"t":1800000029193,"event":"vote","data":{"voterId":"p05","target":"p04","meetingId":"m10"}}
+{"accountId":"acc08","seq":115,"t":1800000029230,"event":"vote","data":{"voterId":"p08","target":"p09","meetingId":"m13"}}
+{"accountId":"acc04","seq":94,"t":1800000029267,"event":"vote","data":{"voterId":"p04","target":"p05","meetingId":"m09"}}
+{"accountId":"acc08","seq":116,"t":1800000029304,"event":"vote","data":{"voterId":"p09","target":"p05","meetingId":"m12"}}
+{"accountId":"acc09","seq":109,"t":1800000029341,"event":"vote","data":{"voterId":"p09","target":"p05","meetingId":"m12"}}
+{"accountId":"acc08","seq":117,"t":1800000029378,"event":"vote","data":{"voterId":"p08","target":"p05","meetingId":"m12"}}
+{"accountId":"acc09","seq":110,"t":1800000029415,"event":"vote","data":{"voterId":"p08","target":"p05","meetingId":"m12"}}
+{"accountId":"acc01","seq":91,"t":1800000029452,"event":"clearTimer","data":"main"}
+{"accountId":"acc03","seq":87,"t":1800000029489,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":95,"t":1800000029526,"event":"clearTimer","data":"main"}
+{"accountId":"acc05","seq":95,"t":1800000029563,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":118,"t":1800000029600,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":111,"t":1800000029637,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":96,"t":1800000029674,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc05","seq":96,"t":1800000029711,"event":"leftMeeting","data":"m10"}
+{"accountId":"acc08","seq":119,"t":1800000029748,"event":"leftMeeting","data":"m11"}
+{"accountId":"acc09","seq":112,"t":1800000029785,"event":"leftMeeting","data":"m11"}
+{"accountId":"acc08","seq":120,"t":1800000029822,"event":"leftMeeting","data":"m12"}
+{"accountId":"acc09","seq":113,"t":1800000029859,"event":"leftMeeting","data":"m12"}
+{"accountId":"acc08","seq":121,"t":1800000029896,"event":"leftMeeting","data":"m13"}
+{"accountId":"acc01","seq":92,"t":1800000029933,"event":"death","data":"p05"}
+{"accountId":"acc03","seq":88,"t":1800000029970,"event":"death","data":"p05"}
+{"accountId":"acc04","seq":97,"t":1800000030007,"event":"death","data":"p05"}
+{"accountId":"acc05","seq":97,"t":1800000030044,"event":"death","data":"p05"}
+{"accountId":"acc08","seq":122,"t":1800000030081,"event":"death","data":"p05"}
+{"accountId":"acc09","seq":114,"t":1800000030118,"event":"death","data":"p05"}
+{"accountId":"acc01","seq":93,"t":1800000030155,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc03","seq":89,"t":1800000030192,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":98,"t":1800000030229,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc05","seq":98,"t":1800000030266,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":123,"t":1800000030303,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":115,"t":1800000030340,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":94,"t":1800000030377,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030340,"dayCount":2}}
+{"accountId":"acc03","seq":90,"t":1800000030414,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030377,"dayCount":2}}
+{"accountId":"acc04","seq":99,"t":1800000030451,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030414,"dayCount":2}}
+{"accountId":"acc05","seq":99,"t":1800000030488,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030451,"dayCount":2}}
+{"accountId":"acc08","seq":124,"t":1800000030525,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030488,"dayCount":2}}
+{"accountId":"acc09","seq":116,"t":1800000030562,"event":"obituaries","data":{"id":"3:Night","obituaries":[{"id":"p05","playerInfo":{"id":"p05","anonId":null,"name":"Player05","userId":"u05","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000030525,"dayCount":2}}
+{"accountId":"acc01","seq":95,"t":1800000030599,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc03","seq":91,"t":1800000030636,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc04","seq":100,"t":1800000030673,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc05","seq":100,"t":1800000030710,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc08","seq":125,"t":1800000030747,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc09","seq":117,"t":1800000030784,"event":"reveal","data":{"playerId":"p05","role":"Cop"}}
+{"accountId":"acc01","seq":96,"t":1800000030821,"event":"state","data":{"id":4,"name":"Day 2","dayCount":2}}
+{"accountId":"acc03","seq":92,"t":1800000030858,"event":"state","data":{"id":4,"name":"Day 2","dayCount":2}}
+{"accountId":"acc04","seq":101,"t":1800000030895,"event":"state","data":{"id":4,"name":"Day 2","dayCount":2}}
+{"accountId":"acc08","seq":126,"t":1800000030932,"event":"state","data":{"id":4,"name":"Day 2","dayCount":2}}
+{"accountId":"acc09","seq":118,"t":1800000030969,"event":"state","data":{"id":4,"name":"Day 2","dayCount":2}}
+{"accountId":"acc01","seq":97,"t":1800000031006,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":93,"t":1800000031043,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":102,"t":1800000031080,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":127,"t":1800000031117,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":119,"t":1800000031154,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":98,"t":1800000031191,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc03","seq":94,"t":1800000031228,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc04","seq":103,"t":1800000031265,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc08","seq":128,"t":1800000031302,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc09","seq":120,"t":1800000031339,"event":"timerInfo","data":{"name":"main","delay":300000}}
+{"accountId":"acc01","seq":99,"t":1800000031376,"event":"meeting","data":{"id":"m14","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc03","seq":95,"t":1800000031413,"event":"meeting","data":{"id":"m14","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":104,"t":1800000031450,"event":"meeting","data":{"id":"m14","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":129,"t":1800000031487,"event":"meeting","data":{"id":"m14","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":121,"t":1800000031524,"event":"meeting","data":{"id":"m14","name":"Village","actionName":"Village","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc01","seq":100,"t":1800000031561,"event":"meeting","data":{"id":"m15","name":"Vote Kick","actionName":"Vote Kick","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Kick"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc03","seq":96,"t":1800000031598,"event":"meeting","data":{"id":"m15","name":"Vote Kick","actionName":"Vote Kick","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Kick"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":105,"t":1800000031635,"event":"meeting","data":{"id":"m15","name":"Vote Kick","actionName":"Vote Kick","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Kick"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":130,"t":1800000031672,"event":"meeting","data":{"id":"m15","name":"Vote Kick","actionName":"Vote Kick","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Kick"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":122,"t":1800000031709,"event":"meeting","data":{"id":"m15","name":"Vote Kick","actionName":"Vote Kick","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["Kick"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc01","seq":101,"t":1800000031746,"event":"members","data":{"meetingId":"m14","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc03","seq":97,"t":1800000031783,"event":"members","data":{"meetingId":"m14","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc04","seq":106,"t":1800000031820,"event":"members","data":{"meetingId":"m14","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":131,"t":1800000031857,"event":"members","data":{"meetingId":"m14","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":123,"t":1800000031894,"event":"members","data":{"meetingId":"m14","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":102,"t":1800000031931,"event":"members","data":{"meetingId":"m15","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc03","seq":98,"t":1800000031968,"event":"members","data":{"meetingId":"m15","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc04","seq":107,"t":1800000032005,"event":"members","data":{"meetingId":"m15","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":132,"t":1800000032042,"event":"members","data":{"meetingId":"m15","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":124,"t":1800000032079,"event":"members","data":{"meetingId":"m15","members":[{"id":"p01","canUpdateVote":true,"canVote":true},{"id":"p03","canUpdateVote":true,"canVote":true},{"id":"p04","canUpdateVote":true,"canVote":true},{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":103,"t":1800000032116,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc03","seq":99,"t":1800000032153,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc04","seq":108,"t":1800000032190,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc08","seq":133,"t":1800000032227,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc09","seq":125,"t":1800000032264,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc01","seq":104,"t":1800000032301,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc03","seq":100,"t":1800000032338,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc04","seq":109,"t":1800000032375,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc08","seq":134,"t":1800000032412,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc09","seq":126,"t":1800000032449,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc01","seq":105,"t":1800000032486,"event":"message","data":{"id":"msg4-1","senderId":"server","content":"Day 2 has begun.","meetingId":"m14","time":1800000032449}}
+{"accountId":"acc03","seq":101,"t":1800000032523,"event":"message","data":{"id":"msg4-2","senderId":"server","content":"Day 2 has begun.","meetingId":"m14","time":1800000032486}}
+{"accountId":"acc04","seq":110,"t":1800000032560,"event":"message","data":{"id":"msg4-3","senderId":"server","content":"Day 2 has begun.","meetingId":"m14","time":1800000032523}}
+{"accountId":"acc08","seq":135,"t":1800000032597,"event":"message","data":{"id":"msg4-4","senderId":"server","content":"Day 2 has begun.","meetingId":"m14","time":1800000032560}}
+{"accountId":"acc09","seq":127,"t":1800000032634,"event":"message","data":{"id":"msg4-5","senderId":"server","content":"Day 2 has begun.","meetingId":"m14","time":1800000032597}}
+{"accountId":"acc04","seq":111,"t":1800000032671,"event":"message","data":{"id":"msg4-6","senderId":"server","content":":journ: You received all reports that Player05 received: :invest: After investigating, you learn that Player04 is Innocent!.","time":1800000032634}}
+{"accountId":"acc01","seq":106,"t":1800000032708,"event":"message","data":{"id":"msg4-7","senderId":"p03","content":"villager. no role, no results. look elsewhere","meetingId":"m14","time":1800000032671}}
+{"accountId":"acc03","seq":102,"t":1800000032745,"event":"message","data":{"id":"msg4-8","senderId":"p03","content":"villager. no role, no results. look elsewhere","meetingId":"m14","time":1800000032708}}
+{"accountId":"acc04","seq":112,"t":1800000032782,"event":"message","data":{"id":"msg4-9","senderId":"p03","content":"villager. no role, no results. look elsewhere","meetingId":"m14","time":1800000032745}}
+{"accountId":"acc08","seq":136,"t":1800000032819,"event":"message","data":{"id":"msg4-10","senderId":"p03","content":"villager. no role, no results. look elsewhere","meetingId":"m14","time":1800000032782}}
+{"accountId":"acc09","seq":128,"t":1800000032856,"event":"message","data":{"id":"msg4-11","senderId":"p03","content":"villager. no role, no results. look elsewhere","meetingId":"m14","time":1800000032819}}
+{"accountId":"acc01","seq":107,"t":1800000032893,"event":"message","data":{"id":"msg4-12","senderId":"p09","content":"vt here, nothing to hide. wrong guy","meetingId":"m14","time":1800000032856}}
+{"accountId":"acc03","seq":103,"t":1800000032930,"event":"message","data":{"id":"msg4-13","senderId":"p09","content":"vt here, nothing to hide. wrong guy","meetingId":"m14","time":1800000032893}}
+{"accountId":"acc04","seq":113,"t":1800000032967,"event":"message","data":{"id":"msg4-14","senderId":"p09","content":"vt here, nothing to hide. wrong guy","meetingId":"m14","time":1800000032930}}
+{"accountId":"acc08","seq":137,"t":1800000033004,"event":"message","data":{"id":"msg4-15","senderId":"p09","content":"vt here, nothing to hide. wrong guy","meetingId":"m14","time":1800000032967}}
+{"accountId":"acc09","seq":129,"t":1800000033041,"event":"message","data":{"id":"msg4-16","senderId":"p09","content":"vt here, nothing to hide. wrong guy","meetingId":"m14","time":1800000033004}}
+{"accountId":"acc01","seq":108,"t":1800000033078,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m14"}}
+{"accountId":"acc03","seq":104,"t":1800000033115,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m14"}}
+{"accountId":"acc04","seq":114,"t":1800000033152,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m14"}}
+{"accountId":"acc08","seq":138,"t":1800000033189,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m14"}}
+{"accountId":"acc09","seq":130,"t":1800000033226,"event":"vote","data":{"voterId":"p08","target":"p03","meetingId":"m14"}}
+{"accountId":"acc01","seq":109,"t":1800000033263,"event":"vote","data":{"voterId":"p03","target":"p08","meetingId":"m14"}}
+{"accountId":"acc03","seq":105,"t":1800000033300,"event":"vote","data":{"voterId":"p03","target":"p08","meetingId":"m14"}}
+{"accountId":"acc04","seq":115,"t":1800000033337,"event":"vote","data":{"voterId":"p03","target":"p08","meetingId":"m14"}}
+{"accountId":"acc08","seq":139,"t":1800000033374,"event":"vote","data":{"voterId":"p03","target":"p08","meetingId":"m14"}}
+{"accountId":"acc09","seq":131,"t":1800000033411,"event":"vote","data":{"voterId":"p03","target":"p08","meetingId":"m14"}}
+{"accountId":"acc01","seq":110,"t":1800000033448,"event":"vote","data":{"voterId":"p01","target":"p09","meetingId":"m14"}}
+{"accountId":"acc03","seq":106,"t":1800000033485,"event":"vote","data":{"voterId":"p01","target":"p09","meetingId":"m14"}}
+{"accountId":"acc04","seq":116,"t":1800000033522,"event":"vote","data":{"voterId":"p01","target":"p09","meetingId":"m14"}}
+{"accountId":"acc08","seq":140,"t":1800000033559,"event":"vote","data":{"voterId":"p01","target":"p09","meetingId":"m14"}}
+{"accountId":"acc09","seq":132,"t":1800000033596,"event":"vote","data":{"voterId":"p01","target":"p09","meetingId":"m14"}}
+{"accountId":"acc01","seq":111,"t":1800000033633,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m14"}}
+{"accountId":"acc03","seq":107,"t":1800000033670,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m14"}}
+{"accountId":"acc04","seq":117,"t":1800000033707,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m14"}}
+{"accountId":"acc08","seq":141,"t":1800000033744,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m14"}}
+{"accountId":"acc09","seq":133,"t":1800000033781,"event":"vote","data":{"voterId":"p09","target":"p03","meetingId":"m14"}}
+{"accountId":"acc01","seq":112,"t":1800000033818,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m14"}}
+{"accountId":"acc03","seq":108,"t":1800000033855,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m14"}}
+{"accountId":"acc04","seq":118,"t":1800000033892,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m14"}}
+{"accountId":"acc08","seq":142,"t":1800000033929,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m14"}}
+{"accountId":"acc09","seq":134,"t":1800000033966,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m14"}}
+{"accountId":"acc01","seq":113,"t":1800000034003,"event":"clearTimer","data":"main"}
+{"accountId":"acc03","seq":109,"t":1800000034040,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":119,"t":1800000034077,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":143,"t":1800000034114,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":135,"t":1800000034151,"event":"clearTimer","data":"main"}
+{"accountId":"acc01","seq":114,"t":1800000034188,"event":"leftMeeting","data":"m15"}
+{"accountId":"acc03","seq":110,"t":1800000034225,"event":"leftMeeting","data":"m15"}
+{"accountId":"acc04","seq":120,"t":1800000034262,"event":"leftMeeting","data":"m15"}
+{"accountId":"acc08","seq":144,"t":1800000034299,"event":"leftMeeting","data":"m15"}
+{"accountId":"acc09","seq":136,"t":1800000034336,"event":"leftMeeting","data":"m15"}
+{"accountId":"acc01","seq":115,"t":1800000034373,"event":"state","data":{"id":5,"name":"Night 3","dayCount":3}}
+{"accountId":"acc03","seq":111,"t":1800000034410,"event":"state","data":{"id":5,"name":"Night 3","dayCount":3}}
+{"accountId":"acc04","seq":121,"t":1800000034447,"event":"state","data":{"id":5,"name":"Night 3","dayCount":3}}
+{"accountId":"acc08","seq":145,"t":1800000034484,"event":"state","data":{"id":5,"name":"Night 3","dayCount":3}}
+{"accountId":"acc09","seq":137,"t":1800000034521,"event":"state","data":{"id":5,"name":"Night 3","dayCount":3}}
+{"accountId":"acc01","seq":116,"t":1800000034558,"event":"stateEvents","data":[]}
+{"accountId":"acc03","seq":112,"t":1800000034595,"event":"stateEvents","data":[]}
+{"accountId":"acc04","seq":122,"t":1800000034632,"event":"stateEvents","data":[]}
+{"accountId":"acc08","seq":146,"t":1800000034669,"event":"stateEvents","data":[]}
+{"accountId":"acc09","seq":138,"t":1800000034706,"event":"stateEvents","data":[]}
+{"accountId":"acc01","seq":117,"t":1800000034743,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc03","seq":113,"t":1800000034780,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":123,"t":1800000034817,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc08","seq":147,"t":1800000034854,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc09","seq":139,"t":1800000034891,"event":"timerInfo","data":{"name":"main","delay":60000}}
+{"accountId":"acc04","seq":124,"t":1800000034928,"event":"meeting","data":{"id":"m16","name":"Receive Reports","actionName":"Receive Reports","members":[{"id":"p04","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p08","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":148,"t":1800000034965,"event":"meeting","data":{"id":"m17","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":140,"t":1800000035002,"event":"meeting","data":{"id":"m17","name":"Mafia Meeting","actionName":"Mafia Meeting","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":true,"voting":false,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p08"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":149,"t":1800000035039,"event":"meeting","data":{"id":"m18","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc09","seq":141,"t":1800000035076,"event":"meeting","data":{"id":"m18","name":"Mafia Kill","actionName":"Mafia Kill","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}],"group":true,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc08","seq":150,"t":1800000035113,"event":"meeting","data":{"id":"m19","name":"Litigate","actionName":"Litigate","members":[{"id":"p08","canUpdateVote":true,"canVote":true}],"group":false,"speech":false,"voting":true,"instant":false,"anonymous":false,"multi":false,"targets":["p01","p03","p04","p09"],"inputType":"player","votes":{},"voteRecord":[],"messages":[],"canVote":true,"canUpdateVote":true,"amMember":true}}
+{"accountId":"acc04","seq":125,"t":1800000035150,"event":"members","data":{"meetingId":"m16","members":[{"id":"p04","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":151,"t":1800000035187,"event":"members","data":{"meetingId":"m17","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":142,"t":1800000035224,"event":"members","data":{"meetingId":"m17","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":152,"t":1800000035261,"event":"members","data":{"meetingId":"m18","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc09","seq":143,"t":1800000035298,"event":"members","data":{"meetingId":"m18","members":[{"id":"p08","canUpdateVote":true,"canVote":true},{"id":"p09","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc08","seq":153,"t":1800000035335,"event":"members","data":{"meetingId":"m19","members":[{"id":"p08","canUpdateVote":true,"canVote":true}]}}
+{"accountId":"acc01","seq":118,"t":1800000035372,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc03","seq":114,"t":1800000035409,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc04","seq":126,"t":1800000035446,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc08","seq":154,"t":1800000035483,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc09","seq":144,"t":1800000035520,"event":"time","data":{"name":"main","time":5000}}
+{"accountId":"acc01","seq":119,"t":1800000035557,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc03","seq":115,"t":1800000035594,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc04","seq":127,"t":1800000035631,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc08","seq":155,"t":1800000035668,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc09","seq":145,"t":1800000035705,"event":"time","data":{"name":"main","time":30000}}
+{"accountId":"acc01","seq":120,"t":1800000035742,"event":"message","data":{"id":"msg5-1","senderId":"server","content":"Night 3 has begun.","time":1800000035705}}
+{"accountId":"acc03","seq":116,"t":1800000035779,"event":"message","data":{"id":"msg5-2","senderId":"server","content":"Night 3 has begun.","time":1800000035742}}
+{"accountId":"acc04","seq":128,"t":1800000035816,"event":"message","data":{"id":"msg5-3","senderId":"server","content":"Night 3 has begun.","time":1800000035779}}
+{"accountId":"acc08","seq":156,"t":1800000035853,"event":"message","data":{"id":"msg5-4","senderId":"server","content":"Night 3 has begun.","time":1800000035816}}
+{"accountId":"acc09","seq":146,"t":1800000035890,"event":"message","data":{"id":"msg5-5","senderId":"server","content":"Night 3 has begun.","time":1800000035853}}
+{"accountId":"acc08","seq":157,"t":1800000035927,"event":"message","data":{"id":"msg5-6","senderId":"p09","content":"kill Player01 tonight, no fake claims tmrw, lay low and lean Player03, lawyer go on me","meetingId":"m17","time":1800000035890}}
+{"accountId":"acc09","seq":147,"t":1800000035964,"event":"message","data":{"id":"msg5-7","senderId":"p09","content":"kill Player01 tonight, no fake claims tmrw, lay low and lean Player03, lawyer go on me","meetingId":"m17","time":1800000035927}}
+{"accountId":"acc08","seq":158,"t":1800000036001,"event":"message","data":{"id":"msg5-8","senderId":"p09","content":"ok Player01 it is","meetingId":"m17","time":1800000035964}}
+{"accountId":"acc09","seq":148,"t":1800000036038,"event":"message","data":{"id":"msg5-9","senderId":"p09","content":"ok Player01 it is","meetingId":"m17","time":1800000036001}}
+{"accountId":"acc08","seq":159,"t":1800000036075,"event":"message","data":{"id":"msg5-10","senderId":"p08","content":"ok im in","meetingId":"m17","time":1800000036038}}
+{"accountId":"acc09","seq":149,"t":1800000036112,"event":"message","data":{"id":"msg5-11","senderId":"p08","content":"ok im in","meetingId":"m17","time":1800000036075}}
+{"accountId":"acc04","seq":129,"t":1800000036149,"event":"vote","data":{"voterId":"p04","target":"p09","meetingId":"m16"}}
+{"accountId":"acc08","seq":160,"t":1800000036186,"event":"vote","data":{"voterId":"p08","target":"p09","meetingId":"m19"}}
+{"accountId":"acc08","seq":161,"t":1800000036223,"event":"vote","data":{"voterId":"p08","target":"p01","meetingId":"m18"}}
+{"accountId":"acc09","seq":150,"t":1800000036260,"event":"vote","data":{"voterId":"p08","target":"p01","meetingId":"m18"}}
+{"accountId":"acc08","seq":162,"t":1800000036297,"event":"vote","data":{"voterId":"p09","target":"p01","meetingId":"m18"}}
+{"accountId":"acc09","seq":151,"t":1800000036334,"event":"vote","data":{"voterId":"p09","target":"p01","meetingId":"m18"}}
+{"accountId":"acc01","seq":121,"t":1800000036371,"event":"clearTimer","data":"main"}
+{"accountId":"acc03","seq":117,"t":1800000036408,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":130,"t":1800000036445,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":163,"t":1800000036482,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":152,"t":1800000036519,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":131,"t":1800000036556,"event":"leftMeeting","data":"m16"}
+{"accountId":"acc08","seq":164,"t":1800000036593,"event":"leftMeeting","data":"m17"}
+{"accountId":"acc09","seq":153,"t":1800000036630,"event":"leftMeeting","data":"m17"}
+{"accountId":"acc08","seq":165,"t":1800000036667,"event":"leftMeeting","data":"m18"}
+{"accountId":"acc09","seq":154,"t":1800000036704,"event":"leftMeeting","data":"m18"}
+{"accountId":"acc08","seq":166,"t":1800000036741,"event":"leftMeeting","data":"m19"}
+{"accountId":"acc01","seq":122,"t":1800000036778,"event":"death","data":"p01"}
+{"accountId":"acc03","seq":118,"t":1800000036815,"event":"death","data":"p01"}
+{"accountId":"acc04","seq":132,"t":1800000036852,"event":"death","data":"p01"}
+{"accountId":"acc08","seq":167,"t":1800000036889,"event":"death","data":"p01"}
+{"accountId":"acc09","seq":155,"t":1800000036926,"event":"death","data":"p01"}
+{"accountId":"acc01","seq":123,"t":1800000036963,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc03","seq":119,"t":1800000037000,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":133,"t":1800000037037,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":168,"t":1800000037074,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":156,"t":1800000037111,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":124,"t":1800000037148,"event":"obituaries","data":{"id":"5:Night","obituaries":[{"id":"p01","playerInfo":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000037111,"dayCount":3}}
+{"accountId":"acc03","seq":120,"t":1800000037185,"event":"obituaries","data":{"id":"5:Night","obituaries":[{"id":"p01","playerInfo":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000037148,"dayCount":3}}
+{"accountId":"acc04","seq":134,"t":1800000037222,"event":"obituaries","data":{"id":"5:Night","obituaries":[{"id":"p01","playerInfo":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000037185,"dayCount":3}}
+{"accountId":"acc08","seq":169,"t":1800000037259,"event":"obituaries","data":{"id":"5:Night","obituaries":[{"id":"p01","playerInfo":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000037222,"dayCount":3}}
+{"accountId":"acc09","seq":157,"t":1800000037296,"event":"obituaries","data":{"id":"5:Night","obituaries":[{"id":"p01","playerInfo":{"id":"p01","anonId":null,"name":"Player01","userId":"u01","avatar":false},"snippets":["was found dead"]}],"source":"Night","time":1800000037259,"dayCount":3}}
+{"accountId":"acc01","seq":125,"t":1800000037333,"event":"reveal","data":{"playerId":"p01","role":"Sheriff"}}
+{"accountId":"acc03","seq":121,"t":1800000037370,"event":"reveal","data":{"playerId":"p01","role":"Sheriff"}}
+{"accountId":"acc04","seq":135,"t":1800000037407,"event":"reveal","data":{"playerId":"p01","role":"Sheriff"}}
+{"accountId":"acc08","seq":170,"t":1800000037444,"event":"reveal","data":{"playerId":"p01","role":"Sheriff"}}
+{"accountId":"acc09","seq":158,"t":1800000037481,"event":"reveal","data":{"playerId":"p01","role":"Sheriff"}}
+{"accountId":"acc01","seq":126,"t":1800000037518,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc02","seq":42,"t":1800000037555,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc03","seq":122,"t":1800000037592,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc04","seq":136,"t":1800000037629,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc05","seq":101,"t":1800000037666,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc06","seq":64,"t":1800000037703,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc07","seq":101,"t":1800000037740,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc08","seq":171,"t":1800000037777,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}
+{"accountId":"acc09","seq":159,"t":1800000037814,"event":"winners","data":{"groups":["Mafia"],"players":["p07","p08","p09"],"messages":[":flagblack: The Mafia has deceived its way into victory. Make sure you've paid your protection money."],"playersByGroup":{"Mafia":["p07","p08","p09"]}}}

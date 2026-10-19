@@ -1,0 +1,10 @@
+{"accountId":"acc05","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":362}
+{"accountId":"acc01","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":362}
+{"accountId":"acc04","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":892}
+{"accountId":"acc05","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":892}
+{"accountId":"acc01","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":892}
+{"accountId":"acc09","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":892}
+{"accountId":"acc08","phase":"Day 2","source":"llm","reasons":["chat-audit: CONTRADICTION misquote (player07 never said \"player03, trusting that blind\")"],"line":null,"outIndex":1011}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["chat-audit: CONTRADICTION flip (cop flip? nobody flipped Cop)"],"line":null,"outIndex":1041}
+{"accountId":"acc01","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1110}
+{"accountId":"acc05","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1110}

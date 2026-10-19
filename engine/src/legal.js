@@ -101,8 +101,10 @@ function context(view, m, kind) {
     get soleClaimers() { return once("sole", () => soleClaimers(view)); },
     get hammer() { return once("hammer", () => !!hammerState(view)); },
     get loyal() { return once("loyal", () => String(view?.config?.lawyer || "loyal") === "loyal"); },
-    // The Sheriff rule depends on the selection only for "*": check it once for a player and once for "*".
-    gun: (sel) => once(`gun${sel === NO_ONE ? "*" : ""}`, () => sheriffShotCheck(view, { event: "vote", data: { meetingId: m.id, selection: sel } })),
+    // The Sheriff rule depends on the selection (the ready target, the asked seat's answer, the vote leader):
+    // one check per option. Keyed once for all players, it judged every target by the first one (L8 replay:
+    // the asked Villager was refused because the first player in the list was unasked).
+    gun: (sel) => once(`gun:${sel}`, () => sheriffShotCheck(view, { event: "vote", data: { meetingId: m.id, selection: sel } })),
   };
 }
 
