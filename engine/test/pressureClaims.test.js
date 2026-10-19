@@ -40,7 +40,8 @@ test("under pressure every town role claims: Journalist, Cop, and a Villager say
   assert.match(roleClaimLine(seat("Cop", on(4))), /^im cop/);
   // Vinman 10/18: the defense varies (VILLAGER_DEFENSES); it is still a Villager claim.
   assert.ok(VILLAGER_DEFENSES.includes(roleClaimLine(seat("Villager", on(4)))));
-  assert.match(claimedRoleIn(roleClaimLine(seat("Villager", on(4)))), /^(villager|vt)$/);
+  assert.equal(claimedRoleIn(roleClaimLine(seat("Villager", on(4)))), "villager");
+  assert.doesNotMatch(roleClaimLine(seat("Villager", on(4))), /\bvt\b|v\/t/i);
   // Once claimed, no second claim.
   const again = seat("Villager", on(4), [say("p1", "im just a villager, no power role. not me")]);
   assert.equal(roleClaimLine(again), null);

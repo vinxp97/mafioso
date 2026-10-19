@@ -57,7 +57,7 @@ test("L5 #4: a counterclaim waits only the 3s minimum (the fake Journalist claim
 });
 
 // Live game L6-1018 (10/18, Mafia won N2): the Sheriff (Gil) asked the Lawyer (Hap) at ~90s; the planned
-// "im vt" reply never posted and the gun never fired before his ballot-net Village vote closed the day.
+// villager reply never posted and the gun never fired before his ballot-net Village vote closed the day.
 import { ballotNet } from "../src/live.js";
 test("L6 A: the asked seat's reply posts, and the Sheriff shoots after it (or 15s after the ask)", async () => {
   const { table, all } = await gunDay(4, { dayMs: 180_000 });
@@ -67,7 +67,6 @@ test("L6 A: the asked seat's reply posts, and the Sheriff shoots after it (or 15
   const chat = (s, text, t) => all("message", { senderId: s.pid, meetingId: "vil", content: text, t }, t);
   await chat(gil, "im sheriff", T0 + 500);
   await chat(seat("Ash"), "im cop. eli inno", T0 + 3_500);
-  await chat(seat("Ash"), "results: eli inno", T0 + 9_500);
   table.proposed.length = 0;
   await chat(gil, "Hap claim before i shoot", T0 + 90_000);
   for (let t = 90_500; t <= 120_000; t += 500) { await all("time", { time: 180_000 - t }, T0 + t); await drainUpgrades(table); }
@@ -96,5 +95,5 @@ test("L6 D: any two non-claim bot lines are at least 2.5s apart; claims keep a 1
   const view = { selfId: "me", messages: [] };
   const a = { event: "speak", data: { meetingId: "vil", content: "quiet day" } };
   assert.equal(paceSpeech(table, "A", view, a, 10_500, { source: "llm" }).wait, 2_000);
-  assert.equal(paceSpeech(table, "A", view, { ...a, data: { ...a.data, content: "im vt" } }, 10_500, { source: "claim-rule", claim: true }).wait, 500);
+  assert.equal(paceSpeech(table, "A", view, { ...a, data: { ...a.data, content: "im villager" } }, 10_500, { source: "claim-rule", claim: true }).wait, 500);
 });

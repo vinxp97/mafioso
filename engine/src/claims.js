@@ -4,7 +4,7 @@ export const ROLE_ALIASES = {
   "Town Crier": ["town crier", "crier", "tc"], Oracle: ["oracle", "orc"], Caroler: ["caroler"],
   Cop: ["cop"], Journalist: ["journalist", "journo"], Sheriff: ["sheriff"], Doctor: ["doctor", "doc"], Hooker: ["hooker", "rb"],
   Janitor: ["janitor", "jan"], Mafioso: ["mafioso"], Godfather: ["godfather", "gf"],
-  Tracker: ["tracker"], Watcher: ["watcher"], Villager: ["villager", "blue", "vt"],
+  Tracker: ["tracker"], Watcher: ["watcher"], Villager: ["villager", "blue", "vt", "v/t"],
 };
 
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

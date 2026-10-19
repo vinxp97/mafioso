@@ -2,7 +2,7 @@
 // ballot switches, names that must survive outgoing chat, and tighter chatAudit.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, hammerVote, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing, sheriffGunOwed, claimedRoleIn, earlyClaimBlock, dayOpener, reviveSpeech, validateAction, SPENT_GUN_THREAT } from "../src/index.js";
+import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, hammerVote, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing, sheriffGunOwed, claimedRoleIn, claimToken, earlyClaimBlock, dayOpener, reviveSpeech, validateAction, SPENT_GUN_THREAT, VILLAGER_DEFENSES } from "../src/index.js";
 
 const players = Object.fromEntries(["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gus"].map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
 const ids = Object.keys(players);
@@ -326,4 +326,36 @@ test("a day opener and a revived line stay legal, including after the gun", () =
   assert.ok(revived, "a spent-gun threat is replaced");
   assert.equal(SPENT_GUN_THREAT.test(revived.data.content), false, revived.data.content);
   assert.equal(validateAction(spent, revived).ok, true, revived.data.content);
+});
+
+test("a town claim says villager or blue, and vt from someone else is still a Villager claim", () => {
+  for (const line of VILLAGER_DEFENSES) {
+    assert.equal(claimedRoleIn(line), "villager", line);
+    assert.doesNotMatch(line, /\bvt\b|v\/t/i, line);
+  }
+  assert.equal(claimedRoleIn("im vt"), "villager");
+  assert.equal(claimedRoleIn("vt"), "villager");
+  assert.equal(claimedRoleIn("im v/t"), "villager");
+  assert.equal(claimedRoleIn("im blue"), "villager");
+  assert.equal(claimToken("im vt"), "vt");
+  assert.equal(claimToken("im blue"), "blue");
+  const villager = day("p4", "Villager", [say("p1", "im sheriff")]);
+  const rules = (line) => chatAudit(villager, line).map((f) => f.rule);
+  assert.ok(rules("im vt").includes("vt-claim"));
+  assert.ok(rules("me im v/t").includes("vt-claim"));
+  assert.ok(rules("not cop, vt").includes("vt-claim"));
+  assert.equal(rules("im villager").includes("vt-claim"), false);
+  assert.equal(rules("im blue").includes("vt-claim"), false);
+  assert.equal(rules("blue here, nothing to hide").includes("vt-claim"), false);
+  assert.equal(rules("cora shot a vt, why trust him").includes("vt-claim"), false);
+  const speak = (content, role = "Villager") => humanizeSpeak({ ...villager, role }, { event: "speak", data: { meetingId: "vil", content } }).data.content;
+  assert.equal(speak("hugo im vt"), "hugo im villager");
+  assert.equal(speak("im v/t"), "im villager");
+  assert.equal(speak("im blue"), "im blue");
+  const cop = day("p4", "Cop", []);
+  const copSpeak = (content) => humanizeSpeak(cop, { event: "speak", data: { meetingId: "vil", content } }).data.content;
+  assert.equal(copSpeak("results: Bea inno"), "im cop. Bea inno");
+  assert.equal(copSpeak("result - Bea guilty"), "im cop. Bea guilty");
+  assert.equal(copSpeak("im cop. results: Bea inno"), "im cop. Bea inno");
+  assert.equal(copSpeak("im the real cop, result - Bea inno"), "im the real cop. Bea inno");
 });

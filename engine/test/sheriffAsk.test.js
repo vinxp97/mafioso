@@ -35,7 +35,8 @@ test("parseClaimReply reads casual answers: power, plain, refusal, negation, not
     "im cop": ["Cop", "power"], "I'm the Journalist": ["Journalist", "power"], "cop here": ["Cop", "power"], "journo": ["Journalist", "power"],
     "im the doc": ["Doctor", "power"], "i'm doctor lol": ["Doctor", "power"], "im the real cop, results: bob inno": ["Cop", "power"],
     "vt": ["Villager", "plain"], "me im vt": ["Villager", "plain"], "im just a villager": ["Villager", "plain"], "vanilla town": ["Villager", "plain"],
-    "town": ["Villager", "plain"], "i'm town": ["Villager", "plain"], "blue": ["Villager", "plain"],
+    "town": ["Villager", "plain"], "i'm town": ["Villager", "plain"], "blue": ["Villager", "plain"], "im blue": ["Villager", "plain"],
+    "v/t": ["Villager", "plain"], "im v/t": ["Villager", "plain"], "not cop, v/t": ["Villager", "plain"],
     "not claiming": [null, "refuse"], "not telling you": [null, "refuse"], "im not cop": [null, "refuse"], "not cop, vt": ["Villager", "plain"],
   };
   for (const [text, [role, kind]] of Object.entries(cases)) assert.deepEqual(parseClaimReply(text), { role, kind }, text);
@@ -137,10 +138,11 @@ const asked = (role, extra = [], mates = []) => {
   return v;
 };
 
-test("asked seats answer: Villager says vt, Cop claims with results, mafia fake-claims an open power role", () => {
+test("asked seats answer: Villager says villager, Cop claims with results, mafia fake-claims an open power role", () => {
   const vt = asked("Villager");
   assert.ok(sheriffAskedMe(vt));
-  assert.equal(askReplyLine(vt), "me im vt");
+  assert.equal(askReplyLine(vt), "me im villager");
+  assert.doesNotMatch(askReplyLine(vt), /\bvt\b|v\/t/i);
   assert.deepEqual(parseClaimReply(askReplyLine(vt)), { role: "Villager", kind: "plain" });
   const cop = asked("Cop", [{ event: "message", data: { senderId: "server", content: "Your investigation shows that Bob is Innocent" } }]);
   assert.equal(claimAllowed(cop), true, "the ask unlocks the Cop claim");

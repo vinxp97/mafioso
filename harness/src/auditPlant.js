@@ -67,7 +67,7 @@ export function plantLines(S, pid, view, rng, { held = false } = {}) {
     const y = pick(others.filter((id) => !mem.checks?.[id]));
     if (y) {
       const role = S.roles[pid];
-      add("unreceived-result", role === "Cop" ? alt([`results: ${nm(y)} guilty`, `my check on ${nm(y)} came back guilty`, `checked ${nm(y)} last night: mafia`], [`${nm(y)} came up guilty on my check`, `i investigated ${nm(y)}: guilty`], [`investigated ${nm(y)} and got guilty`, `night 1 check: ${nm(y)} guilty`])
+      add("unreceived-result", role === "Cop" ? alt([`im cop. ${nm(y)} guilty`, `my check on ${nm(y)} came back guilty`, `checked ${nm(y)} last night: mafia`], [`${nm(y)} came up guilty on my check`, `i investigated ${nm(y)}: guilty`], [`investigated ${nm(y)} and got guilty`, `night 1 check: ${nm(y)} guilty`])
         : role === "Journalist" ? alt([`im journalist. ${nm(y)} got no report`, `my report on ${nm(y)}: nothing`], [`${nm(y)} got nothing last night, i looked`, `journalist: no report on ${nm(y)}`], [`i watched ${nm(y)}, no reports`, `${nm(y)} received no report, i watched`])
           : alt([`i checked ${nm(y)}, ${nm(y)} guilty`, `my check on ${nm(y)} came back guilty`, `checked ${nm(y)} last night: mafia`], [`i investigated ${nm(y)}, guilty`, `${nm(y)} is guilty, i checked`], [`investigated ${nm(y)} and got guilty`, `my result: ${nm(y)} guilty`]));
     }

@@ -39,14 +39,15 @@ test("item 8: the answer to the Sheriff's ask waits REACT.minMs..maxMs after the
   await msg("Gil", "im sheriff", 1_000);
   await msg("Gil", "cal claim?", 2_000);
   await drainUpgrades(table);
-  const reply = spoke(table, "Cal").find((p) => /\bvt\b|\bim\b/.test(p.data.content));
+  const reply = spoke(table, "Cal").find((p) => /\bvillager\b|\bim\b/.test(p.data.content));
   assert.ok(reply, "Cal answered");
   const at = Number(reply.t ?? reply.at ?? reply.clock ?? NaN);
   if (Number.isFinite(at)) {
     assert.ok(at - (T0 + 2_000) >= REACT.minMs && at - (T0 + 2_000) <= REACT.maxMs + 1_000, `answered ${at - (T0 + 2_000)}ms after the ask`);
   } else assert.ok(clock.now() - (T0 + 2_000) >= REACT.minMs, "the virtual clock had to move past the beat");
-  // Item 6: a no-fake-claim plan answers vt, and the log says why.
-  assert.match(reply.data.content, /\bvt\b/);
+  // Item 6: a no-fake-claim plan answers villager, and the log says why.
+  assert.match(reply.data.content, /\bvillager\b/);
+  assert.doesNotMatch(reply.data.content, /\bvt\b|v\/t/i);
   assert.ok(notes.some(([who, what]) => who === seat("Cal").acc && /ask-reply: plan has no fake claim/.test(what)), JSON.stringify(notes));
 });
 
