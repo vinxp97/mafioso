@@ -5,7 +5,8 @@
 // Self-votes are legal on the server (Vinman, 10/18). Pure: reads one seat's view.
 import { revealedSheriff } from "./legal.js";
 import { publicRecord, townReads } from "./townReads.js";
-import { allies } from "./faction.js";
+import { alignmentOf, allies } from "./faction.js";
+import { memoryOf } from "./notes.js";
 import { scumFaction } from "./scumPlan.js";
 import { dayFraction } from "./sheriffGate.js";
 
@@ -51,6 +52,42 @@ export function hammerRead(view) {
   const g = gateOf(view);
   if (!top || top[1] < g.minRead || top[1] - (next?.[1] || 0) < g.minMargin) return null;
   return { target: top[0], read: top[1], next: next?.[1] || 0, why: (reads.reasons[top[0]] || []).join("; ") };
+}
+
+/**
+ * Tie-break when suspicion scores are equal (including all zeros). Fake claims and town-flip votes,
+ * then a stable id. Never the order players self-voted.
+ */
+function hammerEvidence(view, id, reads) {
+  const bits = [];
+  let rank = 0;
+  const claim = reads.record?.claims?.[id];
+  if (claim && /^(cop|journalist|sheriff|doctor)$/i.test(claim)) {
+    const flipped = Object.entries(view?.reveals || {}).some(([pid, app]) => pid !== id && String(app || "").split(/[: (]/)[0] === claim);
+    if (flipped) { rank += 50; bits.push(`claims ${claim} but that role flipped`); }
+    const rivals = Object.entries(reads.record.claims).filter(([oid, role]) => oid !== id && role === claim);
+    if (rivals.length) { rank += 20; bits.push(`contested ${claim} claim`); }
+  }
+  let pushes = 0;
+  for (const v of memoryOf(view).votes || []) {
+    if (v.voterId !== id || !v.target || v.target === "*") continue;
+    if (/^day/i.test(String(v.phase || "")) && alignmentOf(view?.reveals?.[v.target]) === "Village") pushes++;
+  }
+  if (pushes) { rank += 10 * pushes; bits.push(`voted ${pushes} town flip${pushes > 1 ? "s" : ""}`); }
+  return { rank, why: bits.join("; ") };
+}
+
+function chooseHammerTarget(view, ids, reads) {
+  const ranked = ids.map((id) => ({ id, score: reads.score[id] || 0, ev: hammerEvidence(view, id, reads) }))
+    .sort((a, b) => b.score - a.score || b.ev.rank - a.ev.rank || (a.id < b.id ? -1 : 1));
+  return ranked[0] || null;
+}
+
+function hammerBasis(pick, reads) {
+  const reasons = (reads.reasons[pick.id] || []).join("; ");
+  if (pick.score !== 0) return `read ${pick.score}${reasons ? `: ${reasons}` : ""}`;
+  if (pick.ev.rank > 0) return `read 0, evidence: ${pick.ev.why}`;
+  return "read 0, no scored read; stable id";
 }
 export const HAMMER_ASK_RE = /\bself[- ]?vote\b|\bvote (?:your ?self|yourselves)\b|\bgive (?:me )?(?:the )?hammer\b/i;
 
@@ -139,11 +176,15 @@ export function hammerVote(view, { now = view?.clock } = {}) {
   const me = view.selfId;
   if (st.sheriffId === me) {
     const reads = townReads(view);
-    const rank = (ids) => ids.map((id) => [id, reads.score[id] || 0]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] || null;
-    if (st.refusers.length) return { target: rank(st.refusers), why: `hammer: ${nm(view, rank(st.refusers))} refused to self-vote` };
+    const elig = new Set(eligible(view, reads));
+    const among = (ids) => chooseHammerTarget(view, ids.filter((id) => id && id !== me && elig.has(id)), reads);
+    if (st.refusers.length) {
+      const pick = among(st.refusers);
+      if (pick) return { target: pick.id, why: `hammer: ${nm(view, pick.id)} refused to self-vote, ${hammerBasis(pick, reads)}` };
+    }
     if (!st.ready && !st.late) return { hold: true, why: `hammer: waiting on ${st.pending.length} self-vote(s)` };
-    const pick = hammerRead(view)?.target || rank(eligible(view, reads)) || rank(living(view).filter((id) => id !== me));
-    return pick ? { target: pick, why: `hammer: deciding vote, read ${reads.score[pick] || 0}` } : null;
+    const pick = among(elig.size ? [...elig] : []);
+    return pick ? { target: pick.id, why: `hammer: deciding vote, ${hammerBasis(pick, reads)}` } : null;
   }
   const sv = voteOf(m, st.sheriffId);
   const onRefuser = sv && st.refusers.includes(sv) && sv !== me;

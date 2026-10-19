@@ -8,7 +8,8 @@
 //                  differs from the one received, a reply to an accusation nobody made.
 //   SCUM_MISTAKE   a scum fake claim or fake result that public facts already disprove (a role that flipped
 //                  elsewhere, a guilty on a revealed townie). Fakes that fit the public facts pass: deception.
-import { claimedRoleIn } from "./chatStyle.js";
+import { claimedRoleIn, earlyClaimBlock, roleClaimLine } from "./chatStyle.js";
+import { repairSpentGunThreat, sheriffGunSpent, SPENT_GUN_THREAT } from "./sheriffGate.js";
 import { alignmentOf, allies } from "./faction.js";
 import { machineLeak, publicLeak, revealedSheriff } from "./legal.js";
 import { JANITOR_REPORT, memoryOf } from "./notes.js";
@@ -388,7 +389,8 @@ export function chatAudit(view, content) {
   if (!scum && shClaimer && shClaimer !== view.selfId && !flags.some((f) => /sheriff/.test(f.rule)) && !guiltyOnClaimer(shClaimer)) {
     const sn = [nm(shClaimer), ...nicknamesOf(view.players?.[shClaimer]?.name)].map(esc).join("|");
     const who = `(?:${sn}|(?:the |that |this |our |their |s\\d+ )?sheriff(?: claim(?:er)?)?)(?!'s\\b)`;
-    const push = new RegExp(`\\b(?:vote|voting|lynch|hang|hammer|wagon|push|kill|condemn)\\s+(?:out\\s+)?(?:on\\s+|for\\s+)?${who}(?![a-z0-9_])(?!\\s+(?:is|isnt|isn't)\\b)|${who}\\s+(?:out|needs to go|has to go|must go|gets? lynched)\\b`);
+    // "self-vote for the sheriff" is the hammer comply, not a lynch. The object has to be the Sheriff.
+    const push = new RegExp(`\\b(?:(?<!self-)vote|voting|lynch|hang|hammer|wagon|push|kill|condemn)\\s+(?:out\\s+)?(?:on\\s+|for\\s+)?${who}(?![a-z0-9_])(?!\\s+(?:is|isnt|isn't)\\b)|${who}\\s+(?:out|needs to go|has to go|must go|gets? lynched)\\b`);
     const negated = /\b(?:don'?t|do not|never)\s+(?:\w+\s+){0,3}(?:vote|voting|lynch|hang|hammer|wagon|push|kill|condemn)\b/.test(text);
     if (push.test(text) && !negated) flag("CONTRADICTION", "lynch-sheriff", `calls for the Sheriff's lynch (${nm(shClaimer)})`);
   }
@@ -467,6 +469,8 @@ export function chatAudit(view, content) {
 
   // A reply to an accusation ("x why me") says x voted or named this seat today.
   const reply = new RegExp(`^${N}\\s+(?:why me|not me|what did i even do|wrong guy)`, "i").exec(text.trim());
+  // After the gun is fired the Sheriff never threatens another shot ("X claim or im shooting").
+  if (sheriffGunSpent(view) && SPENT_GUN_THREAT.test(text)) flag("CONTRADICTION", "spent-gun-threat", "the gun is spent: no claim-or-shoot threat");
   if (reply) {
     const by = idOf(reply[1]);
     const me = nm(view.selfId);
@@ -482,6 +486,48 @@ export function groundedLine(view) {
   if (scumFaction(view)) return null;
   const line = townCounterLine(view);
   return line && !chatAudit(view, line).length ? line : null;
+}
+
+function lineOk(view, content) {
+  return !!content && !publicLeak(view, content) && !machineLeak(view, content) && !earlyClaimBlock(view, content) && !chatAudit(view, content).length;
+}
+
+/**
+ * A short day line: the seat's claim when that claim is allowed, otherwise its best read, otherwise
+ * who it is watching. Never an early claim and never a spent-gun threat.
+ */
+export function dayOpener(view) {
+  if (view?.phase?.phase !== "Day" || !view?.selfId) return null;
+  if (!Object.values(view?.meetings || {}).some((m) => m?.name === "Village" && m.speech)) return null;
+  const reads = townReads(view);
+  const ranked = Object.keys(view.players || {}).filter((id) => id !== view.selfId && alive(view, id))
+    .map((id) => [id, reads.score[id] || 0]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const nm = (id) => String(view.players?.[id]?.name || id).toLowerCase();
+  const top = ranked.find(([, score]) => score > 0);
+  const watch = ranked[0];
+  const candidates = [];
+  if (sheriffGunSpent(view)) candidates.push(top ? `guns spent, my read is ${nm(top[0])}` : "guns spent");
+  const claim = roleClaimLine(view);
+  if (claim) candidates.push(claim);
+  if (top) candidates.push(`my read is ${nm(top[0])}`);
+  if (watch) candidates.push(`watching ${nm(watch[0])}`);
+  candidates.push("watching the votes");
+  return candidates.find((line) => lineOk(view, line)) || null;
+}
+
+/** Re-check a held line. A line that no longer passes is replaced with a valid one, or null. */
+export function reviveSpeech(view, content) {
+  const meeting = Object.values(view?.meetings || {}).find((m) => m?.name === "Village" && m.speech);
+  if (!meeting) return null;
+  const repaired = repairSpentGunThreat(view, content);
+  const candidates = [...new Set([repaired, groundedLine(view), dayOpener(view), "watching the votes", "not sure yet", "need more here", "still looking"].filter(Boolean))];
+  const contentOk = lineOk(view, content);
+  if (contentOk && repaired === content) return { event: "speak", data: { meetingId: meeting.id, content } };
+  for (const line of candidates) {
+    if (!lineOk(view, line)) continue;
+    return { event: "speak", data: { meetingId: meeting.id, content: line } };
+  }
+  return null;
 }
 
 /** The first blocking flag as a validateAction reason, or null. view.config.chatAudit "measure" never blocks. */

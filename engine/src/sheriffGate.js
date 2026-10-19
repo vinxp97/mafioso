@@ -522,3 +522,29 @@ export function applySheriffRule(view, actions, { now } = {}) {
   }
   return out;
 }
+
+const GUN_LINE = /^(?::gun:\s*)?(.+?) pulls a gun and shoots (?:at )?.+!*$/i;
+/** This seat is the Sheriff and the gun has already been fired (gun line, or the shot meeting is used). */
+export function sheriffGunSpent(view) {
+  if (!/sheriff/i.test(String(view?.role || ""))) return false;
+  if (view?.gunFired) return true;
+  const me = String(view?.players?.[view.selfId]?.name || "").trim().toLowerCase();
+  const shot = me && (view?.messages || []).some((m) => {
+    if (m?.senderId && m.senderId !== "server") return false;
+    const hit = GUN_LINE.exec(String(m?.content || "").trim());
+    return hit && hit[1].trim().toLowerCase() === me;
+  });
+  if (shot) return true;
+  return Object.values(view?.meetings || {}).some((m) => m?.used && /gun|shoot/i.test(`${m?.name || ""} ${m?.actionName || ""}`));
+}
+
+/** "X claim or im shooting" / "claim before i shoot" once the gun is empty. */
+export const SPENT_GUN_THREAT = /\bclaim\b(?:\s+\w+){0,6}\s+or\s+i(?:'?m|m)?\s*shoot|\bclaim\s+before\s+i\s+shoot|\bor\s+i(?:'?m|m)?\s*shoot(?:ing)?\b|\bi(?:'?m|m)\s+shooting\b/i;
+
+/** Drop a spent-gun threat. A line that was only the threat becomes "guns spent". */
+export function repairSpentGunThreat(view, text) {
+  const raw = String(text ?? "");
+  if (!sheriffGunSpent(view) || !SPENT_GUN_THREAT.test(raw)) return raw;
+  const out = raw.replace(SPENT_GUN_THREAT, " ").replace(/\s+/g, " ").trim();
+  return out.split(/\s+/).filter(Boolean).length >= 3 ? out : "guns spent";
+}

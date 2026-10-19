@@ -1,5 +1,6 @@
 // Public chat must read like a person: player ids become display names, unknown ids are dropped.
 import { NO_ONE } from "./types.js";
+import { repairSpentGunThreat } from "./sheriffGate.js";
 
 function escapeReg(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -109,7 +110,7 @@ export function resolveSpeechRefs(view, text) {
 }
 
 function speakText(view, text) {
-  return exactNames(view, humanizePlayerIds(view, resolveSpeechRefs(view, text)));
+  return exactNames(view, humanizePlayerIds(view, resolveSpeechRefs(view, repairSpentGunThreat(view, text))));
 }
 
 /** Same action with its content humanized; non-speak actions pass through. */

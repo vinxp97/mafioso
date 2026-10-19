@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -825,12 +825,12 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
         ? `${id}|${view.stateId}|vote|${action.data.meetingId}|${JSON.stringify(action.data.selection)}`
         : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}|${action.data.content ?? ""}`;
     // One line per new event, except a role claim: it is news by itself (one claim per game is still enforced below).
-    if (pub && !claim && table.speechStamp[id] === stamp) continue;
+    if (pub && !claim && source !== "day-speech" && table.speechStamp[id] === stamp) continue;
     // L6 (10/18): a seat the Sheriff asked answers him first; its model chatter waits until the reply is out.
     if (pub && !claim && askReplyLine(view)) { table.onSpeechReject?.(id, ["owes the Sheriff an answer first"], source, action.data.content); continue; }
     const ckey = `${id}|${view.stateId}|${action.data?.content}`;
     if (pub && claim && table.claimPending?.has(ckey)) continue;
-    if (pub && !claim && !localSpeechOk(table, id, clock)) continue;
+    if (pub && !claim && source !== "day-speech" && !localSpeechOk(table, id, clock)) continue;
     if (table.seen.has(key) && !(pub && claim)) continue;
     if (action.event === "vote") {
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
@@ -867,7 +867,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       const pace = paceSpeech(table, id, view, action, now, { entry, claim: claim || !!claimed, source });
       if (pace.drop) {
         table.onSpeechReject?.(id, [pace.drop], source, action.data.content);
-        if (source !== "floor-rule") {
+        const revived = /^stale reply/.test(pace.drop) ? reviveSpeech(view, action.data.content) : null;
+        if (revived && source !== "day-speech") {
+          forgetSpoken(table, id, action.data.meetingId, action.data.content);
+          await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
+        } else if (source !== "floor-rule" && source !== "day-speech") {
           noteSpeechBlock(table, id, view);
           const fl = applySpeechFloor(table, id, view);
           if (fl) await emitActions(table, id, [fl], { source: "floor-rule", entry, dryRun, send, onError, clock, claim: false });
@@ -885,6 +889,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       table.speechStamp[id] = stamp;
       ((table.spokeAt ||= {})[id] ||= []).push(now);
       notePublicSend(table, id, now);
+      if (!claim && !claimed) table.lastTableLineAt = Math.max(table.lastTableLineAt ?? -Infinity, now);
       noteSpeechSent(table, id, view);
     }
     const proposal = {
@@ -913,7 +918,8 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
 // counterclaims (news, and the answer to the Sheriff's ask) keep a 1s gap and skip the seat's own 6s gap.
 export const SPEECH_PACE = Object.freeze({ ownGapMs: 6_000, tableGapMs: 2_500, claimGapMs: 1_000, staleMs: 30_000 });
 export const SPEECH_FLOOR = Object.freeze({ minLines: 3, blockStreak: 3, lines: ["watching the votes", "not sure yet", "need more here", "still looking"] });
-const RULE_SOURCES = /^(claim-rule|hammer-rule|rules|counter-rule|ask-rule|floor-rule)/;
+export const DAY_SPEECH = Object.freeze({ openWithinMs: 20_000, silenceMs: 45_000 });
+const RULE_SOURCES = /^(claim-rule|hammer-rule|rules|counter-rule|ask-rule|floor-rule|day-speech)/;
 
 function floorKey(id, view) {
   return `${id}|${view?.phase?.name || ""}`;
@@ -973,7 +979,10 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
   const reply = at != null && trigger - at <= SPEECH_PACE.staleMs ? at + hold : -Infinity;
   const own = (table.spokeAt?.[id] || []).reduce((x, y) => Math.max(x, y), -Infinity) + (claim ? SPEECH_PACE.claimGapMs : SPEECH_PACE.ownGapMs);
   // Other seats' reserved slots: a claim does not queue behind them (its own 1s gap from the last real send).
-  const any = (claim ? (table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs : (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs);
+  // A claim may follow another claim after claimGapMs. It still keeps the table gap behind a normal line.
+  const any = claim
+    ? Math.max((table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs, (table.lastTableLineAt ?? -Infinity) + SPEECH_PACE.tableGapMs)
+    : (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs;
   const due = Math.max(reply, own, any, now);
   return { wait: due - now, anchor: a, due };
 }
@@ -981,6 +990,13 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
 function notePublicSend(table, id, now) {
   table.lastPublicAt = Math.max(table.lastPublicAt ?? -Infinity, now);
   table.lastSentAt = Math.max(table.lastSentAt ?? -Infinity, now);
+}
+
+/** A dropped line must not block the fresh one that replaces it. */
+function forgetSpoken(table, id, meetingId, content) {
+  if (!table.seen || !content) return;
+  const tail = `|speak|${meetingId}|${content}`;
+  for (const k of [...table.seen]) if (typeof k === "string" && k.startsWith(`${id}|`) && k.endsWith(tail)) table.seen.delete(k);
 }
 
 function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onError, claim }, tries = 0) {
@@ -995,7 +1011,12 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     const why = !validateAction(view, action).ok ? `held line invalid at send: ${validateAction(view, action).reason}` : publicLeak(view, action.data.content) ? "held line leaks" : machineLeak(view, action.data.content) ? "held line machine text" : null;
     if (why) {
       table.onSpeechReject?.(id, [why], source, action.data.content);
-      if (source !== "floor-rule" && isPublicSpeak(view, action)) {
+      const revived = reviveSpeech(view, action.data.content);
+      const revivedOk = revived && validateAction(view, revived).ok && !publicLeak(view, revived.data.content) && !machineLeak(view, revived.data.content);
+      if (revivedOk && source !== "day-speech") {
+        forgetSpoken(table, id, action.data.meetingId, action.data.content);
+        await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: nowOf(table), claim: false });
+      } else if (source !== "floor-rule" && source !== "day-speech" && isPublicSpeak(view, action)) {
         noteSpeechBlock(table, id, view);
         const fl = applySpeechFloor(table, id, view);
         if (fl) await emitActions(table, id, [fl], { source: "floor-rule", entry, dryRun, send, onError, clock: nowOf(table), claim: false });
@@ -1008,12 +1029,21 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     // Re-check at the real send time (other lines may have gone out meanwhile); this line's own slot is free.
     if (table.lastPublicAt === pace.due) table.lastPublicAt = -Infinity;
     const again = paceSpeech(table, id, view, action, now, { entry, claim, source, anchor: pace.anchor });
-    if (again.drop) { table.onSpeechReject?.(id, [again.drop], source, action.data.content); return done(); }
+    if (again.drop) {
+      table.onSpeechReject?.(id, [again.drop], source, action.data.content);
+      const revived = /^stale reply/.test(again.drop) ? reviveSpeech(view, action.data.content) : null;
+      if (revived && source !== "day-speech") {
+        forgetSpoken(table, id, action.data.meetingId, action.data.content);
+        await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
+      }
+      return done();
+    }
     if (again.wait > 50 && tries < 4) { deferSpeech(table, id, action, again, { source, entry, dryRun, send, onError, claim }, tries + 1); return; }
     if (claimed) (table.claimedRole ||= {})[id] = claimed;
     table.speechStamp[id] = speechStamp(view);
     ((table.spokeAt ||= {})[id] ||= []).push(now);
     notePublicSend(table, id, now);
+    if (!claim) table.lastTableLineAt = Math.max(table.lastTableLineAt ?? -Infinity, now);
     noteSpeechSent(table, id, view);
     done();
     if (claim) ((table.claimSent ||= {})[id] ||= new Set()).add(action.data.content);
@@ -1382,12 +1412,21 @@ function startUpgrade(table, id, ctx) {
           llmFallback: false, speechFirst: true, memory: false, maxRetries: 0, scheduleComplete: null,
         });
       } catch (err) {
-        if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
+        if (String(err?.message) === "stale") {
+          table.onSpeechReject?.(id, ["model stale"], "llm");
+          await speakFresh(table, id, table.views[id], ctx);
+        } else if (ctx.onError) ctx.onError(err, id);
         continue;
       }
       if (plan.speechRejections?.length) table.onSpeechReject?.(id, plan.speechRejections, "llm");
       const now = table.views[id];
-      if (!now || now.stateId !== stateId || !selfAlive(now)) { ctx.onStale?.(id); continue; }
+      if (!now || now.stateId !== stateId || !selfAlive(now)) {
+        ctx.onStale?.(id);
+        const staleLine = plan.actions?.find((a) => isPublicSpeak(view, a))?.data?.content;
+        table.onSpeechReject?.(id, ["model stale"], "llm", staleLine);
+        if (now && selfAlive(now)) await speakFresh(table, id, now, ctx, staleLine);
+        continue;
+      }
       const sch = plan.schedule;
       if (ctx.onSchedule && sch && sch.meetingId && !night) {
         const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
@@ -1530,6 +1569,83 @@ export function publicChatLogLine(table, accountId, entry) {
   return `chat [${view.phase?.name || ""}] ${m.name} ${name}: ${sanitizeChat(text, SPEECH_LOG_MAX)}`;
 }
 
+/** One fresh public line for a seat whose model line went stale or no longer validates. */
+async function speakFresh(table, id, view, ctx, content) {
+  if (!view || view.phase?.phase !== "Day" || !selfAlive(view) || table.stopped?.[id]) return [];
+  const pm = publicSpeechMeeting(view);
+  if (!pm) return [];
+  const line = (content ? reviveSpeech(view, content) : null) || (dayOpener(view) ? { event: "speak", data: { meetingId: pm.id, content: dayOpener(view) } } : null);
+  if (!line) return [];
+  const added = await emitActions(table, id, [line], { ...ctx, source: "day-speech", clock: ctx.clockOf?.() ?? nowOf(table), claim: false });
+  if (ctx.onAdded) ctx.onAdded(added);
+  return added;
+}
+
+/**
+ * Each living seat says one short line near the start of the day. Seats are spaced by the table gap
+ * and the last of them is due at DAY_SPEECH.openWithinMs, so a one-seat day does not talk over a claim
+ * that lands in the first seconds. A claim already due, or a line already said, is that seat's opener.
+ * Checked on each entry (no long timer): the virtual clock must not jump ahead to fire it.
+ */
+function clocksAgree(table, now) {
+  return Number.isFinite(now) && Math.abs(nowOf(table) - now) <= 1_000;
+}
+
+function queueDayOpener(table, id, view, ctx, now) {
+  if (view?.phase?.phase !== "Day" || !selfAlive(view) || !clocksAgree(table, now)) return;
+  if (!publicSpeechMeeting(view)) return;
+  const key = `${id}|${view.stateId}|day-open`;
+  if ((table.dayOpenQueued ||= new Set()).has(key)) return;
+  if ((table.daySaid?.[floorKey(id, view)] || 0) > 0 || table.pending?.[id]) return;
+  if (claimDue(table, id, view)) return;
+  // The Sheriff's Day 1 speech is the ask and the shot. An opener beside that ask breaks his own gap.
+  if (sheriffGunOwed(view)) return;
+  const rank = Math.max(0, [...table.byId.keys()].indexOf(id));
+  const n = Math.max(1, table.byId.size);
+  const start = Number(view.phaseStartedAt);
+  const base = Number.isFinite(start) ? start : now;
+  const dueAt = base + Math.max(0, DAY_SPEECH.openWithinMs - (n - 1 - rank) * SPEECH_PACE.tableGapMs);
+  if (now < dueAt) return;
+  table.dayOpenQueued.add(key);
+  const content = dayOpener(view);
+  const meeting = publicSpeechMeeting(view);
+  if (!content || !meeting) { table.dayOpenQueued.delete(key); return; }
+  const p = emitActions(table, id, [{ event: "speak", data: { meetingId: meeting.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false }).then((added) => {
+    if (ctx.onAdded) ctx.onAdded(added);
+    return added;
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+/** The lowest living account speaks when the day has been quiet for DAY_SPEECH.silenceMs and 2+ are alive. */
+async function silenceStep(table, id, view, ctx, now) {
+  if (view?.phase?.phase !== "Day" || !selfAlive(view) || !clocksAgree(table, now)) return [];
+  const livingPids = Object.keys(view.players || {}).filter((pid) => view.players[pid] && !view.players[pid].left && !view.dead?.[pid]);
+  if (livingPids.length < 2) return [];
+  const pm = publicSpeechMeeting(view);
+  if (!pm) return [];
+  const livingAcc = [...table.byId.keys()].filter((aid) => selfAlive(table.views[aid]));
+  if (livingAcc[0] !== id) return [];
+  const lastMsg = (view.messages || []).reduce((x, m) => (m?.meetingId === pm.id && m.senderId && m.senderId !== "server" && Number.isFinite(Number(m.t)) ? Math.max(x, Number(m.t)) : x), -Infinity);
+  const start = Number(view.phaseStartedAt);
+  const last = Math.max(table.lastPublicAt ?? -Infinity, lastMsg, Number.isFinite(start) ? start : -Infinity);
+  if (!(now - last >= DAY_SPEECH.silenceMs)) return [];
+  const stretch = `${view.stateId}|${Math.floor(last / 1000)}`;
+  if ((table.silenceKey ||= {})[id] === stretch) return [];
+  const said = new Set((table.proposed || []).filter((p) => p.accountId === id && p.event === "speak").map((p) => p.data?.content));
+  const candidates = [...new Set([dayOpener(view), ...SPEECH_FLOOR.lines].filter(Boolean))];
+  const content = candidates.find((line) => {
+    const spoken = humanizeSpeak(view, { event: "speak", data: { meetingId: pm.id, content: line } }).data?.content;
+    return spoken && !said.has(spoken) && validateAction(view, { event: "speak", data: { meetingId: pm.id, content: line } }).ok;
+  });
+  if (!content) return [];
+  table.silenceKey[id] = stretch;
+  const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false });
+  if (!added.length) delete table.silenceKey[id];
+  return added;
+}
+
 export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
@@ -1591,6 +1707,8 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
         clockOf: () => (now != null ? now : nowOf(table)),
       });
     }
+    queueDayOpener(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table));
+    added.push(...await silenceStep(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table)));
     return added;
   }
   const promptText = table.byId.get(id)?.promptText;
@@ -1617,6 +1735,8 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   const added = await emitActions(table, id, plan.actions.filter((a) => !speech.includes(a)), { ...ctx, source: plan.source, clock });
   if (speech.length) added.push(...await emitActions(table, id, speech, { ...ctx, source: plan.speechSource || plan.source, clock }));
   added.push(...await ballotSwitchStep(table, id, { ...ctx, clockOf: () => clock ?? nowOf(table) }));
+  queueDayOpener(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table));
+  added.push(...await silenceStep(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table)));
   return added;
 }
 

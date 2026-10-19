@@ -47,7 +47,7 @@ export function chatShorten(text, max = PUBLIC_MAX) {
 }
 
 const ROLE_WORDS = "villager|vanilla|vt|town(?:ie)?|cop|journalist|sheriff|doctor|medic|mafioso|lawyer|janitor|godfather";
-const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming|as an?|as the|(?:my\\s+)?role\\s*(?:is|was|[:=]))\\s*(?:(?:a|an|the|just|only|plain|a plain|real|actually)\\s+)*(${ROLE_WORDS})\\b`, "i");
+const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming|as an?|as the|(?:my\\s+)?role\\s*(?:is|was|[:=]))\\s*(?:(?:a|an|the|just|only|plain|a plain|real|actually)\\s+)*(${ROLE_WORDS})\\b(?!\\s+(?:asked|said|says|wants|wanted|told|shot|claims?|shoot(?:ing)?))`, "i");
 
 // "Sheriff here.", "cop btw", "sheriff, holding my shot": a bare role word that opens the line.
 const TRAIL_CLAIM_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*(?:here|btw|fyi|[.!]|$)`, "i");
@@ -336,6 +336,8 @@ export function repeatedDefense(view, content) {
 export function earlyClaimBlock(view, content, opts = {}) {
   const role = claimedRoleIn(content);
   if (!role) return null;
+  // "I'm Villager if asked" (g09) is a hedge, not an opening claim.
+  if (/^(villager|vanilla|vt|town|townie)$/.test(role) && /\b(?:if|when) asked\b/i.test(String(content || ""))) return null;
   // The mafia PLAN speaker may make exactly the PLAN's fake claim, nothing else.
   const planOk = opts.planSpeaker && opts.planRole && role === String(opts.planRole).toLowerCase();
   return claimAllowed(view, { ...opts, planSpeaker: planOk }) ? null : `early claim (${role})`;
