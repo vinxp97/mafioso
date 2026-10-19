@@ -2,7 +2,7 @@
 // ballot switches, names that must survive outgoing chat, and tighter chatAudit.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing, sheriffGunOwed } from "../src/index.js";
+import { reduceAll, soleClaimers, meetingActions, COP_SKIPS_SOLE_CLAIMER, ballotBoard, ballotSwitch, formatBallot, switchesFor, confirmedLead, townVote, townReads, hammerAskLine, hammerVote, HAMMER, humanizeSpeak, finalSpeak, resolveSpeechRefs, chatAudit, noCondemnDanger, buildBriefing, sheriffGunOwed, claimedRoleIn, earlyClaimBlock, dayOpener, reviveSpeech, validateAction, SPENT_GUN_THREAT } from "../src/index.js";
 
 const players = Object.fromEntries(["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gus"].map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
 const ids = Object.keys(players);
@@ -224,4 +224,106 @@ test("mafia may call an uncontested Cop claim nonsense; town reads do not treat 
   assert.equal(after.score.p2, before.score.p2);
   const villager = townReads(day("p1", "Villager", [say("p5", "dot is a liar")]));
   assert.ok((villager.score.p4 || 0) > 0, "a liar call on a non-claimer still counts");
+});
+
+test("the 5-alive hammer uses the best eligible read, then evidence, never the last self-vote", () => {
+  const T = 1_800_000_000_000;
+  const gun = { event: "message", data: { meetingId: "vil", senderId: "server", content: ":gun: Ash pulls a gun and shoots at Gus!", t: T } };
+  const ask = { event: "message", data: { meetingId: "vil", senderId: "p1", content: "everyone self-vote, ill cast the deciding vote", t: T } };
+  const selfs = ["p2", "p3", "p4", "p5"].map((id) => vote(id, id));
+  const quiet = day("p1", "Sheriff", [gun, { event: "death", data: "p6" }, { event: "death", data: "p7" }, ask, ...selfs]);
+  quiet.phaseStartedAt = T - 30_000;
+  const decided = hammerVote(quiet, { now: T + 40_000 });
+  assert.equal(decided.target, "p2", decided.why);
+  assert.match(decided.why, /deciding vote/);
+  assert.match(decided.why, /stable id/);
+  assert.notEqual(decided.target, "p5");
+
+  const fake = day("p1", "Sheriff", [gun, { event: "death", data: "p6" }, { event: "death", data: "p7" }, ask, say("p4", "im sheriff"), ...selfs]);
+  fake.phaseStartedAt = T - 30_000;
+  const faked = hammerVote(fake, { now: T + 40_000 });
+  assert.equal(faked.target, "p4", faked.why);
+  assert.match(faked.why, /claims Sheriff/);
+  assert.doesNotMatch(faked.why, /read 0/);
+
+  const cop = day("p1", "Sheriff", [gun, { event: "death", data: "p6" }, { event: "death", data: "p7" }, ask, say("p2", "im cop"), ...selfs]);
+  cop.phaseStartedAt = T - 30_000;
+  assert.notEqual(hammerVote(cop, { now: T + 40_000 }).target, "p2");
+  const jour = day("p1", "Sheriff", [gun, { event: "death", data: "p6" }, { event: "death", data: "p7" }, ask, say("p2", "im journalist"), ...selfs]);
+  jour.phaseStartedAt = T - 30_000;
+  assert.notEqual(hammerVote(jour, { now: T + 40_000 }).target, "p2");
+
+  const doctors = day("p1", "Sheriff", [gun, { event: "death", data: "p6" }, { event: "death", data: "p7" }, ask, say("p3", "im doctor"), say("p4", "im doctor"), ...selfs]);
+  doctors.phaseStartedAt = T - 30_000;
+  assert.equal(townReads(doctors).score.p3 || 0, 0);
+  assert.equal(townReads(doctors).score.p4 || 0, 0);
+  const doc = hammerVote(doctors, { now: T + 40_000 });
+  assert.equal(doc.target, "p3", doc.why);
+  assert.match(doc.why, /read 0, evidence:/);
+  assert.match(doc.why, /Doctor/);
+
+  const flipped = reduceAll([
+    { event: "self", data: "p1" },
+    { event: "players", data: players },
+    { event: "roleReveal", data: { playerId: "p1", role: "Sheriff" } },
+    { event: "state", data: { id: 2, name: "Day 1" } },
+    vil(),
+    vote("p4", "p6"),
+    { event: "death", data: "p6" },
+    { event: "reveal", data: { playerId: "p6", role: "Villager" } },
+    { event: "death", data: "p7" },
+    { event: "state", data: { id: 4, name: "Day 2" } },
+    vil(),
+    gun, ask, ...selfs,
+  ]);
+  flipped.phaseStartedAt = T - 30_000;
+  const hist = hammerVote(flipped, { now: T + 40_000 });
+  assert.equal(hist.target, "p4", hist.why);
+  assert.match(hist.why, /town flip|voted/);
+  assert.notEqual(hist.target, "p5");
+});
+
+test("a spent gun never threatens another shot; the ask is still legal before it fires", () => {
+  const loaded = day("p1", "Sheriff", []);
+  assert.equal(chatAudit(loaded, "bea claim before i shoot").some((f) => f.rule === "spent-gun-threat"), false);
+  const spent = day("p1", "Sheriff", [
+    { event: "message", data: { meetingId: "vil", senderId: "server", content: ":gun: Ash pulls a gun and shoots at Gus!" } },
+  ]);
+  assert.ok(chatAudit(spent, "bea claim or im shooting").some((f) => f.rule === "spent-gun-threat"));
+  const speak = (content) => humanizeSpeak(spent, { event: "speak", data: { meetingId: "vil", content } }).data.content;
+  assert.equal(speak("bea claim or im shooting"), "guns spent");
+  assert.equal(SPENT_GUN_THREAT.test(speak("bea claim or im shooting")), false);
+  assert.equal(validateAction(spent, { event: "speak", data: { meetingId: "vil", content: "guns spent" } }).ok, true);
+  assert.equal(speak("bea claim before i shoot"), "guns spent");
+  const kept = humanizeSpeak(loaded, { event: "speak", data: { meetingId: "vil", content: "bea claim before i shoot" } }).data.content;
+  assert.match(kept, /claim before i shoot/);
+});
+
+test("claim hedges and a hammer self-vote are not early claims or a lynch on the Sheriff", () => {
+  assert.equal(claimedRoleIn("as the sheriff asked, post a read"), null);
+  const villager = day("p4", "Villager", []);
+  assert.equal(earlyClaimBlock(villager, "I'm Villager if asked"), null);
+  assert.match(earlyClaimBlock(villager, "im villager") || "", /early claim/);
+  const town = day("p4", "Villager", [say("p1", "im sheriff")]);
+  const rules = (line) => chatAudit(town, line).map((f) => f.rule);
+  assert.equal(rules("self-vote for the sheriff").includes("lynch-sheriff"), false);
+  assert.ok(rules("vote that sheriff out").includes("lynch-sheriff"));
+  assert.equal(rules("Sheriff, hold the gun").includes("lynch-sheriff"), false);
+  assert.equal(rules("don't lynch the sheriff").includes("lynch-sheriff"), false);
+  assert.equal(claimedRoleIn("Sheriff claim noted"), null);
+});
+
+test("a day opener and a revived line stay legal, including after the gun", () => {
+  const villager = day("p4", "Villager", []);
+  const open = dayOpener(villager);
+  assert.ok(open, "a quiet villager still opens");
+  assert.equal(earlyClaimBlock(villager, open), null, open);
+  assert.equal(validateAction(villager, { event: "speak", data: { meetingId: "vil", content: open } }).ok, true, open);
+  const spent = day("p1", "Sheriff", [
+    { event: "message", data: { meetingId: "vil", senderId: "server", content: ":gun: Ash pulls a gun and shoots at Bea!" } },
+  ]);
+  const revived = reviveSpeech(spent, "bea claim or im shooting");
+  assert.ok(revived, "a spent-gun threat is replaced");
+  assert.equal(SPENT_GUN_THREAT.test(revived.data.content), false, revived.data.content);
+  assert.equal(validateAction(spent, revived).ok, true, revived.data.content);
 });
