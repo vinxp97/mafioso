@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -182,11 +182,11 @@ export function zipAccounts(accounts, prompts) {
  */
 // mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
 // reasoning: the model thinks before it answers (see reasoningModel); speech gets a larger token budget.
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", sheriffRule = "vinman", lawyer = "loyal", mafia = "adaptive", town = "rules", chatAudit: auditMode = "enforce", townVoteDelayMs = null, reasoning = false, hammer = "on", hammerGate = null, pace = "on" } = {}) {
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", sheriffRule = "vinman", lawyer = "loyal", mafia = "adaptive", town = "rules", chatAudit: auditMode = "enforce", townVoteDelayMs = null, reasoning = false, hammer = "on", hammerGate = null, pace = "on", quietTable = null, claimPressure = null, staleFix = null, auditTight = null } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule, sheriffRule, lawyer, mafia, town, hammer, pace, ...(hammerGate ? { hammerGate } : {}), chatAudit: auditMode, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}) },
+    clock, rng, config: { copRule, sheriffRule, lawyer, mafia, town, hammer, pace, ...(hammerGate ? { hammerGate } : {}), chatAudit: auditMode, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}), ...(quietTable ? { quietTable } : {}), ...(claimPressure ? { claimPressure } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}) },
   };
 }
 
@@ -867,7 +867,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       const pace = paceSpeech(table, id, view, action, now, { entry, claim: claim || !!claimed, source });
       if (pace.drop) {
         table.onSpeechReject?.(id, [pace.drop], source, action.data.content);
-        const revived = /^stale reply/.test(pace.drop) ? reviveSpeech(view, action.data.content) : null;
+        const revived = /^stale reply/.test(pace.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
         if (revived && source !== "day-speech") {
           forgetSpoken(table, id, action.data.meetingId, action.data.content);
           await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
@@ -882,7 +882,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       const coolWait = claim || claimed ? speechWaitMs(table, id, now) : 0;
       if (coolWait > pace.wait) Object.assign(pace, { wait: coolWait, due: now + coolWait });
       if (pace.wait > 0) {
-        if (claim || claimed) (table.claimPending ||= new Set()).add(ckey);
+        if (claim || claimed || (quietTableOpts(table.config).keyFirst && isKeyLine(action.data.content, source))) (table.claimPending ||= new Set()).add(ckey);
         deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onError, claim: claim || !!claimed }); continue;
       }
       if (claimed) (table.claimedRole ||= {})[id] = claimed;
@@ -965,6 +965,9 @@ function answeredLine(view, at) {
 
 export function paceSpeech(table, id, view, action, now, { entry, claim = false, source = "", anchor } = {}) {
   if (table.config?.pace === "off") return { wait: 0 };
+  // quietTable.keyFirst: claims, results and counterclaims are news: claim pacing, on the 1s claim gap only.
+  const keyFirst = quietTableOpts(table.config).keyFirst;
+  if (keyFirst && !claim && isKeyLine(action.data?.content, source)) claim = true;
   const trigger = Number.isFinite(Number(entry?.t)) ? Number(entry.t) : now;
   const a = anchor !== undefined ? anchor : answeredLine(view, trigger);
   const at = a ? Number(a.t) : null;
@@ -973,7 +976,16 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
   const underFloor = (table.daySaid?.[saidKey] || 0) < SPEECH_FLOOR.minLines && (table.speechBlocks?.[saidKey] || 0) > 0;
   // Only a line that was a fresh reply when it was triggered can go stale.
   // A seat blocked into silence keeps a valid line until it has said a few today.
-  if (!exempt && !underFloor && at != null && trigger - at <= SPEECH_PACE.staleMs && now - at > SPEECH_PACE.staleMs) return { drop: `stale reply (${Math.round((now - at) / 1000)}s after the line it answers)`, anchor: a };
+  let late = !exempt && !underFloor && at != null && trigger - at <= SPEECH_PACE.staleMs && now - at > SPEECH_PACE.staleMs;
+  // staleFix.recheck (stale-latency 10/19, off by default): a late reply still valid in the latest state goes out
+  // as a plain line (no reply beat) instead of being dropped.
+  if (late && staleFixOf(table.config).recheck && validateAction(view, action).ok && !publicLeak(view, action.data?.content) && !machineLeak(view, action.data?.content)) {
+    late = false; table.onStaleRecheck?.(id, Math.round((now - at) / 1000));
+    const own = (table.spokeAt?.[id] || []).reduce((x, y) => Math.max(x, y), -Infinity) + SPEECH_PACE.ownGapMs;
+    const due = Math.max(own, (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs, now);
+    return { wait: due - now, anchor: null, due };
+  }
+  if (late) return { drop: `stale reply (${Math.round((now - at) / 1000)}s after the line it answers)`, anchor: a };
   // Claims are news: the shortest beat (the claim path already held its own REACT wait).
   const hold = claim ? REACT.minMs : REACT.minMs + (seedOf(`${id}|${a?.senderId}|${a?.t}|${action.data?.content}`) % (REACT.maxMs - REACT.minMs + 1));
   const reply = at != null && trigger - at <= SPEECH_PACE.staleMs ? at + hold : -Infinity;
@@ -981,7 +993,8 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
   // Other seats' reserved slots: a claim does not queue behind them (its own 1s gap from the last real send).
   // A claim may follow another claim after claimGapMs. It still keeps the table gap behind a normal line.
   const any = claim
-    ? Math.max((table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs, (table.lastTableLineAt ?? -Infinity) + SPEECH_PACE.tableGapMs)
+    ? keyFirst ? (table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs
+      : Math.max((table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs, (table.lastTableLineAt ?? -Infinity) + SPEECH_PACE.tableGapMs)
     : (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs;
   const due = Math.max(reply, own, any, now);
   return { wait: due - now, anchor: a, due };
@@ -1011,7 +1024,7 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     const why = !validateAction(view, action).ok ? `held line invalid at send: ${validateAction(view, action).reason}` : publicLeak(view, action.data.content) ? "held line leaks" : machineLeak(view, action.data.content) ? "held line machine text" : null;
     if (why) {
       table.onSpeechReject?.(id, [why], source, action.data.content);
-      const revived = reviveSpeech(view, action.data.content);
+      const revived = reviveHeld(table, view, action.data.content, { stale: false, source });
       const revivedOk = revived && validateAction(view, revived).ok && !publicLeak(view, revived.data.content) && !machineLeak(view, revived.data.content);
       if (revivedOk && source !== "day-speech") {
         forgetSpoken(table, id, action.data.meetingId, action.data.content);
@@ -1031,7 +1044,7 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     const again = paceSpeech(table, id, view, action, now, { entry, claim, source, anchor: pace.anchor });
     if (again.drop) {
       table.onSpeechReject?.(id, [again.drop], source, action.data.content);
-      const revived = /^stale reply/.test(again.drop) ? reviveSpeech(view, action.data.content) : null;
+      const revived = /^stale reply/.test(again.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
       if (revived && source !== "day-speech") {
         forgetSpoken(table, id, action.data.meetingId, action.data.content);
         await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
@@ -1080,7 +1093,8 @@ export function createLlmLimiter(concurrency = Infinity) {
     while (active < concurrency && queue.length) {
       queue.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
       const job = queue.shift();
-      if (job.isStale && job.isStale()) { stats.dropped++; job.reject(new Error("stale")); continue; }
+      const st = job.isStale ? job.isStale() : false;
+      if (st) { stats.dropped++; job.reject(new Error(typeof st === "string" ? st : "stale")); continue; }
       active++; stats.started++;
       Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; pump(); });
     }
@@ -1098,8 +1112,31 @@ export function createLlmLimiter(concurrency = Infinity) {
 /** Wrap a seat's model with the limiter; every call is tied to the state it was asked in. */
 function limitedComplete(table, id, base, limiter, stateId, priority) {
   if (!limiter) return base;
-  const isStale = () => table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id];
-  return (input) => limiter.run(() => base(input), { priority, isStale });
+  const fix = staleFixOf(table.config);
+  return (input) => {
+    // staleFix (stale-latency 10/19, off by default): judged when the call leaves the queue.
+    const t0 = nowOf(table);
+    const v0 = table.views[id];
+    const day = v0?.phase?.phase === "Day";
+    const anchorT = day ? Number(answeredLine(v0, t0)?.t) : NaN;
+    const freshAtAsk = Number.isFinite(anchorT) && t0 - anchorT <= SPEECH_PACE.staleMs;
+    const isStale = () => {
+      if (table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id]) return true;
+      const now = nowOf(table);
+      // cancel: the line this call would answer went stale while it waited (it would be dropped at send anyway).
+      if (fix.cancel && freshAtAsk && now - anchorT > SPEECH_PACE.staleMs) return "cancelled";
+      // fallbackMs: a day call that waited this long gives way to a template line now.
+      if (fix.fallbackMs && day && now - t0 > fix.fallbackMs) return "fallback";
+      return false;
+    };
+    return limiter.run(() => base(input), { priority, isStale });
+  };
+}
+
+/** config.staleFix: { recheck, cancel, fallbackMs } (stale-latency 10/19); all off by default. */
+export function staleFixOf(config) {
+  const f = config?.staleFix || {};
+  return { recheck: !!f.recheck, cancel: !!f.cancel, fallbackMs: Number(f.fallbackMs) > 0 ? Number(f.fallbackMs) : 0 };
 }
 
 /**
@@ -1415,10 +1452,20 @@ function startUpgrade(table, id, ctx) {
         if (String(err?.message) === "stale") {
           table.onSpeechReject?.(id, ["model stale"], "llm");
           await speakFresh(table, id, table.views[id], ctx);
+        } else if (String(err?.message) === "cancelled") {
+          table.onSpeechReject?.(id, ["model cancelled (trigger stale)"], "llm");
+        } else if (String(err?.message) === "fallback") {
+          table.onSpeechReject?.(id, [`model fallback (queued over ${staleFixOf(table.config).fallbackMs / 1000}s)`], "llm");
+          await speakFresh(table, id, table.views[id], ctx);
         } else if (ctx.onError) ctx.onError(err, id);
         continue;
       }
       if (plan.speechRejections?.length) table.onSpeechReject?.(id, plan.speechRejections, "llm");
+      // staleFix.fallbackMs: the speech call gave way after its queue wait; a template line goes out now instead.
+      if (plan.speechRejections?.some((r) => /^model error: fallback/.test(String(r)))) {
+        await speakFresh(table, id, table.views[id], ctx);
+        continue;
+      }
       const now = table.views[id];
       if (!now || now.stateId !== stateId || !selfAlive(now)) {
         ctx.onStale?.(id);
@@ -1569,12 +1616,31 @@ export function publicChatLogLine(table, accountId, entry) {
   return `chat [${view.phase?.name || ""}] ${m.name} ${name}: ${sanitizeChat(text, SPEECH_LOG_MAX)}`;
 }
 
+/** A held line's replacement: reviveSpeech, or with quietTable.repair "intent" the intent-keeping repair (or null). */
+function reviveHeld(table, view, content, opts) {
+  return quietTableOpts(table.config).repair === "intent" ? reviveKeepingIntent(view, content, opts) : reviveSpeech(view, content);
+}
+
+/** quietTable.filler "facts": openers and fillers restate public facts only. */
+function quietLines(table, view) {
+  return quietTableOpts(table.config).filler === "facts" ? publicFactLines(view) : [dayOpener(view)];
+}
+
+/** quietTable.keyFirst: a claim, result or counterclaim is waiting to go out, so quiet-table lines hold. */
+function keyLinePending(table) {
+  return quietTableOpts(table.config).keyFirst && (table.claimPending?.size || 0) > 0;
+}
+
 /** One fresh public line for a seat whose model line went stale or no longer validates. */
 async function speakFresh(table, id, view, ctx, content) {
   if (!view || view.phase?.phase !== "Day" || !selfAlive(view) || table.stopped?.[id]) return [];
   const pm = publicSpeechMeeting(view);
   if (!pm) return [];
-  const line = (content ? reviveSpeech(view, content) : null) || (dayOpener(view) ? { event: "speak", data: { meetingId: pm.id, content: dayOpener(view) } } : null);
+  // quietTable.repair "intent": a model line that went stale keeps its intent or is dropped (no generic opener).
+  const intent = quietTableOpts(table.config).repair === "intent";
+  const line = intent
+    ? (content ? reviveKeepingIntent(view, content, { stale: true, source: "llm" }) : null)
+    : (content ? reviveSpeech(view, content) : null) || (dayOpener(view) ? { event: "speak", data: { meetingId: pm.id, content: dayOpener(view) } } : null);
   if (!line) return [];
   const added = await emitActions(table, id, [line], { ...ctx, source: "day-speech", clock: ctx.clockOf?.() ?? nowOf(table), claim: false });
   if (ctx.onAdded) ctx.onAdded(added);
@@ -1606,8 +1672,9 @@ function queueDayOpener(table, id, view, ctx, now) {
   const base = Number.isFinite(start) ? start : now;
   const dueAt = base + Math.max(0, DAY_SPEECH.openWithinMs - (n - 1 - rank) * SPEECH_PACE.tableGapMs);
   if (now < dueAt) return;
+  if (keyLinePending(table)) return;
   table.dayOpenQueued.add(key);
-  const content = dayOpener(view);
+  const content = quietLines(table, view)[0];
   const meeting = publicSpeechMeeting(view);
   if (!content || !meeting) { table.dayOpenQueued.delete(key); return; }
   const p = emitActions(table, id, [{ event: "speak", data: { meetingId: meeting.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false }).then((added) => {
@@ -1634,7 +1701,8 @@ async function silenceStep(table, id, view, ctx, now) {
   const stretch = `${view.stateId}|${Math.floor(last / 1000)}`;
   if ((table.silenceKey ||= {})[id] === stretch) return [];
   const said = new Set((table.proposed || []).filter((p) => p.accountId === id && p.event === "speak").map((p) => p.data?.content));
-  const candidates = [...new Set([dayOpener(view), ...SPEECH_FLOOR.lines].filter(Boolean))];
+  if (keyLinePending(table)) return [];
+  const candidates = [...new Set([...quietLines(table, view), ...SPEECH_FLOOR.lines].filter(Boolean))];
   const content = candidates.find((line) => {
     const spoken = humanizeSpeak(view, { event: "speak", data: { meetingId: pm.id, content: line } }).data?.content;
     return spoken && !said.has(spoken) && validateAction(view, { event: "speak", data: { meetingId: pm.id, content: line } }).ok;

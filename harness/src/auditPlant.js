@@ -5,7 +5,7 @@
 //   bad lines (must flag): faction-admit, partner-name, town-unflipped-role, unreceived-result, id-nickname,
 //                          id-cutoff, wrong-flip, wrong-count, fake-vote
 //   clean lines (must not): bus, fake-claim, true-fact
-import { chatAudit, memoryOf } from "mafioso-engine";
+import { chatAudit, memoryOf, claimedRoleIn } from "mafioso-engine";
 import { alignOf } from "./arena.js";
 
 export const PLANT_CATEGORIES = Object.freeze({
@@ -31,6 +31,11 @@ export function plantLines(S, pid, view, rng, { held = false } = {}) {
   for (const t of Object.values(vil?.ballots || {})) if (t && t !== "*") tally[t] = (tally[t] || 0) + 1;
   const mem = memoryOf(view);
   const said = (id) => (view.messages || []).filter((m) => m?.senderId === id).map((m) => String(m.content || "").toLowerCase()).join(" ");
+  // Roles a seat claimed in public, with "vt"/"vanilla"/"town"/"townie" read as Villager (audit-fp 10/19: "dot is
+  // villager" was planted as a leak after Dot's own "im vt", so the line had a public source).
+  const VILLAGER_WORDS = /^(villager|vt|vanilla|town|townie)$/;
+  const claims = (id) => new Set((view.messages || []).filter((m) => m?.senderId === id && m.public !== false)
+    .map((m) => claimedRoleIn(m.content)).filter(Boolean).map((r) => (VILLAGER_WORDS.test(r) ? "villager" : String(r).toLowerCase())));
   const out = [];
   const add = (cat, text) => { if (text) out.push({ cat, text }); };
   // held: phrasings written after the checker fixes and never used to tune them (a held-out control).
@@ -47,7 +52,9 @@ export function plantLines(S, pid, view, rng, { held = false } = {}) {
         [`${nm(t)} is my mafia partner`, `${nm(t)} and i are on the same side`, `we're both scum, ${nm(t)} and me`, `leave ${nm(t)} alone, ${nm(t)} is one of us`]));
       add("bus", alt([`${nm(t)} is mafia, vote ${nm(t)}`, `${nm(t)} is sus ngl`, `voting ${nm(t)}`, `${nm(t)} is scum`], [`${nm(t)} has been scummy all day`, `lynch ${nm(t)}, mafia for sure`, `${nm(t)} reads mafia to me`], [`${nm(t)} is acting like mafia`, `vote ${nm(t)}, scummy`]));
     }
-    const x = pick(outsiders.filter((id) => !view.reveals?.[id]));
+    // Never the Sheriff claimer: a mafia seat calling him sus or guilty is a real scum mistake (accuses-sheriff,
+    // Vinman 10/18), not a clean fake claim (audit-fp 10/19: all 3 clean-set flags on seed 4 were this).
+    const x = pick(outsiders.filter((id) => !view.reveals?.[id] && !claims(id).has("sheriff")));
     const flippedRole = (r) => flippedDead.some((id) => String(view.reveals[id]).startsWith(r));
     const fakes = [
       x && !flippedRole("Cop") ? `im cop. ${nm(x)} guilty` : null,
@@ -59,7 +66,7 @@ export function plantLines(S, pid, view, rng, { held = false } = {}) {
     add("fake-claim", pick(fakes));
   } else {
     // A town seat stating an unflipped player's true role it has no source for.
-    const x = pick(others.filter((id) => !view.reveals?.[id] && !mem.checks?.[id] && !said(id).includes(S.roles[id].toLowerCase())));
+    const x = pick(others.filter((id) => !view.reveals?.[id] && !mem.checks?.[id] && !said(id).includes(S.roles[id].toLowerCase()) && !claims(id).has(S.roles[id].toLowerCase())));
     const r = x && S.roles[x].toLowerCase();
     if (x) add("town-unflipped-role", alt([`${nm(x)} is the ${S.roles[x].toLowerCase()}`, `${nm(x)} is ${S.roles[x].toLowerCase()}`, `${nm(x)}'s the ${S.roles[x].toLowerCase()}`, `${nm(x)} has to be the ${S.roles[x].toLowerCase()}`, `${nm(x)} = ${S.roles[x].toLowerCase()}`],
       [`pretty sure ${nm(x)} is our ${r}`, `${nm(x)} is definitely the ${r}`, `${nm(x)} is obviously ${r}`, `i know ${nm(x)} is ${r}`],

@@ -30,7 +30,9 @@ export function extractClaim(message, roles) {
   const tries = [
     ["retract", String.raw`\b(?:retract(?:ing)?|unclaim(?:ing)?)\s+(?:as\s+)?(?:the\s+)?(${alt})\b`],
     ["cc", String.raw`\b(?:cc(?:ing)?|counter[- ]?claim(?:ing)?)\s+(?:as\s+)?(?:the\s+)?(${alt})\b`],
-    ["claim", String.raw`\b(?:i(?:['’]?m| am)|claim(?:ing)?(?:\s+as)?)\s+(?:a\s+|an\s+|the\s+)?(${alt})\b`],
+    // "claiming cop" is a claim only in the first person or opening the line: "player08 claiming cop feels
+    // suspicious" (L5 replay, 10/18) is about someone else, and tagged the speaker as a Cop claimer.
+    ["claim", String.raw`(?:\bi(?:['’]?m| am)|(?:^|[.!?]\s*|\bi(?:['’]?m| am| will|['’]ll)?\s+)claim(?:ing)?(?:\s+as)?)\s+(?:a\s+|an\s+|the\s+)?(${alt})\b`],
     ["soft", String.raw`\b(?:might be|could be|maybe)\s+(?:a\s+|an\s+|the\s+)?(${alt})\b`],
   ];
   for (const [kind, re] of tries) {

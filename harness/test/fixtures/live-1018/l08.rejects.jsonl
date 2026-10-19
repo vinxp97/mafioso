@@ -1,0 +1,78 @@
+{"accountId":"acc07","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":362}
+{"accountId":"acc01","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":362}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":"I'm putting my vote on Player04, seems suspicious.","outIndex":547}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["stale reply (33s after the line it answers)"],"line":"vote Player03, she's sketch","outIndex":547}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (30s after the line it answers)"],"line":"Player06 yeah im clean lol thanks for checking","outIndex":547}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":547}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":547}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":547}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":547}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":547}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":547}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION misquote (player06 never said \"player04 is inno, so lynch player07\")"],"line":null,"outIndex":555}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION death (player03 is alive)"],"line":null,"outIndex":555}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION misquote (player06 never said \"player04 is inno right\")"],"line":null,"outIndex":555}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["stale reply (31s after the line it answers)"],"line":"i think we should just lynch Player08 now","outIndex":555}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION misquote (player06 never said \"player04 inno, but do we trust him\")"],"line":null,"outIndex":555}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: LEAK result-not-received (player05 clean: this seat got no result on player05)"],"line":null,"outIndex":555}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION self-third-person (refers to itself as player04)"],"line":null,"outIndex":555}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":555}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION wrong-shot (player06 did not shoot player04)"],"line":null,"outIndex":563}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 flip? player03 is alive)"],"line":null,"outIndex":563}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION misquote (player06 never said \"inno, that's my top read\")"],"line":null,"outIndex":563}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION wrong-shot (player08 did not shoot player03)"],"line":null,"outIndex":563}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player04))"],"line":null,"outIndex":563}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["too similar to a recent line (1.00)","chat-audit: CONTRADICTION flip (player08 flip? player08 is alive)"],"line":null,"outIndex":563}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":563}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":571}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"Player03 you're the one stalling this whole lynch lol","outIndex":628}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":628}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION doubts-sheriff (doubts the revealed Sheriff (player04))"],"line":"Player04's claim weak, vote Player03 to save lynch","outIndex":628}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player04))"],"line":"lol player04 is sus, lynch him","outIndex":628}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":null,"outIndex":628}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"should we just lynch Player03 to be safe?","outIndex":628}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":628}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"like, can we just lynch Player03 already?","outIndex":628}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"lynch Player03, pressure not proof","outIndex":628}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player04))"],"line":null,"outIndex":635}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"lynch Player03 now","outIndex":635}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"hm ok should we really just lynch Player03?","outIndex":635}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"player06 says inno? lynch Player03","outIndex":642}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"Vote Player03. Hes just begging to die.","outIndex":642}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"lynch Player03, she's forcing a tie","outIndex":642}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (182s after the line it answers)"],"line":"Player06 lol cool cop result, but we gotta vote someone","outIndex":642}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (185s after the line it answers)"],"line":"Player06 ok im clean, vote Player08 lol","outIndex":642}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (310s after the line it answers)"],"line":"Player06 lol clean shot, but we still need a vote lol","outIndex":642}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"lol vote player03 right now before we all die","outIndex":642}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"should we just vote Player03 out now?","outIndex":642}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (215s after the line it answers)"],"line":"Player06 wait i'm clean?? nice save lol","outIndex":649}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["stale reply (62s after the line it answers)"],"line":"if he's not sheriff shoot him","outIndex":649}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player03 sus, who is dead)"],"line":"vote Player03, no info","outIndex":649}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (85s after the line it answers)"],"line":"journalist claim weak, vote her now","outIndex":649}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (222s after the line it answers)"],"line":"Player06 wait, you cleared me? lol nice try","outIndex":656}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (94s after the line it answers)"],"line":"lol shoot player05 now, no time for journalist bs","outIndex":656}
+{"accountId":"acc05","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc08","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc07","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc02","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc01","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc06","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":798}
+{"accountId":"acc08","phase":"Day 2","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player04))"],"line":null,"outIndex":890}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player04) suspicious)"],"line":null,"outIndex":890}
+{"accountId":"acc08","phase":"Day 2","source":"llm","reasons":["public leak: contains \"plan\""],"line":null,"outIndex":890}
+{"accountId":"acc02","phase":"Night 3","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":986}
+{"accountId":"acc04","phase":"Night 3","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":986}
+{"accountId":"acc05","phase":"Night 3","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":986}
+{"accountId":"acc01","phase":"Night 3","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":986}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["model error: LM Studio POST /chat/completions -> 400: {\"error\":\"Engine protocol predict strea"],"line":null,"outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["chat-audit: LEAK faction-admit (admits the mafia side)"],"line":null,"outIndex":1037}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player02 sus, who is dead)"],"line":null,"outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc01","phase":"Day 3","source":"claim-rule","reasons":["early claim (vt)"],"line":"im just vt, nothing to show. this wagon is wrong","outIndex":1037}
+{"accountId":"acc08","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1076}
+{"accountId":"acc01","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1076}

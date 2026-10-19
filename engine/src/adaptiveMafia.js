@@ -13,7 +13,7 @@ import { allies, alignmentOf } from "./faction.js";
 import { townReads } from "./townReads.js";
 import { NO_ONE } from "./types.js";
 import { agreedPlan } from "./scumPlan.js";
-import { underPressure, claimedRoleIn, villagerDefense } from "./chatStyle.js";
+import { underPressure, claimedRoleIn, villagerDefense, earlyClaimBlock } from "./chatStyle.js";
 import { revealedSheriff } from "./legal.js";
 import { sheriffSeat } from "./sheriffAsk.js";
 
@@ -240,8 +240,10 @@ export function adaptivePressureLine(view, reads = publicReads(view)) {
   const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
   if (mine.some((m) => /\b(?:im|i'?m|i am)\s+(?:just\s+)?(?:a\s+)?(cop|journalist|villager|sheriff)\b/i.test(String(m.content || "")))) return null;
   const opts = claimOptions(view, reads);
-  if (opts.journalist && stateHash(view.stateId, view.selfId, "pressure") < 0.5) return { role: "Journalist", line: "im journalist, nothing useful yet. not me" };
-  return { role: "Villager", line: villagerDefense(view) };
+  const c = opts.journalist && stateHash(view.stateId, view.selfId, "pressure") < 0.5 ? { role: "Journalist", line: "im journalist, nothing useful yet. not me" } : { role: "Villager", line: villagerDefense(view) };
+  // audit-fp 10/19: never a line the claim validator (legal.js earlyClaimBlock) refuses. L8 D3 (3 alive, one vote
+  // on me) sent it 7 times into the block before the second vote landed. Same claim, same moment, no retries.
+  return earlyClaimBlock(view, c.line, planClaim(view)) ? null : c;
 }
 
 /** This scum seat's day vote target. */

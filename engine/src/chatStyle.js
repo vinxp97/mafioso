@@ -254,7 +254,9 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
   // info (a report worth sharing). Under pressure it claims too.
   if (/journalist/i.test(role)) return !!(counterclaimReason(view) || journalistInfo(view) || underPressure(view));
   if (counterclaimReason(view)) return true;
-  return pressureOn(view) >= 2;
+  // config.claimPressure "l1" (audit-fp 10/19, off by default): also at L-1 when the hammer is one vote
+  // (3 alive). L8 D3: the vt claim waited for the second vote and went out after the hammer.
+  return pressureOn(view) >= 2 || (view?.config?.claimPressure === "l1" && underPressure(view));
 }
 
 function allResults(view) {
