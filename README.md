@@ -58,11 +58,12 @@ They share `createOpenAICompatibleComplete` (`harness/src/openaiCompatible.js`):
 | LM Studio (local Qwen) | `createLmStudioComplete` | `http://127.0.0.1:1234/v1` | `LM_API_KEY` (default `lm-studio`, any non-empty string) | `LM_STUDIO_MODEL` (empty = first id from `GET /v1/models`) |
 | [Experiential Labs](https://platform.experientiallabs.ai/docs/openai-compatibility) | `createExperientialComplete` | `https://api.experientiallabs.ai/v1` | `EXPLABS_API_KEY` (`xpl_...`) | `EXPLABS_MODEL` (example `qwen3.8-27b`) |
 | [OpenCode Go](https://opencode.ai/docs/go/) | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`) |
+| [OpenRouter](https://openrouter.ai/docs/api/reference/overview) | `createOpenRouterComplete` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | `OPENROUTER_MODEL` (default `minimax/minimax-m3.1-flash`) |
 
-Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`. Placeholders only in `.env.example`. Do not commit keys.
+Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`, `OPENROUTER_BASE_URL`. OpenRouter also takes optional `OPENROUTER_HTTP_REFERER` (`HTTP-Referer`) and `OPENROUTER_TITLE` (`X-Title`, placeholder `mafioso`). Both headers are omitted when unset. Placeholders only in `.env.example`. Do not commit keys.
 
 ```js
-import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, runLoopAsync } from "./harness/src/index.js";
+import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, createOpenRouterComplete, runLoopAsync } from "./harness/src/index.js";
 
 // Local Qwen. Run this process on the same machine as LM Studio.
 const complete = createLmStudioComplete();
@@ -72,6 +73,9 @@ const complete = createLmStudioComplete();
 
 // OpenCode Go. Sends Authorization plus a stable x-opencode-session for this client.
 // const complete = createOpenCodeGoComplete();
+
+// OpenRouter. Default model minimax/minimax-m3.1-flash. Set OPENROUTER_API_KEY.
+// const complete = createOpenRouterComplete();
 
 const { proposed } = await runLoopAsync(entries, { complete });
 ```
