@@ -8,6 +8,7 @@ import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
 import { createExperientialComplete } from "./experiential.js";
 import { createOpenCodeGoComplete } from "./opencodeGo.js";
+import { createOpenRouterComplete, OPENROUTER_DEFAULT_MODEL } from "./openrouter.js";
 import { createArenaScorer } from "./arena.js";
 import { realClock } from "./clock.js";
 import { ensurePromptStore, finishGame, outcomeForView, replayDigest, savePromptStore, selectPrompts } from "./prompts.js";
@@ -106,14 +107,15 @@ export function streamUrl(baseUrl, pathname = "/api/dev/stream") {
   return origin + pathname;
 }
 
-/** MAFIOSO_LLM=lmstudio|experiential|opencode. fetch is only for the model, not the game API. */
+/** MAFIOSO_LLM=lmstudio|experiential|opencode|openrouter. fetch is only for the model, not the game API. */
 export function createBackendComplete(env = process.env, { fetch } = {}) {
   const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
   const opts = { env, ...(fetch ? { fetch } : {}) };
   if (which === "lmstudio" || which === "lm-studio") return createLmStudioComplete(opts);
   if (which === "experiential" || which === "explabs") return createExperientialComplete(opts);
   if (which === "opencode" || which === "opencode-go") return createOpenCodeGoComplete(opts);
-  throw new Error(`Unknown MAFIOSO_LLM: ${which}. Use lmstudio, experiential, or opencode.`);
+  if (which === "openrouter") return createOpenRouterComplete(opts);
+  throw new Error(`Unknown MAFIOSO_LLM: ${which}. Use lmstudio, experiential, opencode, or openrouter.`);
 }
 
 export function withCfAccess(fetchImpl, { clientId = "", clientSecret = "" } = {}) {
@@ -197,7 +199,10 @@ export function reasoningModel(env = process.env) {
   const forced = nonempty(env.MAFIOSO_REASONING);
   if (forced) return /^(1|true|yes|on)$/i.test(forced);
   const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
-  const model = which.startsWith("exp") ? env.EXPLABS_MODEL : which.startsWith("opencode") ? env.OPENCODE_MODEL : env.LM_STUDIO_MODEL;
+  const model = which.startsWith("exp") ? env.EXPLABS_MODEL
+    : which.startsWith("opencode") ? env.OPENCODE_MODEL
+    : which === "openrouter" ? (nonempty(env.OPENROUTER_MODEL) || OPENROUTER_DEFAULT_MODEL)
+    : env.LM_STUDIO_MODEL;
   return REASONING_MODEL_RE.test(String(model || ""));
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
@@ -2022,7 +2027,7 @@ export async function pollOnce(client, accounts, sinceById) {
 
 export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, clock = realClock, signals = null, exit = (c) => process.exit(c) } = {}) {
   const cfg = liveConfigFromEnv(env);
-  const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
+  const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.OPENROUTER_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
   const say = (m) => log(redact(m, secrets));
   if (!cfg.live) {
     say("dry-run: MAFIOSO_LIVE is not 1, not connecting and not sending");
