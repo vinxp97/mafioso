@@ -132,7 +132,7 @@ function publicClaimOf(view, id) {
   for (const m of view.messages || []) {
     if (m?.senderId !== id || m.public === false) continue;
     const r = claimedRoleIn(m.content);
-    if (r) role = /^(vanilla|vt|town|townie)$/.test(r) ? "villager" : r;
+    if (r) role = /^(vanilla|vt|v\/t|town|townie|blue)$/.test(r) ? "villager" : r;
   }
   return role || (view.claims?.[id]?.kind !== "retract" ? String(view.claims?.[id]?.role || "").toLowerCase() || null : null);
 }

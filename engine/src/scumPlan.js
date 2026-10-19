@@ -71,7 +71,7 @@ function blank(token) {
   return token == null || token === "-" || token === "none" ? null : String(token);
 }
 
-const ROLE_WORDS = "cop|journalist|journ|sheriff|villager|vanilla|vt|doctor|doc|medic|blue|cleric|caroler|baker|deputy|vigilante|vig|cult|nurse|mason";
+const ROLE_WORDS = "v/t|cop|journalist|journ|sheriff|villager|vanilla|vt|townie|town|doctor|doc|medic|blue|cleric|caroler|baker|deputy|vigilante|vig|cult|nurse|mason";
 const STOP = new Set(["tonight", "tmrw", "tomorrow", "it", "them", "him", "her", "me", "you", "we", "the", "a", "on", "first", "now", "him/her", "again"]);
 
 function norm(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
@@ -144,7 +144,7 @@ export function parsePlanLine(text, view = null, senderId = null) {
   const mm = cm ? null : s.match(MATE_CLAIM_RE);
   const mateId = mm ? resolvePlayer(view, mm[1]) : null;
   const roleWord = cm ? (cm[1] || cm[2]).toLowerCase() : mm && mateId ? mm[2].toLowerCase() : null;
-  const roleOf = (w) => ({ journ: "Journalist", vt: "Villager", vanilla: "Villager", doc: "Doctor", vig: "Vigilante" }[w] || w[0].toUpperCase() + w.slice(1));
+  const roleOf = (w) => ({ journ: "Journalist", vt: "Villager", "v/t": "Villager", vanilla: "Villager", blue: "Villager", town: "Villager", townie: "Villager", doc: "Doctor", vig: "Vigilante" }[w] || w[0].toUpperCase() + w.slice(1));
   const noClaim = !roleWord && NO_CLAIM_RE.test(s);
   const claimRole = noClaim ? null : roleWord ? roleOf(roleWord) : "Cop";
   const lm = s.match(LAWYER_RE);

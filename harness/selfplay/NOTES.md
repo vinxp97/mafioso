@@ -695,3 +695,28 @@ Village 46.0% / Mafia 54.0%, 0 illegal, 76.4% (295/386) town ballots on scum, me
 - **Old logs are guesses.** The live-* logs (g02-g06) have no phase tags or meeting lines, so only their Village
   votes are compared. Seats the log can't tell apart (same alignment, no dead line, no report) stay
   `ambiguousSeats`. The next live game's `seatmap` line makes the binding exact.
+
+# 2026-10-19: why quiet-table cost village games (branch `quiet-table-variants`, off `c423b07`)
+
+Selfplay compared head (`c423b07`) with head minus quiet-table (openers, silence filler, held-line repair off), seeds 4–13 × 30, both arms (600 paired games). Quiet-table lines were tagged in scratch copies only; the tagging was checked to change nothing (30/30 identical logs).
+
+## What the paired games show
+- Quiet-off won and head lost in 40 games. The reverse happened in 25 (sign test p = 0.08). So the drop is small and noisy, about 2.5 points.
+- **Held-line repair mostly re-sends stale replies.** 442 of 467 repaired lines (95%) were the *same* text that pacing had just dropped as stale, sent a median 110s late (IQR 85–140s). These were 151 games, with up to 6 per game. Most are defences ("X why me", "not me, look elsewhere") to accusations made about 2 minutes earlier. 25 changed text, and 16 of those changed the target (e.g. a scum fake claim "im cop. X guilty" became "watching Y"). In the 40 losses, a town held-line repair came before the first divergence 6 times. In the 25 wins it did so once.
+- **Gap:** 97 of 5,348 key lines (claims, results, counterclaims, Sheriff asks) waited while a quiet line went out, 710s in total. Examples: the Sheriff's "X claim before i shoot" went 5s late behind a revived "Y why me", and "results: X inno" went 10s late behind "watching X". The mean key-line delay was not worse overall (2.82s head vs 3.12s quiet-off).
+- **Bury:** 63 of 5,348 key lines had any quiet line within the next 20s, and only 9 had 2 or more. This is rare.
+- **Information:** no quiet line was ever a role claim. There were 16 "guns spent" lines, from a Sheriff who was already revealed. 520 town opener/filler lines named a read or watch target, and 75% of those named real scum. That is free information to scum in a human game. In selfplay the reader was killed the next night 16% of the time, no more than chance, because sim mafia do not read those lines. 446 scum quiet lines named a townie; that townie was lynched the same day 44 times (10%).
+- Bot votes don't read chat lines ("my read is" / "watching"). Most of the effect in selfplay is timing and divergence; how much a human table would care about the information these lines give away isn't measured here.
+
+## Variants (all off by default: `--qt-filler facts`, `--qt-repair intent`, `--qt-keyfirst on`)
+- **repair intent** brings head back to quiet-off: suspicion +3.0 ± 3.3 vs head (+0.3 vs quiet-off), rules +1.0 ± 2.8. It drops all 442 stale re-sends. In selfplay it matches "repair off" game for game.
+- **filler facts** (vote counts, living claims, flips only) cuts read/watch lines from 802 to 23 (the 23 come from the repair path). Win rate is flat: +0.3 suspicion, −0.7 rules. This is a human-table safety change, not a win-rate one.
+- **keyFirst** cuts the mean key-line delay from 2.8s to 1.5s. Win rate is flat to slightly negative: −0.7 ± 1.0 suspicion, +0.7 rules.
+- All three together score +1.0 suspicion and −1.0 rules: no better than repair alone.
+- Every variant and every arm had 0 illegal moves.
+
+## Lessons
+- A line that pacing drops as stale should stay dropped unless it carries news (a claim, result or counterclaim). Repairing it into the same words two minutes later is the costly part of quiet-table.
+- Openers and fillers that state the seat's own read leak to a human table. If they stay, use public facts only. In selfplay they cost nothing either way.
+- Making key lines skip the 2.5s gap does not help in selfplay. Keep the gap.
+- Extra lines shift the table RNG (varyOpener), so paired games diverge chaotically. Judge a change on 10+ seeds with paired CIs, not on single games.

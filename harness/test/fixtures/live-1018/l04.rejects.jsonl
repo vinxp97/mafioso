@@ -1,0 +1,14 @@
+{"accountId":"acc07","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":368}
+{"accountId":"acc04","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":368}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":707}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":721}
+{"accountId":"acc09","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 flip? player03 is alive)"],"line":null,"outIndex":749}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION self-third-person (refers to itself as player03)"],"line":null,"outIndex":812}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION cop-urges-cleared (urges a shot or lynch on player07, whom this seat cleared)"],"line":null,"outIndex":1015}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["too similar to a recent line (0.86)"],"line":"player07 got called liar, vote her out.","outIndex":1050}
+{"accountId":"acc05","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}
+{"accountId":"acc02","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}
+{"accountId":"acc09","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}
+{"accountId":"acc08","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}
+{"accountId":"acc04","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}
+{"accountId":"acc07","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1249}

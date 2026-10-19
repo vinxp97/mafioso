@@ -125,3 +125,42 @@ test("ids shortened into nicknames or cut at the chat limit never reach a fixtur
   for (const i of [2, 3, 5]) for (let k = 4; k <= P(i).length; k++) assert.ok(!dump.includes(P(i).slice(0, k)), `${P(i).slice(0, k)} leaked`);
   assert.ok(r.out.some((e) => e.event === "message" && /two claims \(p\d\d, p\d\d\)/.test(e.data.content)), "stubs map to the fake ids");
 });
+
+// L4+ live logs (10/18): "t=<ms>" on sends and chat lines, a Sheriff's shot mid-day, run-on and typo'd nicknames.
+function liveLog() {
+  const seats = [1, 2, 3, 4, 5];
+  const handles = ["McPhailBrennan7", "KestrelBarlow91", "OsrinAvelina70", "HugoRask60", "CoraVane22"];
+  return [
+    `game GmSynth02x accounts=${seats.map(A).join(",")}`,
+    `frames ${JSON.stringify({ ...FRAMES, "game:gunshot": 1 })}`,
+    `seatmap ${seats.map((s) => `s${s}=${P(s)}:"${handles[s - 1]}"`).join(" ")}`,
+    meet(2, "Night 1", "KillMtg01x", "Mafia Kill"),
+    `send ${A(2)} [Night 1] t=1792000000000 vote KillMtg01x ${P(5)} source=rules prompt=seed`,
+    meet(1, "Day 1", "VilMtg001x", "Village"), meet(4, "Day 1", "GunMtg001x", "Shoot Gun"),
+    `send ${A(4)} [Day 1] t=1792000001000 speak VilMtg001x "im sheriff" source=claim-rule prompt=seed`,
+    `chat [Day 1] Village HugoRask60: "im sheriff" t=1792000001010`,
+    `chat [Day 1] Village KestrelBarlow91: "everyone self-vote, mcphal and osrinav are quiet" t=1792000002000`,
+    `send ${A(4)} [Day 1] t=1792000003000 vote GunMtg001x ${P(2)} source=rules prompt=seed`,
+    `send ${A(4)} [Day 1] t=1792000004000 vote GunMtg001x ${P(3)} source=rules prompt=seed`,
+    `chat [Day 1] Village OsrinAvelina70: "nice shot" t=1792000005000`,
+    `send ${A(1)} [Day 1] t=1792000006000 vote VilMtg001x ${P(4)} source=rules prompt=seed`,
+    "",
+  ].join("\n");
+}
+
+test("live-log lines with t=, the shot where it happened (re-aims dropped), names scrubbed whole", () => {
+  const [g] = parseLog(liveLog());
+  assert.ok(g.items.some((it) => it.k === "speak" && it.val === "im sheriff"), "a send with t= parses");
+  assert.ok(g.items.some((it) => it.k === "chat" && it.content === "nice shot"), "the chat's t= is not part of the text");
+  const r = build(g, { source: "synthetic.log", realNames: ["McPhailBrennan7", "KestrelBarlow91", "OsrinAvelina70", "HugoRask60", "CoraVane22"] });
+  const seen = r.out.filter((e) => e.accountId === "acc01");
+  const iGun = seen.findIndex((e) => e.event === "message" && /pulls a gun and shoots at/.test(e.data.content));
+  assert.match(seen[iGun].data.content, /^:gun: Player04 pulls a gun and shoots at Player02!$/, "the first gun vote fires");
+  const said = (txt) => seen.findIndex((e) => e.event === "message" && e.data.content === txt);
+  assert.ok(said("nice shot") > iGun, "lines after the shot come after the gun line");
+  assert.ok(seen.findIndex((e) => e.event === "death" && e.data === "p02") > iGun);
+  assert.equal(r.out.filter((e) => e.event === "vote" && e.data.voterId === "p04" && e.data.target === "p03").length, 0, "the re-aim is not replayed");
+  const dump = JSON.stringify(r.out).toLowerCase();
+  assert.ok(dump.includes("everyone self-vote"), "a lowercase hyphenated word is not an id");
+  for (const bad of ["mcphal", "osrinav", "mcphail", "osrin", "kestrel"]) assert.ok(!dump.includes(bad), `${bad} leaked`);
+});

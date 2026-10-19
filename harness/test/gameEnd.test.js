@@ -76,6 +76,34 @@ test("live cli: Ctrl+C logs one game_end status=stopped line", async () => {
   await Promise.race([run.catch(() => {}), new Promise((r) => setTimeout(r, 200))]);
 });
 
+test("live cli: a stream that stays open after winners still logs game_end and returns", async () => {
+  const lines = [];
+  const frames = [
+    { accountId: "A", seq: 1, event: "self", data: "p1" },
+    { accountId: "B", seq: 1, event: "self", data: "p2" },
+    { accountId: "A", seq: 2, event: "state", data: { id: 1, name: "Day 1" } },
+    { accountId: "B", seq: 2, event: "state", data: { id: 1, name: "Day 1" } },
+    { accountId: "A", seq: 3, event: "winners", data: { groups: ["Village"], players: ["p1"] } },
+  ].map((e) => `event: game\ndata: ${JSON.stringify(e)}\n\n`).join("");
+  const fetch = async (url, init = {}) => {
+    if (url.endsWith("/dev/token")) return res(200, { token: "t" });
+    if (url.endsWith("/game/host")) return res(200, "g-hang");
+    if (url.endsWith("/dev/accounts") && init.method === "POST") return res(200, [{ id: "A" }, { id: "B" }]);
+    if (url.endsWith("/dev/accounts")) return res(200, [{ id: "A", gameId: "g-hang" }, { id: "B", gameId: "g-hang" }]);
+    if (url.endsWith("/game/leave")) return res(200, {});
+    if (url.includes("/events")) return res(200, []);
+    if (url.endsWith("/dev/stream")) return res(200, {}, (async function* () { yield frames; await new Promise(() => {}); })());
+    if (url.includes("/send")) return res(200, {});
+    if (url.includes("/chat/completions")) return res(200, { choices: [{ message: { content: "{}" } }] });
+    return res(404, {});
+  };
+  let t = 1_700_000_000_000;
+  const code = await runLiveCli({ fetch, log: (m) => lines.push(m), sleep: async (ms) => { t += ms; }, now: () => t, rng: () => 0.5, env: env(await tmp()) });
+  assert.equal(code, 0);
+  assert.ok(lines.some((l) => l.startsWith("winners ")), lines.filter((l) => /winners|game_end/.test(l)).join("\n"));
+  assert.ok(lines.some((l) => l.startsWith("game_end status=finished")), lines.filter((l) => l.startsWith("game_end")).join("\n"));
+});
+
 test("after the first winners, other seats get a grace window before the run stops", () => {
   let t = 0; const tb = table({ A: { finished: true, winners: { groups: ["Mafia"] } }, B: {} });
   const opts = { now: () => t, graceMs: 10_000 };

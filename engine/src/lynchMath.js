@@ -56,6 +56,22 @@ export function wrongLynchCostly(view) {
   return mafia > 0 && mafia >= livingCount(view) - 2 - mafia;
 }
 
+/**
+ * A no-condemn today, then the night kill: "autoloss" when that kill already wins for mafia,
+ * "lylo" when the next day is lynch-or-lose. Null when town can afford the miss.
+ * (noLynchLoses is the autoloss case and stays the hard ban on voting no-one.)
+ */
+export function noCondemnDanger(view) {
+  if (view?.phase?.phase !== "Day") return null;
+  const living = livingCount(view);
+  const mafia = assumedMafiaAlive(view);
+  if (!(mafia > 0) || living < 2) return null;
+  const after = living - 1;
+  if (mafia >= after - mafia) return "autoloss";
+  if (mafia >= after - 1 - mafia) return "lylo";
+  return null;
+}
+
 export const LYLO = "LYLO: lynch or lose today, a wrong lynch loses the game";
 
 // Ultimafia's stalemate GameEndEvent "Meteor" (Games/types/Mafia/events/Meteor.js, Game.js inactivityCheck):

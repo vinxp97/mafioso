@@ -4,23 +4,48 @@
 //   - never a trusted player (verified claimer, or read <= TOWN_READS.credible);
 //   - townDayPick first: a strong read is the vote; contested Cop claims mean no lynch;
 //   - otherwise the best value above 0, else no-one when legal, else the best value.
-import { meetingActions, revealedSheriff } from "./legal.js";
-import { TOWN_READS, townDayPick, townReads } from "./townReads.js";
+import { meetingActions, revealedSheriff, soleClaimers } from "./legal.js";
+import { publicRecord, TOWN_READS, townDayPick, townReads } from "./townReads.js";
 import { dayOneLynchOwed, lyloToday, noLynchLoses, wrongLynchCostly } from "./lynchMath.js";
 
 export const TOWN_VOTE = Object.freeze({ wagon: 1, wagonCap: 3, deferBelow: 2 });
 
+/** Two or more living players have votes and nobody is strictly ahead. */
+function voteSplit(meeting, view) {
+  const counts = {};
+  for (const [voter, raw] of Object.entries(meeting?.votes || {})) {
+    if (view?.dead?.[voter]) continue;
+    const t = Array.isArray(raw) ? raw[0] : raw;
+    if (!t || t === "*") continue;
+    counts[t] = (counts[t] || 0) + 1;
+  }
+  const ns = Object.values(counts).sort((a, b) => b - a);
+  return ns.length >= 2 && ns[0] === ns[1];
+}
+
 /**
- * Vinman 10/18 (11:05): the vote of confirmed town (the revealed Sheriff first, else a verified claimer), when
- * it is on a legal target other than me and not a self-vote: { by, target } or null.
+ * Who town should follow: the revealed Sheriff, then a verified claimer, then a living uncontested Cop,
+ * then a Journalist who is verified or confirmed (sole, or the counterclaim was lynched).
+ * Their vote, when it is on a legal target other than me and not a self-vote: { by, target } or null.
  */
 export function confirmedLead(view, meeting, reads = townReads(view)) {
   const sheriff = revealedSheriff(view);
-  const leaders = [sheriff, ...reads.verified].filter((id, i, a) => id && id !== view.selfId && a.indexOf(id) === i && !view.dead?.[id]);
+  const rec = reads.record || publicRecord(view);
+  const sole = soleClaimers(view);
+  const livingClaim = (role) => Object.entries(rec.claims || {}).filter(([id, r]) => r === role && !view.dead?.[id] && view.players?.[id] && !view.players[id].left).map(([id]) => id);
+  const uncontested = (role) => {
+    const ids = livingClaim(role);
+    return ids.length === 1 && !(reads.contested?.[role] || []).includes(ids[0]) ? ids[0] : null;
+  };
+  const cop = uncontested("Cop");
+  const journalist = reads.verified.find((id) => rec.claims?.[id] === "Journalist")
+    || [...sole].find((id) => rec.claims?.[id] === "Journalist")
+    || uncontested("Journalist");
+  const leaders = [sheriff, ...reads.verified, cop, journalist].filter((id, i, a) => id && id !== view.selfId && a.indexOf(id) === i && !view.dead?.[id]);
   for (const by of leaders) {
     const v = meeting?.votes?.[by];
     const t = Array.isArray(v) ? v[0] : v;
-    if (t && t !== "*" && t !== by && t !== view.selfId && !view.dead?.[t]) return { by, target: t };
+    if (t && t !== "*" && t !== by && t !== view.selfId && !view.dead?.[t] && t !== sheriff) return { by, target: t };
   }
   return null;
 }
@@ -52,10 +77,12 @@ export function townVote(view, meeting, { follow = false } = {}) {
     .map((t) => [t, read(t) + TOWN_VOTE.wagon * Math.min(TOWN_VOTE.wagonCap, backers[t] || 0)])
     .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
   const [best] = ranked;
-  // Unconfident (no read at TOWN_VOTE.deferBelow) follows confirmed town's vote.
+  // A weak read follows confirmed town. On a split, anyone short of a lynch-level read does too,
+  // including when abstaining would be the costly-day default.
   const lead = confirmedLead(view, meeting, reads);
   const myTop = Math.max(0, ...ranked.map(([t]) => read(t)));
-  if (lead && opts.includes(lead.target) && !trusted(lead.target) && myTop < TOWN_VOTE.deferBelow) {
+  const split = voteSplit(meeting, view);
+  if (lead && opts.includes(lead.target) && !trusted(lead.target) && (myTop < TOWN_VOTE.deferBelow || (split && myTop < TOWN_READS.strong))) {
     return { target: lead.target, why: `weak read (${myTop}): follow confirmed town ${view.players?.[lead.by]?.name || lead.by}` };
   }
   // L3 (10/18): when a wrong lynch is costly (it loses now, or gives parity with tonight's kill), or on Day 1

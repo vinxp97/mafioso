@@ -116,15 +116,16 @@ test("L3 item 5: Sheriff-claim doubt, 'whoever shot' a night kill and votes on t
   assert.deepEqual(rules(town, "hugorask60 sheriff claim looks solid"), []);
 });
 
-test("L3 item 6: with a no-fake-claim plan, the asked Janitor answers vt (and says why); a guilty on him earns a counterclaim", () => {
+test("L3 item 6: with a no-fake-claim plan, the asked Janitor answers villager (and says why); a guilty on him earns a counterclaim", () => {
   const v = seat("s3", "Janitor", [say("s8", "im sheriff"), say("s8", "coravane22 claim?")]);
   const c = askReplyChoice(v);
-  assert.match(c.line, /\bvt\b/);
+  assert.match(c.line, /\bvillager\b/);
+  assert.doesNotMatch(c.line, /\bvt\b|v\/t/i);
   assert.match(c.why, /no fake claim/);
   assert.equal(askReplyLine(v), c.line);
   const g = seat("s3", "Janitor", [say("s7", "im cop. coravane22 guilty"), say("s8", "im sheriff"), say("s8", "coravane22 claim?")]);
   const cg = askReplyChoice(g);
-  assert.doesNotMatch(cg.line, /\bvt\b/, cg.why);
+  assert.doesNotMatch(cg.line, /\bvt\b|v\/t/i, cg.why);
   assert.match(cg.why, /counterclaim/);
 });
 
@@ -158,7 +159,7 @@ test("item 9: Villager defenses vary and never repeat a phrasing in the game", (
   const repeat = seat("s6", "Villager", [say("s4", "im just a villager, no power role. not me")]);
   assert.ok(repeatedDefense(repeat, "im just a villager, no power role. not me"));
   assert.equal(validateAction(repeat, { event: "speak", data: { meetingId: "vil", content: "im just a villager, no power role. not me" } }).ok, false);
-  assert.equal(repeatedDefense(repeat, "vt here, nothing to hide. wrong guy"), null);
+  assert.equal(repeatedDefense(repeat, "blue here, nothing to hide. wrong guy"), null);
 });
 
 test("item 10: dead or shot players are never called sus, urged as a vote, or kept in the reads", () => {
