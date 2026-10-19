@@ -49,8 +49,8 @@ test("under pressure every town role claims: Journalist, Cop, and a Villager say
 
 test("Journalist: a rival Journalist claim is countered at once, with or without pressure", () => {
   const pre = [{ event: "state", data: { id: 3, name: "Day 2" } }, say("p4", "im journalist, nothing useful yet")];
-  assert.match(roleClaimLine(seat("Journalist", {}, pre)), /^dot is lying, im journalist/);
-  assert.match(roleClaimLine(seat("Journalist", on(4), pre)), /^dot is lying, im journalist/);
+  assert.match(roleClaimLine(seat("Journalist", {}, pre)), /^Dot is lying, im journalist/);
+  assert.match(roleClaimLine(seat("Journalist", on(4), pre)), /^Dot is lying, im journalist/);
 });
 
 test("town weighs a pressure claim: contested by a living claimer, or the role already flipped", () => {
