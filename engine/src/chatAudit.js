@@ -469,6 +469,10 @@ export function chatAudit(view, content) {
 
   // A reply to an accusation ("x why me") says x voted or named this seat today.
   const reply = new RegExp(`^${N}\\s+(?:why me|not me|what did i even do|wrong guy)`, "i").exec(text.trim());
+  // A town claim says villager or blue. "vt" and "v/t" are still read as Villager claims from other seats.
+  if (/(?:^|[^a-z0-9])(?:i'?m|im|i am)\s+(?:just\s+|a\s+|the\s+)?(?:vt|v\/t)\b|^(?:vt|v\/t)\b|,\s*(?:vt|v\/t)\b/.test(text)) {
+    flag("CONTRADICTION", "vt-claim", "a town claim says villager or blue, never vt");
+  }
   // After the gun is fired the Sheriff never threatens another shot ("X claim or im shooting").
   if (sheriffGunSpent(view) && SPENT_GUN_THREAT.test(text)) flag("CONTRADICTION", "spent-gun-threat", "the gun is spent: no claim-or-shoot threat");
   if (reply) {

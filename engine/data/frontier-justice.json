@@ -4,13 +4,13 @@
   "roles": {
     "Villager": {
       "strategy": "No power. Follow the Sheriff and a confirmed Cop. A Cop guilty is hard because Loyal Lawyer cannot frame town. An innocent is soft (Lawyer can make Mafia look innocent) but trust it most of the time. An uncounterclaimed power role is not confirmed unless you know who was cleaned. If the Sheriff died night 1, a mislynch lets Mafia reach parity and win.",
-      "claims": "Claim Villager when asked. Do not fake a power role.",
+      "claims": "Claim Villager when asked. Say villager, or blue if the line is short. Never say vt or v/t. Do not fake a power role.",
       "night": "You have no night action.",
       "day": "If the Sheriff died night 1, day 1 usually has no lynch: vote No one (*). Otherwise vote with confirmed town, and test the Cop's guilty unless that player claimed a power role."
     },
     "Cop": {
       "strategy": "Investigate active or suspicious players. Guilty is hard: a Loyal Lawyer cannot frame town. Innocent is soft, because Lawyer can make a teammate look innocent; trust innocents most of the time, not as proof. Never invent a result. A Journalist can read your report.",
-      "claims": "If the Sheriff is alive and has claimed, out your report. If the Sheriff may be dead, claim only when you have a guilty; an innocent does not help much.",
+      "claims": "If the Sheriff is alive and has claimed, out your report on the same line as the claim (im cop. name guilty, or im cop, checked name, village). Never follow it with a line that is only results. If the Sheriff may be dead, claim only when you have a guilty; an innocent does not help much.",
       "night": "When Investigate is open, vote a living player you have not already cleared. Do not wait.",
       "day": "Vote your guilty unless they claimed a power role. If the Sheriff died night 1, day 1 often has no lynch. You may signal the report so Journalist can back it up, or play normally and stay quiet on an innocent."
     },
@@ -28,7 +28,7 @@
     },
     "Mafioso": {
       "strategy": "You are vanilla Mafia and look guilty to the Cop unless the Lawyer litigates you. Kill priority is Cop, then Sheriff, then Journalist: the Sheriff is cleared by the gun reveal, and a Journalist can still be cleaned. You are one seat. Coordinate only by casual lines in the Mafia meeting this seat has seen, using player names. Never write PLAN, key=value or ids in any chat. Do not assume teammates know your plan until it is said there.",
-      "claims": "Claim Villager, or the claim on TEAM PLAN. You may counterclaim when the Janitor will not. Never counterclaim Sheriff; the gun always reveals. If the Janitor claims Cop, you or the Lawyer can counterclaim Journalist.",
+      "claims": "Claim Villager (say villager or blue, never vt or v/t), or the claim on TEAM PLAN. You may counterclaim when the Janitor will not. Never counterclaim Sheriff; the gun always reveals. If the Janitor claims Cop, you or the Lawyer can counterclaim Journalist.",
       "night": "Vote the TEAM PLAN kill. If you will counterclaim and the Janitor will not, say so in Mafia chat so the Lawyer covers the teammate who will be checked.",
       "day": "Follow TEAM PLAN for the lynch and your claim. Never reveal that you are Mafia."
     },
@@ -40,7 +40,7 @@
     },
     "Lawyer": {
       "strategy": "You are Loyal. Litigate only teammates, usually the Mafioso. You cannot frame town: a visit on the opposite alignment is blocked. A Cop guilty is hard. A Cop innocent is soft. Always litigate the Mafioso unless the Janitor will not counterclaim and the Mafioso will; then litigate that teammate instead. Kill priority is Cop, then Sheriff, then Journalist: the Sheriff is cleared by the gun reveal, and a Journalist can still be cleaned. You are one seat. Coordinate only by casual lines in Mafia chat you have seen, using player names (e.g. kill rik tonight, ill fake cop). Never write PLAN, key=value or ids in any chat.",
-      "claims": "Claim Villager, or follow TEAM PLAN. If the Janitor claims Cop, you or the Mafioso can counterclaim Journalist. Never counterclaim Sheriff.",
+      "claims": "Claim Villager (say villager or blue, never vt or v/t), or follow TEAM PLAN. If the Janitor claims Cop, you or the Mafioso can counterclaim Journalist. Never counterclaim Sheriff.",
       "night": "Litigate a living teammate every night the meeting is open, and vote the TEAM PLAN kill. If the plan names a lawyer target, use it when that player is a teammate. Do not wait.",
       "day": "Follow TEAM PLAN. Do not reveal that you are Mafia."
     }

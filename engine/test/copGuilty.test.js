@@ -129,9 +129,19 @@ test("--lawyer plain (not FJ) can frame town: guilties count half and the 'lawye
   assert.equal(loyal - plain, TOWN_READS.provenLiar * (1 - TOWN_READS.plainFrame));
   const own = [srv("Your investigation shows that Cal is Guilty")];
   assert.equal(townReads(seat("Cop", own, { config: { lawyer: "plain" } })).score.p3, TOWN_READS.ownCheck * TOWN_READS.plainFrame);
-  const verifiedGuilty = [say("p2", "im cop. dot guilty", true), ...dies("p4", "Mafioso", "Day 1"), { pre: true, event: "state", data: { id: 4, name: "Day 2" } }, say("p2", "results: eli guilty")];
+  const verifiedGuilty = [say("p2", "im cop. dot guilty", true), ...dies("p4", "Mafioso", "Day 1"), { pre: true, event: "state", data: { id: 4, name: "Day 2" } }, say("p2", "im cop. eli guilty")];
   assert.match(townCounterLine(seat("Villager", verifiedGuilty)) || "", /lawyer cant fake a guilty/);
   assert.doesNotMatch(townCounterLine(seat("Villager", verifiedGuilty, { config: { lawyer: "plain" } })) || "", /lawyer cant fake/);
+});
+
+test("a Cop result stays on the claim line", () => {
+  const inno = srv("Your investigation shows that Cal is Innocent");
+  const sheriffOut = say("p4", "im sheriff");
+  const first = roleClaimLine(seat("Cop", [inno, sheriffOut]));
+  assert.equal(first, "im cop. cal inno");
+  assert.doesNotMatch(first, /results?\s*[:\-]/);
+  assert.equal(roleClaimLine(seat("Cop", [inno, sheriffOut, say("p1", "im cop. cal inno")])), null);
+  assert.equal(roleClaimLine(seat("Cop", [inno, sheriffOut, say("p1", "im cop, no results yet")])), "im cop. cal inno");
 });
 
 test("a role claim is never dropped as a repeat: the real Cop answers a fake Cop's near-identical line", () => {

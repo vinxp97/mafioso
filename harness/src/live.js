@@ -338,7 +338,7 @@ export const REACT = { minMs: 3000, maxMs: 8000 };
 /** Does this claim line counter another living player's claim of the same role? */
 export function counterclaimLine(view, line) {
   const role = claimedRoleIn(line);
-  if (!role) return false;
+  if (!role || role === "villager") return false;
   return (view?.messages || []).some((m) => m?.senderId && m.senderId !== view.selfId && m.senderId !== "server" && m.public !== false
     && isAlive(view, m.senderId) && claimedRoleIn(m.content) === role);
 }
@@ -1134,7 +1134,7 @@ export function planClaimLine(view) {
 function notePlanClaim(table, id, view) {
   if (!table.onPlanClaim || view?.phase?.phase !== "Day" || !scumFaction(view) || mafiaModeOf(view) !== "adaptive") return;
   const seen = (table.planNoted ||= {});
-  // L3 (10/18): why this seat answers the Sheriff's ask the way it does (vt vs a fake claim).
+  // L3 (10/18): why this seat answers the Sheriff's ask the way it does (villager vs a fake claim).
   const ar = askReplyChoice(view);
   const ak = `${id}|${view.stateId}|ask`;
   if (ar && !seen[ak]) { seen[ak] = true; table.onPlanClaim(id, `ask-reply: ${ar.why} -> "${ar.line}"`); }

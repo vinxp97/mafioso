@@ -21,14 +21,14 @@ export const SHERIFF_ASK = Object.freeze({
 /** Power roles a claim protects from the shot (Vinman: Cop/Journalist/Sheriff/Doctor etc.). */
 export const ASK_POWER = Object.freeze(new Set(["Cop", "Journalist", "Sheriff", "Doctor", "Detective", "Medic", "Tracker", "Watcher", "Vigilante", "Deputy"]));
 const ROLE_OF = { cop: "Cop", journalist: "Journalist", journo: "Journalist", sheriff: "Sheriff", doctor: "Doctor", doc: "Doctor", medic: "Doctor",
-  villager: "Villager", vanilla: "Villager", vt: "Villager", town: "Villager", townie: "Villager", blue: "Villager", "plain town": "Villager", "vanilla town": "Villager",
+  villager: "Villager", vanilla: "Villager", vt: "Villager", "v/t": "Villager", town: "Villager", townie: "Villager", blue: "Villager", "plain town": "Villager", "vanilla town": "Villager",
   mafioso: "Mafioso", lawyer: "Lawyer", janitor: "Janitor", godfather: "Godfather" };
 
 const ASK_RE = /\b(claim|claiming|role|what are you|wha?t r u|whats ur role|what'?s your role|u claim)\b/i;
 const NOT_ASK_RE = /\b(i'?m|im|i am)\s+(?:the\s+|a\s+|real\s+)*sheriff\b/i;
 const REFUSE_RE = /\b(not claiming|no claim|won'?t claim|wont claim|not telling|not gonna claim|rather not|pass)\b/i;
 const NEG_RE = /\b(not|never|isn'?t|aint|ain'?t)\s+(?:a\s+|the\s+)?(cop|journalist|journo|sheriff|doctor|doc)\b/i;
-const BARE_RE = /^\s*(?:i'?m\s+|im\s+|i am\s+)?(?:just\s+|a\s+|the\s+|only\s+|plain\s+)*(vanilla town|plain town|cop|journalist|journo|sheriff|doctor|doc|medic|villager|vanilla|vt|townie|town|blue)\b/i;
+const BARE_RE = /^\s*(?:i'?m\s+|im\s+|i am\s+)?(?:just\s+|a\s+|the\s+|only\s+|plain\s+)*(vanilla town|plain town|cop|journalist|journo|sheriff|doctor|doc|medic|villager|vanilla|v\/t|vt|townie|town|blue)\b/i;
 const DOC_RE = /\b(?:i'?m|im|i am)\s+(?:the\s+|a\s+|just\s+)*(doc|journo)\b/i;
 
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
