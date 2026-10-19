@@ -25,6 +25,7 @@ Thin factories resolve env, then call that client. Pass `env: {}` in tests. Expl
 | `createLmStudioComplete` | `LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY` | `http://127.0.0.1:1234/v1`, model `""` (discover), api key `lm-studio`. `apiKey: ""` omits Authorization. Same machine as LM Studio. |
 | `createExperientialComplete` | `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY` | `https://api.experientiallabs.ai/v1`. Model and key are required (example model `qwen3.8-27b`, key looks like `xpl_...`). No model discovery. Docs: https://platform.experientiallabs.ai/docs/openai-compatibility |
 | `createOpenCodeGoComplete` | `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION` | `https://opencode.ai/zen/go/v1`. Model and key are required (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`). Sends `user-agent: mafioso/0.1` and `x-opencode-session`. Session comes from `session` / `OPENCODE_SESSION`, else one `randomUUID()` reused for that client. Docs: https://opencode.ai/docs/go/ |
+| `createOpenRouterComplete` | `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE` | `https://openrouter.ai/api/v1`. Key is required. Model defaults to `minimax/minimax-m3.1-flash`. No model discovery. `HTTP-Referer` and `X-Title` are sent only when those env vars are set (`OPENROUTER_TITLE=mafioso` is the placeholder). Docs: https://openrouter.ai/docs/api/reference/overview |
 
 `temperature` and `maxTokens` are omitted unless you pass a finite number (`maxTokens` → `max_tokens`). Experiential Labs models sometimes reject sampling params; leave them unset there.
 
@@ -33,15 +34,15 @@ node scripts/lmstudio-smoke.mjs   # live local LM Studio only
 ```
 
 ```js
-import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, runLoopAsync } from "mafioso-harness";
+import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, createOpenRouterComplete, runLoopAsync } from "mafioso-harness";
 
-const complete = createLmStudioComplete();       // or createExperientialComplete() / createOpenCodeGoComplete()
+const complete = createLmStudioComplete();       // or createExperientialComplete() / createOpenCodeGoComplete() / createOpenRouterComplete()
 const { proposed } = await runLoopAsync(entries, { complete });
 ```
 
 ## Live multi-bot (`src/live.js`, `scripts/live.mjs`)
 
-`MAFIOSO_LLM=lmstudio|experiential|opencode` picks the factory (`createBackendComplete`). Default `lmstudio`. `BOT_COUNT` defaults to 9 (integer 1..50).
+`MAFIOSO_LLM=lmstudio|experiential|opencode|openrouter` picks the factory (`createBackendComplete`). Default `lmstudio`. `BOT_COUNT` defaults to 9 (integer 1..50).
 
 `runLiveCli` with `MAFIOSO_LIVE` unset or not `1` logs a dry-run line and returns. It does not call fetch. With `MAFIOSO_LIVE=1` it reads `DEV_API_CLIENT_ID` / `DEV_API_CLIENT_SECRET`, refuses hosts outside `DEV_HOSTS`, then `getToken` → `hostGame` (private Testing only; `DEV_SETUP_ID` required; `spectating: true`) or joins `GAME_ID` → `createAccounts({count: BOT_COUNT})` → `leaveGame` when this process hosted (400/404/409 means the host was already unseated) → SSE `GET /api/dev/stream` (or `MAFIOSO_TRANSPORT=poll`). One table maps `accountId` → view. Each account is reduced, decided, and `validateAction`'d on its own. Views are not merged. `send` runs only for actions that pass. A speak and a vote in the same meeting can both send. Repeated `seq` values are ignored. Token age past 55 minutes refreshes before the next stream connect. Dropped streams back off and reconnect. Logs are passed through `redact` for the credential and key env values.
 
