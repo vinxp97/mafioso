@@ -17,9 +17,10 @@ import { FJ_ROLES, alignOf, mixSeed, shuffle, winnerFor } from "./arena.js";
 import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
 import { createVirtualClock } from "./clock.js";
 import { plantAndAudit, plantReport } from "./auditPlant.js";
+import { loadLatency, createSimLatencyComplete } from "./simLatency.js";
 
 export const SELFPLAY_DIR = fileURLToPath(new URL("../../logs/selfplay", import.meta.url));
-export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", sheriffRule: "vinman", lawyer: "loyal", mafia: "adaptive", town: "rules", chatAudit: "enforce", staleVotes: "clear", hammer: "on" });
+export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", sheriffRule: "vinman", lawyer: "loyal", mafia: "adaptive", town: "rules", chatAudit: "enforce", staleVotes: "clear", hammer: "on", quietTable: null });
 const NAMES = ["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gil", "Hap", "Ivo"];
 const T0 = 1_760_000_000_000;
 const ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -98,7 +99,7 @@ function emptyStats() {
     townBallots: [], // final Village ballots by town seats: { day, voter, target, onScum, baseline, abstain }
     voteOrder: [], // per day: first-vote order with alignments
     voteDelays: [], // per seat-day: first village vote let through, ms after that seat's vote gate opened
-    lynches: [], noLynchDays: 0,
+    lynches: [], noLynchDays: 0, tieNoLynch: 0, autolossByTie: 0,
     shots: [], kills: [], cleans: 0, litigates: [], copChecks: [], journalistChecks: [],
     claims: [], buses: [], vegs: [], scumChat: 0, publicLines: 0, cannedOrRules: 0,
     illegal: [], copGuiltyFollowUp: [], dayOutcomes: [], stale: 0, vegKickWindows: 0, killVoteMoves: [],
@@ -119,12 +120,12 @@ function createServer({ seed, game, opts }) {
     const acc = makeId(rng, 10); accOf[id] = acc; pidOf[acc] = id;
   });
   const clock = createVirtualClock(T0);
-  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}) });
+  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}), ...(opts.quietTable ? { quietTable: opts.quietTable } : {}), ...(opts.claimPressure ? { claimPressure: opts.claimPressure } : {}), ...(opts.staleFix ? { staleFix: opts.staleFix } : {}), ...(opts.auditTight === "on" ? { auditTight: "on" } : {}) });
   table.onHammer = (id, hv) => S.stats.hammer.push({ day: S.day, seat: names[pidOf[id]], role: roles[pidOf[id]], self: hv.target === pidOf[id], target: names[hv.target] || hv.target, why: hv.why });
   table.onDayVoteShaped = ({ id, scum, sinceGateMs }) => S.stats.voteDelays.push({ day: S.day, seat: names[pidOf[id]], scum, ms: sinceGateMs });
   const S = {
     seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
-    complete: null, limiter: createLlmLimiter(4),
+    complete: null, limiter: createLlmLimiter(opts.simLatency ? 1 : 4),
     alive: new Set(ids), seq: {}, stateId: 1, phase: "", day: 0, meetings: new Map(),
     gunUsed: false, cleansLeft: 1, pastMeetings: new Set(), cursor: 0, winner: null, events: [], errors: [],
     stats: emptyStats(), trace: emptyTraceFor(seed, game), mseq: 0,
@@ -154,6 +155,21 @@ function createServer({ seed, game, opts }) {
   table.onChatAudit = (acc, reason, text, source) => S.stats.chatDrops.push({ phase: S.phase, seat: names[pidOf[acc]], role: roles[pidOf[acc]], reason, text, source });
   const byName = Object.fromEntries(ids.map((id) => [names[id].toLowerCase(), accOf[id]]));
   S.complete = createOfflineComplete({ speech: opts.speech, viewByName: (n) => table.views[byName[String(n).toLowerCase()]] || null });
+  // --sim-latency (stale-latency 10/19, off by default): logged live model latency and rejection rate, one call at a time.
+  if (opts.simLatency) {
+    const w = createSimLatencyComplete(S.complete, { clock, rng: createSeededRng(mixSeed(gseed, "sim-latency")), dist: loadLatency(opts.simLatency), viewByName: (n) => table.views[byName[String(n).toLowerCase()]] || null });
+    S.complete = w.complete;
+    S.simClose = w.close;
+    S.stats.sim = { model: w.sim, rejects: {}, lines: [], days: [], rechecks: 0 };
+    const kind = (r) => /^stale reply/.test(r) ? "stale reply" : /^model (?:error: )?stale/.test(r) ? "model stale" : /^held line invalid/.test(r) ? "held invalid"
+      : /^model (?:error: )?cancelled/.test(r) ? "cancelled" : /^model (?:error: )?fallback/.test(r) ? "fallback" : /chat-audit|too similar|model error|early claim/.test(r) ? "rejected line" : "other";
+    table.onSpeechReject = (acc, reasons) => {
+      const k = kind(String(reasons?.[0] || ""));
+      S.stats.sim.rejects[k] = (S.stats.sim.rejects[k] || 0) + 1;
+      if (k === "other") { const r = String(reasons?.[0] || "").replace(/\(.*|[A-Za-z0-9_-]{6,}$/g, "").slice(0, 60); (S.stats.sim.otherWhy ||= {})[r] = (S.stats.sim.otherWhy[r] || 0) + 1; }
+    };
+    table.onStaleRecheck = () => { S.stats.sim.rechecks += 1; };
+  }
   return S;
 }
 
@@ -324,6 +340,7 @@ async function speak(S, pid, m, content, p) {
   const pub = m.name === "Village";
   if (pub) {
     S.stats.publicLines += 1;
+    if (S.stats.sim) S.stats.sim.lines.push({ day: S.day, t: S.clock.now() });
     S.trace.messages[pid] = (S.trace.messages[pid] || 0) + 1;
     S.trace.speechSent[pid] = (S.trace.speechSent[pid] || 0) + 1;
     S.trace.speech.push({ seat: pid, phase: S.phase, text: content, allowed: true });
@@ -558,8 +575,10 @@ async function playDay(S, night) {
   // Vinman's Day 1 rules: the Sheriff (alive with the gun) always shoots; town never votes no-one while he lives.
   const sheriffId = S.ids.find((id) => S.roles[id] === "Sheriff");
   if (S.day === 1) S.stats.day1 = { sheriffAlive: S.alive.has(sheriffId) && !S.gunUsed };
+  const dayStart = S.clock.now();
   await runPhase(S, S.opts.dayMs, { endEarly: () => dayReady(S) });
   if (!S.winner && !dayReady(S)) await vegKickWindow(S, () => dayReady(S));
+  if (S.stats.sim) S.stats.sim.days.push({ day: S.day, start: dayStart, end: S.clock.now() });
   if (S.winner) return recordDayVotes(S, made[0]);
   const vegged = vegs(S);
   recordDayVotes(S, made[0]);
@@ -587,6 +606,12 @@ async function playDay(S, night) {
     noLynch: !lynch, sheriffAliveAtVote: S.alive.has(sheriffId),
     townNoOne: village.members.filter((id) => S.alive.has(id) && !isScum(S, id) && village.ballots[id] === "*").length,
   });
+  const tie = tieBallot(ballots);
+  if (tie) {
+    S.stats.tieNoLynch += 1;
+    const mafia = liveNow.filter((id) => isScum(S, id)).length;
+    if (mafia > 0 && mafia >= liveNow.length - 1 - mafia) S.stats.autolossByTie += 1;
+  }
   if (condemned && !lynch) {
     // The server's stale votes (deadVotesCleared): the day condemns a player who is already dead. Nobody dies.
     S.stats.deadCondemns.push({ day: S.day, target: S.names[condemned], votes: ballots.filter((t) => t === condemned).length });
@@ -605,6 +630,14 @@ async function playDay(S, night) {
 export function mafiaKillTarget(ballots) {
   const t = tally(ballots);
   return t && t !== "*" ? t : null;
+}
+
+function tieBallot(votes) {
+  const counts = new Map();
+  for (const v of votes) if (v != null) counts.set(v, (counts.get(v) || 0) + 1);
+  let n = 0; let ways = 0;
+  for (const c of counts.values()) { if (c > n) { n = c; ways = 1; } else if (c === n) ways++; }
+  return n > 0 && ways > 1;
 }
 
 function pluralityWithNoOne(votes) {
@@ -693,6 +726,7 @@ export async function playSelfplayGame({ seed = 1, game = 0, ...rest } = {}) {
 }
 
 function finish(S, error) {
+  S.simClose?.();
   const winner = S.winner || (error ? "error" : "draw");
   S.trace.winner = S.winner || "draw";
   S.trace.seats = S.ids.map((id) => ({
@@ -763,7 +797,7 @@ export function buildScorecard(results, { seed, games, ...rest } = {}) {
       lift: cast.length ? rate(onScum, cast.length) - baseline : null,
       baselineMethod: "analytic: for each final town ballot, living mafia / living players other than the voter, under the same state; averaged",
     },
-    lynches: { total: lynches.length, scum: lynches.filter((l) => l.scum).length, accuracy: rate(lynches.filter((l) => l.scum).length, lynches.length), noLynchDays: all("noLynchDays").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.noLynchDays, 0) },
+    lynches: { total: lynches.length, scum: lynches.filter((l) => l.scum).length, accuracy: rate(lynches.filter((l) => l.scum).length, lynches.length), noLynchDays: all("noLynchDays").reduce?.((a, b) => a + b, 0) ?? results.reduce((s, r) => s + r.stats.noLynchDays, 0), tieNoLynch: results.reduce((s, r) => s + (r.stats.tieNoLynch || 0), 0), autolossByTie: results.reduce((s, r) => s + (r.stats.autolossByTie || 0), 0) },
     illegalActions: { total: illegalList.length, byReason: countBy(illegalList, (x) => x.reason.replace(/\(.*\)|[A-Za-z0-9_-]{6,}$/g, "").trim()), samples: illegalList.slice(0, 10) },
     gameLength: { meanDays: mean(days), minDays: Math.min(...days), maxDays: Math.max(...days), histogram: countBy(days, (d) => String(d)), meanVirtualMinutes: mean(results.map((r) => r.minutes)) },
     day1: dayOneCard(results),
@@ -912,6 +946,7 @@ export function scorecardMarkdown(card) {
   L.push(`| Lift over random | ${card.townVotes.lift == null ? "n/a" : (card.townVotes.lift * 100).toFixed(1) + " pts"} |`);
   L.push(`| Town abstains (no vote / no one) | ${card.townVotes.abstained} |`);
   L.push(`| Lynch accuracy | ${pct(card.lynches.accuracy)} (${card.lynches.scum}/${card.lynches.total}), ${card.lynches.noLynchDays} no-lynch days |`);
+  L.push(`| Tie no-lynches / autoloss-by-tie | ${card.lynches.tieNoLynch || 0} / ${card.lynches.autolossByTie || 0} |`);
   L.push(`| Illegal actions | ${card.illegalActions.total} |`);
   L.push(`| Game length | mean ${fmt(card.gameLength.meanDays)} days (min ${card.gameLength.minDays}, max ${card.gameLength.maxDays}); ${countSummary(card.gameLength.histogram)} |`);
   L.push(`| Sheriff shots | ${card.sheriff.hits}/${card.sheriff.shots} hit scum (${pct(card.sheriff.accuracy)} vs ${pct(card.sheriff.randomBaseline)} random) |`);

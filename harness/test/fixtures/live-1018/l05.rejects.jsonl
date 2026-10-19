@@ -1,0 +1,15 @@
+{"accountId":"acc05","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":371}
+{"accountId":"acc03","phase":"Night 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":371}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player09 sus, who is dead)"],"line":null,"outIndex":531}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION vote-dead (urges a vote on player09, who is dead)"],"line":null,"outIndex":563}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (town)"],"line":null,"outIndex":667}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":978}
+{"accountId":"acc06","phase":"Day 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":978}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":978}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":978}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":748}
+{"accountId":"acc04","phase":"Day 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":978}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player01) suspicious)"],"line":null,"outIndex":983}
+{"accountId":"acc02","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1102}
+{"accountId":"acc06","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1102}
+{"accountId":"acc01","phase":"Postgame","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":1102}

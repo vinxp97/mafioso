@@ -23,7 +23,9 @@ logs.forEach((file, i) => {
     k += 1;
     const id = `g${String(k).padStart(2, "0")}`;
     fs.writeFileSync(path.join(outDir, `${id}.jsonl`), r.out.map((e) => JSON.stringify(e)).join("\n") + "\n");
-    const { out, types, source, ...facts } = r;
+    const { out, types, source, rejects, ...facts } = r;
+    // Held/rejected lines (scrubbed like the frames), for offline audit replays: <id>.rejects.jsonl.
+    if (rejects?.length) fs.writeFileSync(path.join(outDir, `${id}.rejects.jsonl`), rejects.map((x) => JSON.stringify(x)).join("\n") + "\n");
     manifest.push({ fixture: `${id}.jsonl`, sourceLog: source, ...facts, entries: out.length, observedFrameCounts: types });
   }
 });

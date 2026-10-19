@@ -242,7 +242,15 @@ export function townReads(view) {
   // Liar accusations: distinct accusers, capped.
   const accusers = {};
   for (const l of rec.liar) if (l.by !== l.target) (accusers[l.target] ||= new Set()).add(l.by);
+  // A sole living uncontested Cop or Journalist is not moved by "liar"/"fake" (mafia pressure on a clear).
+  const shielded = (id) => {
+    const role = rec.claims[id];
+    if (role !== "Cop" && role !== "Journalist") return false;
+    const living = (byRole[role] || []).filter((x) => alive(view, x));
+    return living.length === 1 && living[0] === id && !(contested[role] || []).includes(id);
+  };
   for (const [id, set] of Object.entries(accusers)) {
+    if (shielded(id)) continue;
     add(id, W.accuser * Math.min(3, set.size), `called a liar by ${set.size}`);
     if (revealedAlign(view, id) === "Mafia") for (const by of set) add(by, W.credibleAccuser, "called a liar who flipped mafia");
   }
