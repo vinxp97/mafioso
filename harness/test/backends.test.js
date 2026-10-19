@@ -4,7 +4,8 @@ import fs from "node:fs";
 import { validateAction } from "mafioso-engine";
 import {
   createExperientialComplete, createLmStudioComplete, createOpenAICompatibleComplete, createOpenCodeGoComplete,
-  explabsConfigFromEnv, opencodeGoConfigFromEnv, parseSse, runLoopAsync, OPENCODE_GO_USER_AGENT,
+  createOpenRouterComplete, createBackendComplete, OPENROUTER_DEFAULT_MODEL,
+  explabsConfigFromEnv, opencodeGoConfigFromEnv, openrouterConfigFromEnv, parseSse, runLoopAsync, OPENCODE_GO_USER_AGENT,
 } from "../src/index.js";
 
 function mockFetch(responder) {
@@ -177,6 +178,80 @@ test("explicit session option wins over a header and env", async () => {
   assert.equal(f.calls[0].init.headers["x-opencode-session"], "from-opt");
   assert.equal(f.calls[0].init.headers["x-extra"], "1");
   assert.equal(f.calls[0].init.headers["user-agent"], OPENCODE_GO_USER_AGENT);
+});
+
+test("OpenRouter posts bearer and the default MiniMax model", async () => {
+  const f = mockFetch(() => chatOk('{"action":"wait"}'));
+  const complete = createOpenRouterComplete({ apiKey: "sk-or-test", fetch: f, env: {} });
+  assert.equal(await complete({ system: "s", user: "u" }), '{"action":"wait"}');
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(f.calls[0].init.headers.authorization, "Bearer sk-or-test");
+  assert.equal(f.calls[0].body.model, OPENROUTER_DEFAULT_MODEL);
+  assert.equal(OPENROUTER_DEFAULT_MODEL, "minimax/minimax-m3.1-flash");
+  assert.equal(f.calls[0].init.headers["HTTP-Referer"], undefined);
+  assert.equal(f.calls[0].init.headers["X-Title"], undefined);
+  assert.deepEqual(f.calls[0].body.response_format, { type: "json_object" });
+  assert.equal(f.calls[0].body.stream, false);
+});
+
+test("OpenRouter reads env, optional headers, and refuses a missing key without fetching", async () => {
+  const f = mockFetch(() => chatOk("ok"));
+  const complete = createOpenRouterComplete({
+    fetch: f,
+    env: {
+      OPENROUTER_BASE_URL: "https://gateway.example/v1/",
+      OPENROUTER_MODEL: "other/model",
+      OPENROUTER_API_KEY: "sk-or-from-env",
+      OPENROUTER_HTTP_REFERER: "https://example.test/mafioso",
+      OPENROUTER_TITLE: "mafioso",
+    },
+  });
+  assert.equal(await complete({ system: "s", user: "u" }), "ok");
+  assert.equal(f.calls[0].url, "https://gateway.example/v1/chat/completions");
+  assert.equal(f.calls[0].body.model, "other/model");
+  assert.equal(f.calls[0].init.headers.authorization, "Bearer sk-or-from-env");
+  assert.equal(f.calls[0].init.headers["HTTP-Referer"], "https://example.test/mafioso");
+  assert.equal(f.calls[0].init.headers["X-Title"], "mafioso");
+
+  const idle = mockFetch(() => chatOk("nope"));
+  assert.throws(() => createOpenRouterComplete({ model: "minimax/minimax-m3.1-flash", fetch: idle, env: {} }), /OPENROUTER_API_KEY/);
+  assert.equal(idle.calls.length, 0);
+  await assert.rejects(
+    createOpenRouterComplete({
+      apiKey: "sk-or-supersecret", fetch: mockFetch(() => ({ status: 401, body: { error: "unauthorized" } })), env: {},
+    })({ system: "s", user: "prompt" }),
+    (e) => {
+      assert.match(e.message, /OpenRouter POST \/chat\/completions -> 401/);
+      assert.equal(e.message.includes("sk-or-supersecret"), false);
+      assert.equal(e.message.includes("prompt"), false);
+      return true;
+    },
+  );
+});
+
+test("openrouter env helper defaults the model and leaves the key and headers empty", () => {
+  assert.deepEqual(openrouterConfigFromEnv({}), {
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "minimax/minimax-m3.1-flash",
+    apiKey: "",
+    referer: "",
+    title: "",
+  });
+  assert.equal(openrouterConfigFromEnv({ OPENROUTER_TITLE: " mafioso " }).title, "mafioso");
+});
+
+test("MAFIOSO_LLM=openrouter uses the OpenRouter factory", async () => {
+  const f = mockFetch(() => chatOk("ok"));
+  const complete = createBackendComplete({
+    MAFIOSO_LLM: "openrouter",
+    OPENROUTER_API_KEY: "sk-or-test",
+  }, { fetch: f });
+  await complete({ system: "s", user: "u" });
+  assert.equal(f.calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(f.calls[0].body.model, "minimax/minimax-m3.1-flash");
+  assert.equal(f.calls[0].init.headers.authorization, "Bearer sk-or-test");
+  assert.throws(() => createBackendComplete({ MAFIOSO_LLM: "nope" }, { fetch: f }), /openrouter/);
 });
 
 test("LM Studio still forwards extra headers through the shared client", async () => {
