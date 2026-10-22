@@ -58,33 +58,33 @@ final class GameStore: ObservableObject {
     }
 
     /// Seat filter that is still present. A seat that disappeared falls back to all.
-    var resolvedSeat: String { timeline.resolvedSeat(in: events, files: fileSeats) }
+    var resolvedSeat: String { shown.resolvedSeat }
 
     /// Phase filter that is still present. A phase that disappeared falls back to all.
-    var resolvedPhase: String { timeline.resolvedPhase(in: events) }
+    var resolvedPhase: String { shown.resolvedPhase }
 
-    var visible: [TraceEvent] { timeline.visible(events, files: fileSeats) }
+    var visible: [TraceEvent] { shown.visible }
 
-    var playerSeats: [String] {
-        var seen: [String] = []
-        func add(_ name: String) {
-            guard !name.isEmpty, name != TimelineState.harness, !seen.contains(name) else { return }
-            seen.append(name)
-        }
-        fileSeats.forEach(add)
-        TimelineState.playerSeats(in: events).forEach(add)
-        return seen
-    }
+    var playerSeats: [String] { shown.playerSeats }
 
-    var phases: [String] { TimelineState.phases(in: events) }
+    var phases: [String] { shown.phases }
 
-    var selectedEvent: TraceEvent? {
-        visible.first { timeline.selectedIDs.contains($0.id) }
-    }
+    var selectedEvent: TraceEvent? { shown.selectedEvent }
 
-    var scrubBounds: ClosedRange<Double>? { timeline.bounds(in: events, files: fileSeats) }
+    var scrubBounds: ClosedRange<Double>? { shown.bounds }
 
-    var scrubLabel: String { timeline.label(in: events, files: fileSeats) }
+    var scrubLabel: String { shown.label }
+
+    /// Rebuilt when events or filters change. Views read this; they do not filter during layout.
+    private var shown = TimelineSnapshot.empty
+    private var shownKey = TimelineCacheKey(
+        countsByFile: [:],
+        files: [],
+        seat: TimelineState.all,
+        phase: TimelineState.all,
+        selectedIDs: [],
+        scrub: 0
+    )
 
     var currentGameIsLive: Bool {
         guard fixtureURL == nil else { return false }
@@ -132,8 +132,9 @@ final class GameStore: ObservableObject {
         guard fixtureURL == nil else { return }
         guard path != logsRootPath else { return }
         logsRootPath = path
-        clearTimeline()
         selectedGameID = nil
+        timeline = TimelineState()
+        clearTimeline()
         watchedKey = ""
         stopSeatWatchers()
         needsReset = true
@@ -143,8 +144,8 @@ final class GameStore: ObservableObject {
     func select(game id: String?) {
         guard id != selectedGameID else { return }
         selectedGameID = id
-        clearTimeline()
         timeline = TimelineState()
+        clearTimeline()
         follow = games.first { $0.id == id }?.isLive ?? false
         watchedKey = ""
         wake.signal()
@@ -152,10 +153,12 @@ final class GameStore: ObservableObject {
 
     func chooseSeat(_ seat: String) {
         timeline = timeline.chooseSeat(seat, events: events, files: fileSeats)
+        refreshShown()
     }
 
     func choosePhase(_ phase: String) {
         timeline = timeline.choosePhase(phase, events: events, files: fileSeats)
+        refreshShown()
     }
 
     /// A timeline click. The seat and phase filters stay where the user left them.
@@ -167,6 +170,7 @@ final class GameStore: ObservableObject {
         }
         timeline = next
         pinnedID = id
+        refreshShown()
     }
 
     func setFollow(_ on: Bool) {
@@ -180,6 +184,7 @@ final class GameStore: ObservableObject {
         follow = false
         timeline = timeline.scrub(to: value, in: events, files: fileSeats)
         pinnedID = timeline.selectedIDs.first
+        refreshShown()
     }
 
     /// Wake the directory watcher. A launch polls this until a new game directory has a JSONL file.
@@ -259,7 +264,8 @@ final class GameStore: ObservableObject {
         )]
         selectedGameID = id
         missingRoot = false
-        if let first = visible.first {
+        refreshShown()
+        if let first = shown.visible.first {
             pin(first.id)
         }
     }
@@ -282,7 +288,7 @@ final class GameStore: ObservableObject {
                 spins += 1
                 await Task.yield()
             }
-            if !follow, selection.isEmpty, let first = visible.first {
+            if !follow, selection.isEmpty, let first = shown.visible.first {
                 pin(first.id)
             }
             await wake.wait()
@@ -292,8 +298,10 @@ final class GameStore: ObservableObject {
     private func refreshGames() async {
         let root = LogsRoot.url(from: logsRootPath)
         rootWatcher.start(path: root.path)
-        missingRoot = !FileManager.default.fileExists(atPath: root.path)
+        let missing = !FileManager.default.fileExists(atPath: root.path)
+        if missing != missingRoot { missingRoot = missing }
         let found = TraceCatalog.games(in: root)
+        guard found != games else { return }
         games = found
         if let id = selectedGameID, !found.contains(where: { $0.id == id }) {
             clearTimeline()
@@ -304,6 +312,7 @@ final class GameStore: ObservableObject {
             selectedGameID = first.id
             follow = first.isLive
         }
+        refreshShown()
     }
 
     private func bindGame() async {
@@ -337,7 +346,8 @@ final class GameStore: ObservableObject {
             return lhs.seat < rhs.seat
         }
         timeline = timeline.reconcile(events, files: fileSeats)
-        if follow, let last = visible.last {
+        refreshShown()
+        if follow, let last = shown.visible.last {
             pin(last.id)
         }
     }
@@ -345,6 +355,17 @@ final class GameStore: ObservableObject {
     private func pin(_ id: TraceEvent.ID) {
         pinnedID = id
         timeline = timeline.select(id: id, in: events, files: fileSeats)
+        refreshShown()
+    }
+
+    /// One filter pass per change. The key is the per-file counts plus the filters, so a quiet wake does not scan again.
+    private func refreshShown() {
+        let files = fileSeats
+        let index = TimelineIndex(events: events, files: files)
+        let key = TimelineCacheKey.make(events: events, files: files, state: timeline, index: index)
+        guard key != shownKey else { return }
+        shownKey = key
+        shown = TimelineSnapshot.make(events: events, files: files, state: timeline, index: index)
     }
 
     private func clearTimeline() {
@@ -354,6 +375,7 @@ final class GameStore: ObservableObject {
         next.scrub = 0
         timeline = next
         pinnedID = nil
+        refreshShown()
     }
 
     private func stopSeatWatchers() {
