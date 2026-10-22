@@ -1,6 +1,23 @@
-{ "name": "mafioso-harness", "version": "0.1.0", "private": true, "type": "module",
+{
+  "name": "mafioso-harness",
+  "version": "0.1.0",
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "Vincent Deriu",
   "description": "Dev-only Ultimafia Dev API client for Mafioso (dev.ultimafia.gg / 127.0.0.1 only)",
+  "type": "module",
   "main": "src/index.js",
-  "exports": { ".": "./src/index.js" },
-  "dependencies": { "mafioso-engine": "file:../engine" },
-  "scripts": { "test": "node --test", "lmstudio-smoke": "node scripts/lmstudio-smoke.mjs", "live": "node scripts/live.mjs", "arena": "node scripts/arena.mjs", "selfplay": "node scripts/selfplay.mjs" } }
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "mafioso-engine": "file:../engine"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lmstudio-smoke": "node scripts/lmstudio-smoke.mjs",
+    "live": "node scripts/live.mjs",
+    "arena": "node scripts/arena.mjs",
+    "selfplay": "node scripts/selfplay.mjs"
+  }
+}

@@ -1,5 +1,6 @@
 # mafioso-harness
-Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep).
+
+Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep). The repository [README](../README.md) covers the engine, the harness, and the license. The [quickstart](../docs/QUICKSTART.md) is how to install, test, and run.
 
 - **Hosts:** only `https://dev.ultimafia.gg` and `http://127.0.0.1:3000` (from engine `DEV_HOSTS`). Anything else, including prod, throws `HostNotAllowedError`.
 - **No built-in network:** `new DevApiClient({baseUrl, fetch})` requires an injected `fetch`.
@@ -104,4 +105,4 @@ The scorecard (JSON and markdown) has:
 - the existing `summarizeMetrics` block
 - ranked weaknesses with evidence and an example game log
 
-`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. The seed 1, 50-game scorecard is checked in as the baseline. The jsonl files are gitignored. Town play is scored from public evidence by `engine/src/townReads.js`; see `selfplay/NOTES.md` for the before/after numbers per seed and the lessons from tuning it.
+`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. Scorecards and the other run files (`json`, `md`, `jsonl`) are written under `logs/selfplay/` and gitignored. Town play is scored from public evidence by `engine/src/townReads.js`; see `selfplay/NOTES.md` for the before/after numbers per seed and the lessons from tuning it.
