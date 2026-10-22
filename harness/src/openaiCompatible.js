@@ -54,9 +54,11 @@ function rejectsResponseFormat(status, text) {
 
 /**
  * @param {{baseUrl:string, model?:string|null, apiKey?:string|null, headers?:Record<string,string>,
- *   fetch?:Function, temperature?:number, maxTokens?:number, label?:string, discoverModels?:boolean}} opts
+ *   extraBody?:Record<string,unknown>|null, fetch?:Function, temperature?:number, maxTokens?:number,
+ *   label?:string, discoverModels?:boolean, reasoningEffort?:string}} opts
  *   Does not read process.env. Empty model lists /models when discoverModels is true (the default).
  *   apiKey "" omits Authorization. headers are copied onto every request; apiKey still sets authorization.
+ *   extraBody is merged into each chat body (OpenRouter uses it for `reasoning`).
  * @returns {(input:{system?:string, user?:string})=>Promise<string>}
  */
 export function createOpenAICompatibleComplete(opts = {}) {
@@ -127,8 +129,11 @@ export function createOpenAICompatibleComplete(opts = {}) {
     const mt = callMax !== undefined ? callMax : maxTokens;
     if (mt !== undefined) body.max_tokens = mt;
     if (extraBody) Object.assign(body, extraBody);
-    // reasoning_effort "none" turns off thinking on reasoning models (LM Studio Qwen): no hidden tokens.
-    if (effort) body.reasoning_effort = effort;
+    // reasoning_effort "none" turns off thinking on LM Studio Qwen. OpenRouter's unified
+    // `reasoning` object (MiniMax mandatory) wins: speech still passes "none", which we drop.
+    if (effort) {
+      if (!(body.reasoning && String(effort).toLowerCase() === "none")) body.reasoning_effort = effort;
+    }
     return body;
   }
 
@@ -145,7 +150,9 @@ export function createOpenAICompatibleComplete(opts = {}) {
       throw err;
     }
     const data = parseJson(text, "POST /chat/completions");
-    const content = data?.choices?.[0]?.message?.content;
+    const message = data?.choices?.[0]?.message;
+    // Only the visible reply. OpenRouter may put chain-of-thought in message.reasoning / reasoning_details.
+    const content = message?.content;
     // Plain-text (chat line) calls: an empty reply is the caller's to judge (a reasoning model that spent its budget).
     if (allowEmpty && (content == null || content === "")) return "";
     if (typeof content !== "string" || content.length === 0)

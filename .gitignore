@@ -13,3 +13,4 @@ logs/replays/*
 !logs/replays/.gitkeep
 logs/selfplay/*
 !logs/selfplay/.gitkeep
+.ssh-local/

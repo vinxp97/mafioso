@@ -58,7 +58,7 @@ test("journalistTarget returns null with nobody worth a visit (default pick take
 test("Janitor found on a hardest pusher: claims (Vinman trigger) and names the Janitor", () => {
   const v = seat("Journalist", [srv(":journ: You received all reports that Cal received: :mop: You discover Fin's role is Cop..")]);
   assert.ok(claimAllowed(v));
-  assert.match(roleClaimLine(v), /^im journalist\. cal is janitor/);
+  assert.match(roleClaimLine(v), /^im journalist\. Cal is janitor/);
 });
 
 test("extras are only legitimate info; the rival claim (not the extra) is what triggers the counterclaim", () => {
@@ -67,17 +67,17 @@ test("extras are only legitimate info; the rival claim (not the extra) is what t
   const rival = [say("p4", "im journalist"), srv(":journ: You learn that Dot received no reports.")];
   const countered = seat("Journalist", rival);
   assert.equal(claimAllowed(countered), true);
-  assert.equal(roleClaimLine(countered), "dot is lying, im journalist. dot got no report, fake journalist");
+  assert.equal(roleClaimLine(countered), "Dot is lying, im journalist. Dot got no report, fake journalist");
   assert.deepEqual(journalistExtras(countered), [{ kind: "fakejournalist", target: "p4" }]);
   // Once outed, it calls the rival out and shares the finding (no repeat claim).
   const outed = seat("Journalist", [say("p1", "im journalist, nothing useful yet. not me"), ...rival]);
-  assert.equal(roleClaimLine(outed), "dot is lying, dot got no report, fake journalist");
+  assert.equal(roleClaimLine(outed), "Dot is lying, Dot got no report, fake journalist");
   // Under pressure it claims with the finding instead of "nothing useful yet".
   const l1 = seat("Journalist", rival, { votes: { p2: "p1", p3: "p1", p5: "p1" } });
-  assert.match(roleClaimLine(l1), /im journalist\. dot got no report, fake journalist\. not me$/);
+  assert.match(roleClaimLine(l1), /im journalist\. Dot got no report, fake journalist\. not me$/);
   // Villager claimer with no report: only "fits".
   const vil = seat("Journalist", [say("p1", "im journalist"), say("p6", "im just a villager, no power role. not me"), srv(":journ: You learn that Fin received no reports.")]);
-  assert.equal(roleClaimLine(vil), "fin got no report, fits villager");
+  assert.equal(roleClaimLine(vil), "Fin got no report, fits villager");
   // An unclaimed player with no report, or an unclaimed real Cop seen in a report: nothing to say.
   const silent = seat("Journalist", [say("p1", "im journalist"), srv(":journ: You learn that Eli received no reports."), srv(":journ: You received all reports that Cal received: Your investigation shows that Eli is Innocent.")]);
   assert.deepEqual(journalistExtras(silent), []);
@@ -100,4 +100,31 @@ test("town reads: fake journalist and fake cop are heavy, 'no report' on a villa
   assert.ok(r.score.p4 > 0 && r.score.p3 > 0);
   assert.ok(r.score.p6 < 0 && r.score.p6 > -1, `weak fit: ${r.score.p6}`);
   assert.equal(TOWN_READS.noReport, -0.5);
+});
+
+test("L9: Journalist outs the full guilty with exact long usernames (no 80-char mid-name cut)", () => {
+  // Live 0auTRM5NO Day 2 sent: "...it said elonoresheepsh" (slice 0,80 + lowercase).
+  const long = Object.fromEntries([
+    ["p1", { id: "p1", name: "IvanahPaterson78" }],
+    ["p2", { id: "p2", name: "GertaLaurice19" }],
+    ["p3", { id: "p3", name: "ElonoreSheepshanks60" }],
+    ["p4", { id: "p4", name: "KrischerJasmin61" }],
+    ["p5", { id: "p5", name: "FretwellMirilla73" }],
+    ["p6", { id: "p6", name: "WoodfordBorras57" }],
+  ]);
+  const v = reduceAll([
+    { event: "self", data: "p1" },
+    { event: "players", data: long },
+    { event: "roleReveal", data: { playerId: "p1", role: "Journalist" } },
+    { pre: true, event: "death", data: "p2" },
+    { pre: true, event: "message", data: { senderId: "server", content: ":journ: You received all reports that GertaLaurice19 received: :invest: After investigating, you learn that ElonoreSheepshanks60 is Guilty!" } },
+    { event: "state", data: { id: 4, name: "Day 2" } },
+    { event: "meeting", data: { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p3", "p4", "p5", "p6", "*"], votes: {} } },
+  ]);
+  const line = roleClaimLine(v);
+  assert.equal(line, "im journalist. GertaLaurice19 got a cop report, real cop, it said ElonoreSheepshanks60 guilty");
+  assert.ok(!/elonoresheepsh$/i.test(line), "must not truncate mid-name");
+  assert.match(line, /ElonoreSheepshanks60 guilty$/);
+  assert.ok(line.length > 80, "the old 80-char hard cut was the bug");
+  assert.ok(line.length <= 160);
 });

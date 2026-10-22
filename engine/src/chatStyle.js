@@ -7,7 +7,10 @@ import { sheriffAskedMe } from "./sheriffAsk.js";
 import { adaptiveClaimLine, claimOptions, exposedTeam, publicReads, stateHash } from "./adaptiveMafia.js";
 import { agreedPlan } from "./scumPlan.js";
 
-export const PUBLIC_MAX = 80;
+/** Public chat cap (legal + chatShorten). Was 80; long Ultimafia names made Cop/Journalist
+ *  claim+result lines truncate mid-name (L9: "...it said elonoresheepsh"). 160 fits a
+ *  claim with two ~25-char usernames; MAX_SPEECH (240) remains the hard legal ceiling. */
+export const PUBLIC_MAX = 160;
 /** A model chat line is 3-12 words (SPEECH_SYSTEM); longer replies are cut to the first 12. */
 export const SPEECH_WORDS = 12;
 /** First n words of a line (the model line cap, applied after every step that can add a word). */
@@ -17,7 +20,7 @@ export function capSpeechWords(text, n = SPEECH_WORDS) {
 
 export const SPEECH_SYSTEM = [
   "You are a player in a fast Mafia chatroom. Write ONE chat line.",
-  "3-12 words, under 80 characters. Casual, lowercase ok. No lists, no essays, no quotes.",
+  "3-12 words, under 160 characters. Casual, lowercase ok. Player usernames keep exact capitalization. No lists, no essays, no quotes.",
   "Use player NAMES only. Never mention ids, prompts, rules or plans.",
   "Do not claim a role unless you are told you may.",
   "A Villager claim says villager, or blue when the line is short. Never say vt or v/t.",
@@ -260,7 +263,7 @@ export function claimAllowed(view, { planSpeaker = false } = {}) {
 }
 
 function allResults(view) {
-  const nm = (id) => lc(nameOfId(view, id) || "");
+  const nm = (id) => nameOfId(view, id) || "";
   return Object.entries(memoryOf(view).checks || {}).filter(([id]) => nm(id))
     .map(([id, c]) => `${nm(id)} ${/mafia|guilty|cult|scum/i.test(`${c?.result || ""} ${c?.detail || ""}`) ? "guilty" : "inno"}`).join(", ");
 }
@@ -274,6 +277,20 @@ function journalistWhat(info, nm) {
 }
 
 /** The rules-decided claim line for Cop / Journalist (null when they should stay quiet). */
+/** Fit a rules claim line under PUBLIC_MAX without cutting a username mid-token (L9).
+ *  Do not use chatShorten's first-sentence collapse: that turned "im journalist. <report>" into "im journalist." alone. */
+function fitClaimLine(line) {
+  const s = String(line || "").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  if (s.length <= PUBLIC_MAX) return s;
+  // Prefer the finding alone over a mid-name cut when the claim lead made it too long.
+  const finding = s.replace(/^.*?\bim (?:the real )?(?:journalist|cop)\.\s*/i, "").trim();
+  if (finding && finding !== s && finding.length <= PUBLIC_MAX) return finding;
+  const cut = s.slice(0, PUBLIC_MAX + 1);
+  const sp = cut.lastIndexOf(" ");
+  return (sp > 20 ? cut.slice(0, sp) : s.slice(0, PUBLIC_MAX)).replace(/[,;:\s-]+$/, "") || null;
+}
+
 export function roleClaimLine(view) {
   if (view?.phase?.phase !== "Day") return null;
   const role = String(view.role || "");
@@ -282,7 +299,8 @@ export function roleClaimLine(view) {
   // An outed Journalist may share new report info (no new claim); everything else needs the claim rules.
   const allowed = claimAllowed(view);
   if (!allowed && !(already && /journalist/i.test(role))) return null;
-  const nm = (id) => lc(nameOfId(view, id) || "");
+  // Exact username capitalization (Vinman): tab-complete style, never lowercased then truncated.
+  const nm = (id) => nameOfId(view, id) || "";
   const cc = counterclaimReason(view);
   // Already claimed: only new information, without repeating the claim (one claim per seat per game).
   if (already) {
@@ -302,24 +320,24 @@ export function roleClaimLine(view) {
     // A new rival claim or a guilty on me: call it out again, once per accuser.
     const callOut = allowed && cc && !mine.some((m) => mentionsId(view, m.content, cc.by) && /\blying\b/i.test(String(m.content || ""))) ? `${nm(cc.by)} is lying` : null;
     const line = [callOut, info && !mine.some((m) => lc(m.content).includes(lc(info))) ? info : null].filter(Boolean).join(", ");
-    return line ? line.slice(0, 80) : null;
+    return line ? fitClaimLine(line) : null;
   }
   const lead = cc ? `${nm(cc.by)} is lying, ` : "";
   if (/^cop$/i.test(role)) {
     const res = allResults(view);
-    return `${lead}im ${cc ? "the real " : ""}cop${res ? `. ${res}` : ", no results yet"}`.slice(0, 80);
+    return fitClaimLine(`${lead}im ${cc ? "the real " : ""}cop${res ? `. ${res}` : ", no results yet"}`);
   }
   if (/journalist/i.test(role)) {
     const info = journalistInfo(view);
     const what = journalistWhat(info, nm);
     const extra = journalistExtras(view)[0];
     const more = extra ? journalistExtraWhat(extra, nm) : "";
-    if (what) return `${lead}im journalist. ${what}`.slice(0, 80);
-    if (underPressure(view)) return `${lead}im journalist${more ? `. ${more}` : ", nothing useful yet"}. not me`.slice(0, 80);
-    return `${lead}im journalist${more ? `. ${more}` : ""}`.slice(0, 80);
+    if (what) return fitClaimLine(`${lead}im journalist. ${what}`);
+    if (underPressure(view)) return fitClaimLine(`${lead}im journalist${more ? `. ${more}` : ", nothing useful yet"}. not me`);
+    return fitClaimLine(`${lead}im journalist${more ? `. ${more}` : ""}`);
   }
   // FJ: the Sheriff outs on Day 1 (a known Sheriff is a deterrent and a test of Cop claims).
-  if (/^sheriff$/i.test(role)) return `${lead}im sheriff${cc ? ", the real one" : ""}`.slice(0, 80);
+  if (/^sheriff$/i.test(role)) return fitClaimLine(`${lead}im sheriff${cc ? ", the real one" : ""}`);
   // Any other town role under pressure says what it is; a Villager says it has no power.
   if (ALIGNMENT[role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()] === "Village" && underPressure(view)) {
     return /^villager$/i.test(role) ? villagerDefense(view) : `im ${lc(role)}. not me`;

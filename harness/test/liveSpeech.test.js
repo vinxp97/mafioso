@@ -13,7 +13,8 @@ test("reasoningModel: Muse and other thinking models by name, MAFIOSO_REASONING 
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "deepseek-v4.1-flash" }), false);
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "deepseek-v4.1-flash", MAFIOSO_REASONING: "1" }), true);
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "meta/muse-glimmer", MAFIOSO_REASONING: "0" }), false);
-  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter" }), false);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter" }), true);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "plain-chat" }), false);
   assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "meta/muse-glimmer" }), true);
   const table = createBotTable([{ accountId: "A" }], { reasoning: true });
   assert.equal(table.config.reasoning, true);

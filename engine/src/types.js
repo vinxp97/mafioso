@@ -19,6 +19,6 @@
  *   dead?:Record<string,boolean>, alerts?:any[], winners?:any}} HistoryState */
 /** @typedef {{role:string, alwaysAct:'yes'|'no', nights:string, n1Pick:string, laterPick:string, neverNoOne:boolean}} NightSpec */
 /** @typedef {{event:'vote'|'unvote'|'speak', data:{meetingId:string, selection?:string, content?:string}}} ProposedAction */
-export const DEV_HOSTS = Object.freeze(["https://dev.ultimafia.gg", "http://127.0.0.1:3000"]);
+export const DEV_HOSTS = Object.freeze(["https://dev.ultimafia.gg", "http://127.0.0.1:3000", "http://192.168.64.1:3000"]);
 export const MAX_SPEECH = 240;
 export const NO_ONE = "*";
