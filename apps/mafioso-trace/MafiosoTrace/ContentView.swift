@@ -47,7 +47,7 @@ struct ContentView: View {
         .navigationTitle("Games")
         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
         .safeAreaInset(edge: .bottom) {
-            TracePath(path: store.sidebarPath)
+            TracePath(path: store.sidebarPath, byComponent: true)
                 .padding(8)
         }
     }
@@ -173,11 +173,15 @@ struct ContentView: View {
                             .onTapGesture { store.selectRow(row.id) }
                             .focusable()
                             .focused($focusedRow, equals: row.id)
-                            .help(summary)
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("\(row.seq), \(row.type), \(summary)")
-                            .accessibilityAddTraits(store.selection.contains(row.id) ? .isSelected : AccessibilityTraits())
+                            .accessibilityAddTraits(
+                                store.selection.contains(row.id)
+                                    ? AccessibilityTraits.isButton.union(.isSelected)
+                                    : .isButton
+                            )
                             .accessibilityAction(.default) { store.selectRow(row.id) }
+                            .help(summary)
                             .id(row.id)
                         }
                     }
@@ -224,7 +228,6 @@ struct ContentView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .modifier(FullTextTip(text: header ? nil : summary))
         }
     }
 
@@ -287,36 +290,85 @@ struct ContentView: View {
     }
 }
 
-private struct FullTextTip: ViewModifier {
-    var text: String?
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if let text, !text.isEmpty {
-            content.help(text)
-        } else {
-            content
-        }
-    }
-}
-
-/// A path cut in the middle. The tooltip is the full path. The menu can show it in Finder.
-struct TracePath: View {
+/// Sidebar path shortened on a `/` boundary. The tooltip stays the full path.
+private struct ComponentPathText: View {
     let path: String
 
     var body: some View {
-        Text(path)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .help(path)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contextMenu {
-                Button("Reveal in Finder") {
-                    TracePath.reveal(path)
-                }
+        GeometryReader { geo in
+            let available = geo.size.width.isFinite ? geo.size.width : 0
+            Text(TracePath.fitting(path, width: available))
+                .lineLimit(1)
+                .frame(width: available > 0 ? available : nil, height: geo.size.height, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: captionHeight)
+    }
+
+    private var captionHeight: CGFloat {
+        ceil(NSFont.preferredFont(forTextStyle: .caption1).boundingRectForFont.height)
+    }
+}
+
+/// A path. The tooltip is the full path. The menu can show it in Finder.
+/// `byComponent` shortens at a separator, so the sidebar does not cut a name in half.
+struct TracePath: View {
+    let path: String
+    var byComponent = false
+
+    var body: some View {
+        Group {
+            if byComponent {
+                ComponentPathText(path: path)
+            } else {
+                Text(path)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .help(path)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contextMenu {
+            Button("Reveal in Finder") {
+                TracePath.reveal(path)
+            }
+        }
+    }
+
+    /// Longest form that fits `width`, dropping whole path components from the middle.
+    static func fitting(_ path: String, width: CGFloat) -> String {
+        let font = NSFont.preferredFont(forTextStyle: .caption1)
+        func widthOf(_ text: String) -> CGFloat {
+            (text as NSString).size(withAttributes: [.font: font]).width + 4
+        }
+        let choices = componentChoices(path)
+        guard width.isFinite, width > 0 else { return choices.last ?? path }
+        return choices.first { widthOf($0) <= width } ?? choices.last ?? path
+    }
+
+    static func componentChoices(_ path: String) -> [String] {
+        let expanded = (path as NSString).expandingTildeInPath
+        let file = (expanded as NSString).lastPathComponent
+        let parts = expanded.split(separator: "/").map(String.init)
+        var choices: [String] = []
+        func add(_ value: String) {
+            if !value.isEmpty, !choices.contains(value) { choices.append(value) }
+        }
+        add(expanded)
+        if parts.count > 2 {
+            let root = expanded.hasPrefix("/") ? "/" : ""
+            for headCount in stride(from: parts.count - 2, through: 1, by: -1) {
+                let head = parts.prefix(headCount).joined(separator: "/")
+                add(root + head + "/…/" + file)
+            }
+            add("…/" + file)
+        } else if parts.count == 2 {
+            add("…/" + file)
+        }
+        add(file.isEmpty ? expanded : file)
+        return choices
     }
 
     static func reveal(_ path: String) {
