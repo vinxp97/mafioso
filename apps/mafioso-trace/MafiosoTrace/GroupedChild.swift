@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import MafiosoTraceCore
 
 /// A harness child started as its own process-group leader, so quit can signal the group without signaling the app.
 final class GroupedChild: @unchecked Sendable {
