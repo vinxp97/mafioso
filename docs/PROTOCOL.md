@@ -14,7 +14,7 @@ reconnects. It doesn't contain any secret values. It's based on [`protocol-map.m
 The harness talks only to the Dev API over HTTPS. It never opens the raw game WebSocket, and it never
 handles the website's session cookie or the internal `auth:<token>` socket handshake.
 
-- **Allowed hosts:** `https://dev.ultimafia.gg` and `http://127.0.0.1:3000` (`DEV_HOSTS`;
+- **Allowed hosts:** `https://dev.ultimafia.gg`, `http://127.0.0.1:3000`, and the Apple container host gateway (`DEV_HOSTS` in `engine/src/types.js`;
   `assertAllowedBase` runs on every request). Prod is refused.
 - **Opt-in:** nothing connects unless `MAFIOSO_LIVE=1`. Without it, `runLiveCli` only logs a dry run.
 - **Credentials:** the env vars `DEV_API_CLIENT_ID` and `DEV_API_CLIENT_SECRET`. The pair is created on the

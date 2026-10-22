@@ -48,7 +48,7 @@ node scripts/live.mjs
 
 With `MAFIOSO_LIVE` unset, that prints a dry run and exits. A real session needs `MAFIOSO_LIVE=1`, a base URL on `DEV_HOSTS`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID`). Put those in `.env`. Do not commit it.
 
-`DEV_HOSTS` is `https://dev.ultimafia.gg` and `http://127.0.0.1:3000`. Any other origin throws `HostNotAllowedError`. `hostGame` forces a private Testing lobby.
+`DEV_HOSTS` is `https://dev.ultimafia.gg`, `http://127.0.0.1:3000`, and the Apple container host gateway listed in `engine/src/types.js`. Any other origin throws `HostNotAllowedError`. `hostGame` forces a private Testing lobby.
 
 Local LM Studio smoke (talks to the model, not to Ultimafia):
 
@@ -71,6 +71,8 @@ They share `createOpenAICompatibleComplete`: `POST {baseUrl}/chat/completions`, 
 | OpenCode Go | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` |
 | OpenRouter | `createOpenRouterComplete` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | `OPENROUTER_MODEL` (default `minimax/minimax-m3.1-flash`) |
 
+`OPENROUTER_REASONING` defaults to `low`. Unset, empty, `on`, `true`, `1`, `yes`, or `enabled` sends `{ effort: "low", exclude: true }`. `off`, `none`, `0`, `false`, `no`, or `disabled` omits the field. `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` sets that effort, still with `exclude: true`, so chain-of-thought stays out of `message.content`. Speech still asks for `reasoning_effort: "none"`; when the OpenRouter `reasoning` object is present, that `none` is dropped. A model name matching `minimax` counts as a reasoning model, so public speech uses the 640-token budget (`SPEECH_TOKENS.reasoning` in `engine/src/llmDecide.js`). When reasoning is on and the caller does not pass `maxTokens`, this client sends `max_tokens: 1024`.
+
 Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`, `OPENROUTER_BASE_URL`. OpenCode Go also reads `OPENCODE_SESSION` and sends `user-agent: mafioso/0.1`. OpenRouter sends `HTTP-Referer` and `X-Title` only when `OPENROUTER_HTTP_REFERER` and `OPENROUTER_TITLE` are set. `EXPLABS_ZDR=1` adds `provider.zdr` on that backend.
 
 Names only. Defaults in parentheses come from the code.
@@ -89,7 +91,7 @@ Names only. Defaults in parentheses come from the code.
 
 **Model backends**
 
-`LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY`, `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY`, `EXPLABS_ZDR`, `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`.
+`LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY`, `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY`, `EXPLABS_ZDR`, `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`, `OPENROUTER_REASONING` (`low`).
 
 ## CLI flags
 
@@ -110,4 +112,4 @@ Names only. Defaults in parentheses come from the code.
 
 The image copies `engine/` and `harness/`, installs production dependencies, and runs `node scripts/live.mjs`. Prompt history is mounted at `harness/data/prompts/runtime`. The image does not copy `.env`; Compose reads it via `env_file`.
 
-This repository has no Apple container config.
+`scripts/mac-container-run.sh` builds and runs the image with Apple's `container` CLI. It sets `DEV_API_BASE_URL` to the host gateway on `DEV_HOSTS`. `MAFIOSO_HOST_GATEWAY` overrides that address. The script reads `.env` and exits when `OPENROUTER_API_KEY` is empty. Do not commit `.env`.

@@ -193,7 +193,7 @@ export function createBotTable(accounts, { clock = realClock, rng = Math.random,
 }
 
 // Models that spend hidden tokens thinking even when asked not to (Muse ignores reasoning_effort "none").
-const REASONING_MODEL_RE = /muse|glimmer|qwen3|deepseek-r|\br1\b|reason|think|gpt-oss|gpt-5|magistral/i;
+const REASONING_MODEL_RE = /muse|glimmer|qwen3|deepseek-r|\br1\b|reason|think|gpt-oss|gpt-5|magistral|minimax/i;
 /** MAFIOSO_REASONING=1/0 forces it; otherwise the configured model name of the chosen backend decides. */
 export function reasoningModel(env = process.env) {
   const forced = nonempty(env.MAFIOSO_REASONING);

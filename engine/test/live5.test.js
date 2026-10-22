@@ -57,7 +57,7 @@ test("L5 #2: once voting starts, the Sheriff asks a beat after his claim, before
 test("L5 #4: the real Journalist counterclaims a fake Journalist claim with a 'not me' suffix", () => {
   const v = seat("s4", "Journalist", [server(":journ: You learn that BrenTowle40 received no reports.", 50_000),
     { event: "state", data: { id: 4, name: "Day 2" }, t: 60_000 }, village("vil2"), say("s3", "im journalist, nothing useful yet. not me", 70_000, "vil2")]);
-  assert.match(roleClaimLine(v) || "", /coravane22 is lying, im journalist/);
+  assert.match(roleClaimLine(v) || "", /CoraVane22 is lying, im journalist/);
 });
 
 test("L5 #6: Journalist on Cop N2: the uncounterclaimed Cop claimer, even if already visited N1", () => {
