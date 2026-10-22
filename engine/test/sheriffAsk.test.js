@@ -146,7 +146,7 @@ test("asked seats answer: Villager says villager, Cop claims with results, mafia
   assert.deepEqual(parseClaimReply(askReplyLine(vt)), { role: "Villager", kind: "plain" });
   const cop = asked("Cop", [{ event: "message", data: { senderId: "server", content: "Your investigation shows that Bob is Innocent" } }]);
   assert.equal(claimAllowed(cop), true, "the ask unlocks the Cop claim");
-  assert.match(askReplyLine(cop), /^im cop\. bob inno/);
+  assert.match(askReplyLine(cop), /^im cop\. Bob inno/);
   const maf = asked("Mafioso", [], [{ id: "p6", name: "Eve", role: "Janitor" }, { id: "p7", name: "Fay", role: "Lawyer" }]);
   const line = askReplyLine(maf);
   assert.match(line, /^im (cop|journalist)/, line);

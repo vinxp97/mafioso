@@ -52,16 +52,16 @@ test("Cop claims (all results) if Sheriff outed and alive, or a guilty, or count
   assert.equal(roleClaimLine(quiet), null);
   assert.equal(claimAllowed(quiet), false);
   const g = seat("Cop", [srv("Your investigation shows that Bea is Guilty")]);
-  assert.equal(roleClaimLine(g), "im cop. bea guilty");
+  assert.equal(roleClaimLine(g), "im cop. Bea guilty");
   const sh = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
-  assert.equal(roleClaimLine(sh), "im cop. cal inno");
+  assert.equal(roleClaimLine(sh), "im cop. Cal inno");
   const shWait = reduce(seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]), { event: "botConfig", data: { copRule: "wait" } });
   assert.equal(roleClaimLine(shWait), null, "copRule wait: a Sheriff out alone is not a Cop trigger");
   const shDead = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im sheriff btw")]);
   shDead.dead = { kCMt06jKvBp: true };
   assert.equal(roleClaimLine(shDead), null, "a dead Sheriff does not trigger it");
   const framed = seat("Cop", [srv("Your investigation shows that Cal is Innocent"), msg("kCMt06jKvBp", "im cop, ash is guilty")]);
-  assert.equal(roleClaimLine(framed), "ivo is lying, im the real cop. cal inno");
+  assert.equal(roleClaimLine(framed), "Ivo is lying, im the real cop. Cal inno");
 });
 
 test("Journalist claims if guiltied, or its report exposes a fake Cop or finds the Janitor; else quiet", () => {
@@ -71,12 +71,12 @@ test("Journalist claims if guiltied, or its report exposes a fake Cop or finds t
   assert.match(roleClaimLine(stolen), /^\w+ is lying, im journalist/, "a rival Journalist claim is countered at once");
   const fake = seat("Journalist", [srv("You learn that Bea received no reports.")]);
   fake.claims.rhyFPKXcnH = { role: "Cop" };
-  assert.match(roleClaimLine(fake), /bea got no report, fake cop/);
+  assert.match(roleClaimLine(fake), /Bea got no report, fake cop/);
   const jan = seat("Journalist");
   jan.notes.checks.kCMt06jKvBp = { result: "", detail: "reports: You cleaned the body" };
-  assert.match(roleClaimLine(jan), /ivo is janitor/);
+  assert.match(roleClaimLine(jan), /Ivo is janitor/);
   const guiltied = seat("Journalist", [msg("kCMt06jKvBp", "im cop ash is guilty")]);
-  assert.match(roleClaimLine(guiltied), /^ivo is lying, im journalist/);
+  assert.match(roleClaimLine(guiltied), /^Ivo is lying, im journalist/);
 });
 
 test("Sheriff shoots whoever calls him guilty or counterclaims Sheriff, overriding the timing gate", () => {
@@ -181,5 +181,5 @@ test("Sheriff outs with a plain claim line (counterclaim adds 'the real one'); a
   assert.equal(roleClaimLine(seat("Sheriff")), "im sheriff");
   assert.match(roleClaimLine(seat("Sheriff", [msg("otU9CsNlbw", "im sheriff")])) || "", /im sheriff, the real one/);
   const cop = seat("Cop", [srv("Your investigation shows that Bea is Guilty"), { event: "message", data: { meetingId: "vil", senderId: ME, content: "im cop. bea guilty" } }, msg("kCMt06jKvBp", "im cop, ash is guilty")]);
-  assert.match(roleClaimLine(cop) || "", /ivo is lying/);
+  assert.match(roleClaimLine(cop) || "", /Ivo is lying/);
 });
