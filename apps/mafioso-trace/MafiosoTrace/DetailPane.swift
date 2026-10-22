@@ -20,27 +20,24 @@ struct DetailPane: View {
                         if let reasoning = reasoningText {
                             Text("Reasoning")
                                 .font(.headline)
-                            SelectableText(text: reasoning)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            selectable(reasoning)
                         }
                         if let details = reasoningDetails {
                             Text("Reasoning details")
                                 .font(.headline)
-                            SelectableText(text: details)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            selectable(details)
                         }
                         Text("Data")
                             .font(.headline)
-                        SelectableText(text: event.data.display)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        selectable(event.data.display)
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .id(event.id)
-                .onAppear { proxy.scrollTo(Self.topID, anchor: .top) }
+                .onAppear { scheduleScroll(proxy, to: Self.topID) }
                 .onChange(of: event.id) { _, _ in
-                    proxy.scrollTo(Self.topID, anchor: .top)
+                    scheduleScroll(proxy, to: Self.topID)
                 }
             }
         } else {
@@ -104,12 +101,25 @@ struct DetailPane: View {
         }
     }
 
+    /// Scroll after this layout pass. Scrolling during it asks AppKit for another constraints pass.
+    private func scheduleScroll(_ proxy: ScrollViewProxy, to id: String) {
+        DispatchQueue.main.async {
+            proxy.scrollTo(id, anchor: .top)
+        }
+    }
+
+    private func selectable(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func column(title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-            SelectableText(text: text)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            selectable(text)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

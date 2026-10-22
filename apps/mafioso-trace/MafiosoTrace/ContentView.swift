@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: GameStore
     @AppStorage(LogsRoot.storageKey) private var logsRoot = LogsRoot.defaultPath
+    @FocusState private var focusedRow: TraceEvent.ID?
 
     var body: some View {
         NavigationSplitView {
@@ -169,18 +170,32 @@ struct ContentView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .focused($focusedRow, equals: row.id)
+                            .accessibilityLabel("\(row.seq), \(row.type), \(TraceLink.summary(row))")
+                            .accessibilityAddTraits(store.selection.contains(row.id) ? .isSelected : AccessibilityTraits())
                             .help(TraceLink.summary(row))
                             .id(row.id)
                         }
                     }
                 }
-                .onChange(of: store.selection) { _, ids in
-                    guard let id = ids.first else { return }
-                    proxy.scrollTo(id)
+                .onAppear { revealSelection(proxy) }
+                .onChange(of: store.selection) { _, _ in
+                    revealSelection(proxy)
                 }
             }
         }
         .frame(maxHeight: .infinity)
+    }
+
+    /// Focus stays on the selected timeline row, so detail text does not open highlighted.
+    /// The scroll runs on the next turn, after this layout pass.
+    private func revealSelection(_ proxy: ScrollViewProxy) {
+        let id = store.selection.first
+        DispatchQueue.main.async {
+            guard let id else { return }
+            focusedRow = id
+            proxy.scrollTo(id, anchor: .top)
+        }
     }
 
     private func timelineRow(seq: String, time: String, seat: String, phase: String, type: String, summary: String, header: Bool) -> some View {
