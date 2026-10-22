@@ -7,6 +7,7 @@ enum RunPhase: Equatable {
     case starting
     case running
     case exited(Int32)
+    case stopped
 }
 
 /// One harness child. Secrets are copied into the process environment and into the redaction list, never into argv or the log.
@@ -32,6 +33,7 @@ final class RunController: ObservableObject {
         case .starting: return "Starting"
         case .running: return "Running"
         case .exited(let code): return "Exited \(code)"
+        case .stopped: return "Stopped"
         }
     }
 
@@ -48,6 +50,9 @@ final class RunController: ObservableObject {
     private var prepRunner: ProcessCommandRunner?
     /// Written only after the container script prints `run:`, which is after a successful image build.
     private var pendingImageStamp: (path: String, commit: String)?
+    /// Set when Stop or Stop & Quit asked for the full halt. A later natural exit still reads Exited.
+    private var stopping = false
+    private var haltTask: Task<Void, Never>?
     private let logCap = 100_000
 
     func requestStart(config: AppConfigController, store: GameStore) {
@@ -90,22 +95,22 @@ final class RunController: ObservableObject {
         confirmWarning = nil
     }
 
+    /// Same halt as Stop & Quit: SIGTERM the group, wait, SIGKILL, then stop a local container.
     func stop() {
-        prepTask?.cancel()
-        prepRunner?.cancel()
-        guard let child else {
-            if phase == .starting {
-                phase = .idle
-                pendingImageStamp = nil
-                appendLine("Stopped.")
-            }
-            return
-        }
-        child.signalGroup(SIGTERM)
+        guard isRunning else { return }
+        beginHalt()
     }
 
     /// SIGTERM the process group, wait, SIGKILL if needed, then stop the local container.
     func stopForQuit() async {
+        guard isRunning || haltTask != nil else { return }
+        await beginHalt().value
+    }
+
+    @discardableResult
+    private func beginHalt() -> Task<Void, Never> {
+        if let haltTask { return haltTask }
+        stopping = true
         prepTask?.cancel()
         prepRunner?.cancel()
         let request = ShutdownRequest(
@@ -114,12 +119,21 @@ final class RunController: ObservableObject {
             containerName: RunShutdown.containerName(environment: launchEnvironment)
         )
         let terminator = AppRunTerminator(child: child)
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                RunShutdown.perform(request, using: terminator)
-                continuation.resume()
+        if child == nil, phase == .starting {
+            pendingImageStamp = nil
+            phase = .stopped
+            appendLine("Stopped.")
+        }
+        let task = Task { @MainActor in
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    RunShutdown.perform(request, using: terminator)
+                    continuation.resume()
+                }
             }
         }
+        haltTask = task
+        return task
     }
 
     private func begin(
@@ -136,6 +150,8 @@ final class RunController: ObservableObject {
         knownIDs = Set(store.games.map(\.id))
         adopted = false
         pendingImageStamp = nil
+        stopping = false
+        haltTask = nil
         phase = .starting
         appendLine("starting \(profile.id.displayName)")
 
@@ -303,7 +319,7 @@ final class RunController: ObservableObject {
         if let tail = errBuffer.flush() { appendChildLine(tail) }
         child = nil
         tracksContainer = false
-        phase = .exited(code)
+        phase = stopping ? .stopped : .exited(code)
         pollTask?.cancel()
         pollTask = nil
         considerAdoption(store)

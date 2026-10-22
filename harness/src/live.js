@@ -2336,7 +2336,10 @@ export async function pollOnce(client, accounts, sinceById) {
   return entries;
 }
 
-export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, clock = realClock, signals = null, exit = (c) => process.exit(c) } = {}) {
+/** Leave, close, and flush must finish before the app's 5s SIGKILL. */
+export const SIGNAL_STOP_BUDGET_MS = 4_000;
+
+export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, clock = realClock, signals = null, exit = (c) => process.exit(c), stopBudgetMs = SIGNAL_STOP_BUDGET_MS } = {}) {
   const cfg = liveConfigFromEnv(env);
   const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.OPENROUTER_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
   const say = (m) => log(redact(m, secrets));
@@ -2394,20 +2397,50 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   table.onAlert = (who, r) => say(`alert ${who} [${table.views[who]?.phase?.name || ""}] kind=${r.kind} target=${JSON.stringify(String(r.target).slice(0, 30))} result=${JSON.stringify(String(r.result).slice(0, 160))}`);
   table.onSpeechReject = (who, reasons, source, content) => say(`speech-reject ${who} [${table.views[who]?.phase?.name || ""}] source=${source} reasons=${JSON.stringify(reasons.map((r) => String(r).slice(0, 120)))}${content ? ` line=${JSON.stringify(String(content).slice(0, SPEECH_LOG_MAX))}` : ""}`);
   // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
+  // The bots leave first, then the stream closes and the trace is flushed, inside the app's 5s halt.
+  let stopPromise = null;
+  let streamBody = null;
+  const streamAbort = new AbortController();
+  const signalled = () => stopPromise != null;
+  const budget = Math.min(4_500, Math.max(0, Number.isFinite(stopBudgetMs) ? stopBudgetMs : SIGNAL_STOP_BUDGET_MS));
+  const beginStop = (sig) => {
+    if (stopPromise) return stopPromise;
+    const reason = String(sig || "SIGTERM").toLowerCase();
+    stopPromise = (async () => {
+      for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
+      const leaves = accounts.map((a) => client.leaveAccount(a.accountId).catch(() => {}));
+      await Promise.race([
+        Promise.all(leaves),
+        new Promise((resolve) => setTimeout(resolve, budget)),
+      ]);
+      try { streamAbort.abort(); } catch { /* already aborted */ }
+      const body = streamBody;
+      streamBody = null;
+      if (body && typeof body.cancel === "function") {
+        await Promise.race([
+          Promise.resolve().then(() => body.cancel()).catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 250)),
+        ]);
+      }
+      if (body && typeof body.destroy === "function") {
+        try { body.destroy(); } catch { /* socket already gone */ }
+      }
+      say(`game_end status=stopped reason=${reason} game=${opened.gameId}`);
+      traceEvent(table, "harness", "game.end", { status: "stopped", reason });
+      try { traceLog?.close?.(); } catch { /* the line is already fsynced */ }
+      exit(130);
+    })();
+    return stopPromise;
+  };
   if (signals) {
     for (const sig of ["SIGINT", "SIGTERM"]) {
-      signals.once(sig, () => {
-        for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
-        say(`game_end status=stopped reason=${sig.toLowerCase()} game=${opened.gameId}`);
-        traceEvent(table, "harness", "game.end", { status: "stopped", reason: sig.toLowerCase() });
-        traceLog?.close?.();
-        exit(130);
-      });
+      signals.once(sig, () => { void beginStop(sig); });
     }
   }
   // The server sends "self" once, on join, before our stream connects, and the event buffer is capped,
   // so seed each seat's playerId from GET /dev/accounts. Without selfId every seat decides nothing.
   await seedSelfIds(client, table, accounts.map((a) => a.accountId), { sleep, log: say });
+  if (signalled()) { await stopPromise; return 130; }
   if (!table.seatMapLogged) { const line = seatMapLine(table); if (line) { table.seatMapLogged = true; say(line); } }
   const refresh = async () => {
     issuedAt = await maybeRefreshToken({
@@ -2458,7 +2491,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   if (cfg.transport === "poll") {
     const since = new Map();
     let spins = 0;
-    while (!gameFinished(table, accounts.map((a) => a.accountId), endOpts) && spins < 10_000) {
+    while (!signalled() && !gameFinished(table, accounts.map((a) => a.accountId), endOpts) && spins < 10_000) {
       await refresh();
       const entries = await pollOnce(client, accounts, since);
       if (!entries.length) break;
@@ -2473,15 +2506,21 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     const pathname = nonempty(env.DEV_STREAM_PATH) || "/api/dev/stream";
     const url = streamUrl(cfg.baseUrl, pathname);
     const ourIds = accounts.map((a) => a.accountId);
+    try {
     outcome = await runStreamLoop({
       restart: { checkGame: () => probeGame(client, { gameId: opened.gameId, accountIds: ourIds }), now },
       sleep, backoff: (n) => backoffMs(n, { rng }),
-      shouldStop: () => gameFinished(table, accounts.map((a) => a.accountId), endOpts),
+      shouldStop: () => signalled() || gameFinished(table, accounts.map((a) => a.accountId), endOpts),
       fetchStream: async () => {
         await refresh();
-        const res = await gameFetch(url, { headers: { accept: "text/event-stream", authorization: `Bearer ${client.token}` } });
+        if (signalled()) throw new Error("stopped");
+        const res = await gameFetch(url, {
+          headers: { accept: "text/event-stream", authorization: `Bearer ${client.token}` },
+          signal: streamAbort.signal,
+        });
         if (!res.ok) throw new Error(`GET /dev/stream -> ${res.status}`);
         if (!res.body) throw new Error("GET /dev/stream: empty body");
+        streamBody = res.body;
         return res.body;
       },
       onFrame,
@@ -2496,11 +2535,16 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       onInfo: say,
       settle: async () => { await seats.drain(); await drainUpgrades(table); },
       onError: (err) => {
+        if (signalled()) return;
         say(`stream-error ${err?.stack || err?.message || err}`);
         traceEvent(table, "harness", "error", { message: String(err?.message || err), where: "stream" });
       },
     });
+    } catch (err) {
+      if (!signalled()) throw err;
+    }
   }
+  if (signalled()) { await stopPromise; return 130; }
   if (outcome?.status === "aborted") {
     // Stop every seat so no queued model call or delayed vote fires into a dead game.
     for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
@@ -2513,6 +2557,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     (async () => { await seats.drain(); await drainUpgrades(table); })(),
     new Promise((resolve) => setTimeout(resolve, 3_000)),
   ]);
+  if (signalled()) { await stopPromise; return 130; }
   for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
   const winView = accounts.map((a) => table.views[a.accountId]).find((v) => v?.winners);
   say(`game_end status=finished game=${opened.gameId}${winView ? ` winner=${(winView.winners.groups || []).join("/") || "?"}` : ""}`);

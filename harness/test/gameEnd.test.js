@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { gameFinished, runLiveCli } from "../src/live.js";
+import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { gameFinished, runLiveCli, SIGNAL_STOP_BUDGET_MS } from "../src/live.js";
 
 const table = (views) => ({ views });
 
@@ -52,28 +54,80 @@ for (const withLeft of [true, false]) test(`live cli: winners reaching only the 
   assert.deepEqual(lines.filter((l) => l.startsWith("game_end")), ["game_end status=finished game=g-end winner=Village"]);
 });
 
-test("live cli: Ctrl+C logs one game_end status=stopped line", async () => {
-  const lines = []; const sig = new EventEmitter(); let code = null;
+async function runUntilSignal(sig, { gameId = "g-sig", leave, traceDir, stopBudgetMs } = {}) {
+  const lines = []; const bus = new EventEmitter(); const leaves = [];
+  let exitCode = null; let cancelled = 0;
   let release; const hang = new Promise((r) => { release = r; });
+  const dir = traceDir || await tmp();
   const fetch = async (url, init = {}) => {
+    const account = String(url).match(/\/dev\/accounts\/([^/]+)\/leave$/);
+    if (account && init.method === "POST") {
+      leaves.push(decodeURIComponent(account[1]));
+      return leave ? leave(url, init) : res(200, {});
+    }
     if (url.endsWith("/dev/token")) return res(200, { token: "t" });
-    if (url.endsWith("/game/host")) return res(200, "g-sig");
+    if (url.endsWith("/game/host")) return res(200, gameId);
     if (url.endsWith("/dev/accounts") && init.method === "POST") return res(200, [{ id: "A" }, { id: "B" }]);
     if (url.endsWith("/dev/accounts")) return res(200, []);
     if (url.endsWith("/game/leave")) return res(200, {});
     if (url.includes("/events")) return res(200, []);
     if (url.endsWith("/dev/stream")) {
-      setImmediate(() => sig.emit("SIGINT"));
-      return res(200, {}, (async function* () { await hang; })());
+      setImmediate(() => bus.emit(sig));
+      const body = (async function* () { await hang; })();
+      body.cancel = () => { cancelled += 1; return Promise.resolve(); };
+      return res(200, {}, body);
     }
     return res(404, {});
   };
-  const run = runLiveCli({ fetch, log: (m) => lines.push(m), sleep: async () => {}, rng: () => 0.5, env: env(await tmp()), signals: sig,
-    exit: (c) => { code = c; release(); } });
-  await hang;
-  assert.equal(code, 130);
-  assert.deepEqual(lines.filter((l) => l.startsWith("game_end")), ["game_end status=stopped reason=sigint game=g-sig"]);
-  await Promise.race([run.catch(() => {}), new Promise((r) => setTimeout(r, 200))]);
+  const run = runLiveCli({
+    fetch, log: (m) => lines.push(m), sleep: async () => {}, rng: () => 0.5,
+    env: { ...env(dir), MAFIOSO_TRACE: "1", MAFIOSO_TRACE_DIR: dir },
+    signals: bus, stopBudgetMs,
+    exit: (c) => { exitCode = c; release(); },
+  });
+  const returned = await Promise.race([
+    run,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${sig} did not exit`)), 2_000)),
+  ]);
+  return { lines, leaves, cancelled, exitCode, returned, dir, gameId };
+}
+
+test("live cli: Ctrl+C logs one game_end status=stopped line", async () => {
+  const got = await runUntilSignal("SIGINT");
+  assert.equal(got.exitCode, 130);
+  assert.equal(got.returned, 130);
+  assert.deepEqual(got.leaves.sort(), ["A", "B"]);
+  assert.equal(got.cancelled, 1);
+  assert.deepEqual(got.lines.filter((l) => l.startsWith("game_end")), ["game_end status=stopped reason=sigint game=g-sig"]);
+});
+
+test("live cli: SIGTERM leaves every bot, closes the stream, flushes the trace, and exits", async () => {
+  assert.equal(SIGNAL_STOP_BUDGET_MS, 4_000);
+  assert.ok(SIGNAL_STOP_BUDGET_MS < 5_000);
+  const got = await runUntilSignal("SIGTERM");
+  assert.equal(got.exitCode, 130);
+  assert.equal(got.returned, 130);
+  assert.deepEqual(got.leaves.sort(), ["A", "B"]);
+  assert.equal(got.cancelled, 1);
+  assert.deepEqual(got.lines.filter((l) => l.startsWith("game_end")), ["game_end status=stopped reason=sigterm game=g-sig"]);
+  const rows = (await readFile(path.join(got.dir, got.gameId, "harness.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  const end = rows.filter((row) => row.type === "game.end");
+  assert.equal(end.length, 1);
+  assert.deepEqual(end[0].data, { status: "stopped", reason: "sigterm" });
+});
+
+test("live cli: a leave that never returns still exits inside the stop budget", async () => {
+  const started = Date.now();
+  const got = await runUntilSignal("SIGTERM", {
+    gameId: "g-budget",
+    stopBudgetMs: 40,
+    leave: () => new Promise(() => {}),
+  });
+  assert.equal(got.exitCode, 130);
+  assert.equal(got.returned, 130);
+  assert.deepEqual(got.leaves.sort(), ["A", "B"]);
+  assert.ok(Date.now() - started < 2_000, "stop waited on the hung leave");
+  assert.deepEqual(got.lines.filter((l) => l.startsWith("game_end")), ["game_end status=stopped reason=sigterm game=g-budget"]);
 });
 
 test("live cli: a stream that stays open after winners still logs game_end and returns", async () => {
