@@ -1,6 +1,6 @@
 import { planClaim } from "./adaptiveMafia.js";
 import { applySheriffRule, sheriffRuleOf } from "./sheriffGate.js";
-import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, claimAllowed, accusedReply, capSpeechWords } from "./chatStyle.js";
+import { SPEECH_SYSTEM, buildChatPrompt, cleanChatReply, chatShorten, chatLineReject, claimAllowed, accusedReply, capSpeechWords } from "./chatStyle.js";
 import { selfAlive } from "./reducer.js";
 // LLM decision adapter. The model is injected (complete({system,user}) -> string).
 // Every returned action passes validateAction; otherwise falls back to rules decide().
@@ -270,7 +270,16 @@ export async function generatePublicSpeech(view, { complete, schedule, now, maxR
     const user = rejections.length ? `${chat.user}\n(last try was rejected: ${rejections.at(-1)}. say something different.)` : chat.user;
     let out;
     try { out = await complete({ system: SPEECH_SYSTEM, user, purpose: "speech", maxTokens: budget, json: false, reasoningEffort: "none" }); }
-    catch (e) { rejections.push(`model error: ${String(e?.message || e).slice(0, 80)}`); grow(); continue; }
+    catch (e) {
+      // Provider cutoff (finish_reason length) and other chat-safety throws: drop the line, no wider retry.
+      if (e?.chatReject) { rejections.push(String(e.chatReject)); break; }
+      rejections.push(`model error: ${String(e?.message || e).slice(0, 80)}`);
+      grow();
+      continue;
+    }
+    // Reasoning dumped into content, or a line cut off mid-clause. Do not cap it and send the head.
+    const safety = chatLineReject(out);
+    if (safety) { rejections.push(safety); break; }
     const content = cleanChatReply(out, view, chat.addressed);
     if (!content) { rejections.push(String(out || "").trim() ? "empty line (only reasoning)" : "empty line"); grow(); continue; }
     const action = humanizeSpeak(view, { event: "speak", data: { meetingId: meeting.id, content } });

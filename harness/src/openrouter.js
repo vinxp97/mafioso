@@ -62,6 +62,18 @@ export function openrouterConfigFromEnv(env = process.env) {
 }
 
 /**
+ * The chat line from an OpenRouter completion. Never the reasoning field.
+ * Empty content (reasoning only, or a blank string) is no reply.
+ * @param {object} data parsed chat completion
+ * @returns {string}
+ */
+export function openRouterVisibleText(data) {
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") return "";
+  return content.trim() ? content : "";
+}
+
+/**
  * @param {{baseUrl?:string, model?:string|null, apiKey?:string|null, referer?:string|null, title?:string|null,
  *   reasoning?:{effort?:string, exclude?:boolean}|null|false, headers?:Record<string,string>, fetch?:Function,
  *   temperature?:number, maxTokens?:number, env?:NodeJS.ProcessEnv}} [opts]
@@ -115,6 +127,7 @@ export function createOpenRouterComplete(opts = {}) {
     discoverModels: false,
     onCall: opts.onCall,
     captureReasoning,
+    readReply: openRouterVisibleText,
     ...(reasoning ? { extraBody: { reasoning } } : {}),
   });
 }
