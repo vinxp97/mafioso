@@ -22,6 +22,7 @@ targets:
     platform: macOS
     sources:
       - path: MafiosoTrace
+        # Assets.xcassets (AppIcon.appiconset) is compiled into the app bundle.
     dependencies:
       - package: MafiosoTraceCore
         product: MafiosoTraceCore
@@ -38,6 +39,7 @@ targets:
         ENABLE_APP_SANDBOX: "NO"
         ENABLE_HARDENED_RUNTIME: "NO"
         CODE_SIGN_ENTITLEMENTS: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
   MafiosoTrace:
     build:
