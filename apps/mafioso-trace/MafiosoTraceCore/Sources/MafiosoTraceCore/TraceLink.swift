@@ -12,9 +12,25 @@ public struct ProposalVerdict: Equatable, Sendable {
 }
 
 public enum TraceLink {
-    /// `llm.call` looks forward to the next validation for that seat.
-    /// `engine.validation` looks backward to the previous model call for that seat.
+    /// `data.callId` when the record has one. Empty and missing ids are the same.
+    public static func callID(_ event: TraceEvent) -> String? {
+        guard let text = event.data["callId"]?.string else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Pair a model call with the engine verdict that carries the same `callId`.
+    /// A line written before call ids existed still pairs by seat and order:
+    /// `llm.call` looks forward to the next validation, and a validation looks backward.
     public static func pair(for event: TraceEvent, in events: [TraceEvent]) -> ProposalVerdict {
+        if event.type == "llm.call" || event.type == "engine.validation", let id = callID(event) {
+            let proposal = events.first { $0.type == "llm.call" && callID($0) == id }
+            let verdict = events.first { $0.type == "engine.validation" && callID($0) == id }
+            return ProposalVerdict(
+                proposal: proposal ?? (event.type == "llm.call" ? event : nil),
+                verdict: verdict ?? (event.type == "engine.validation" ? event : nil)
+            )
+        }
         switch event.type {
         case "llm.call":
             let verdict = events.first {

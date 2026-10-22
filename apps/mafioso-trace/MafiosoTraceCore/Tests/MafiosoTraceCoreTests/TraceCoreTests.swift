@@ -135,6 +135,104 @@ final class TraceCoreTests: XCTestCase {
         XCTAssertEqual(TraceLink.pair(for: verdict, in: events).proposal?.seq, 1)
         XCTAssertNil(TraceLink.pair(for: other, in: events).proposal)
         XCTAssertEqual(TraceLink.summary(verdict), "accepted")
+
+        let linked = make(seq: 4, seat: "p1", type: "llm.call", data: .object([
+            "callId": .string("c1"),
+            "parsed": .object(["event": .string("vote")]),
+        ]))
+        let nearer = make(seq: 5, seat: "p1", type: "engine.validation", data: .object([
+            "ok": .bool(false),
+            "callId": .string("c9"),
+        ]))
+        let matched = make(seq: 6, seat: "p2", type: "engine.validation", data: .object([
+            "ok": .bool(true),
+            "callId": .string("c1"),
+        ]))
+        let byId = [linked, nearer, matched]
+        XCTAssertEqual(TraceLink.pair(for: linked, in: byId).verdict?.seq, 6)
+        XCTAssertEqual(TraceLink.pair(for: matched, in: byId).proposal?.seq, 4)
+        XCTAssertNil(TraceLink.callID(make(seq: 7, seat: "p1", type: "llm.call", data: .object(["callId": .string("  ")]))))
+    }
+
+    func testTimelineOpensOnAllAndKeepsFiltersWhenARowOrSeatAppears() {
+        var state = TimelineState()
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+        XCTAssertEqual(TimelineState.phaseLabel(""), "—")
+        XCTAssertEqual(TimelineState.phaseLabel("  "), "—")
+        XCTAssertEqual(TimelineState.phaseLabel("Night 1"), "Night 1")
+
+        let pregame = TraceEvent(v: 1, seq: 1, ts: "t", gameId: "g", seat: "p2", phase: "", type: "game.start", data: .object([:]))
+        let night = TraceEvent(v: 1, seq: 2, ts: "t", gameId: "g", seat: "p1", phase: "Night 1", type: "llm.call", data: .object([:]))
+        let day = TraceEvent(v: 1, seq: 3, ts: "t", gameId: "g", seat: "p1", phase: "Day 1", type: "chat.sent", data: .object([:]))
+        var events = [pregame]
+        state = state.reconcile(events)
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+        events.append(night)
+        state = state.reconcile(events)
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+
+        state = state.select(id: pregame.id, in: events)
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+        XCTAssertEqual(state.selectedIDs, [pregame.id])
+        XCTAssertEqual(state.scrub, 0)
+        XCTAssertEqual(state.label(in: events), "1 / 2")
+
+        events.append(day)
+        state = state.select(id: day.id, in: events)
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+        XCTAssertEqual(state.scrub, 2)
+        XCTAssertEqual(state.label(in: events), "3 / 3")
+
+        state = state.scrub(to: 1, in: events)
+        XCTAssertEqual(state.selectedIDs, [night.id])
+        XCTAssertEqual(state.scrub, 1)
+        XCTAssertEqual(state.label(in: events), "2 / 3")
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+
+        state = state.chooseSeat("p1", events: events)
+        XCTAssertEqual(state.seat, "p1")
+        XCTAssertEqual(state.selectedIDs, [night.id])
+        XCTAssertEqual(state.label(in: events), "1 / 2")
+        state = state.chooseSeat("all", events: events)
+        events.append(TraceEvent(v: 1, seq: 4, ts: "t", gameId: "g", seat: "p2", phase: "Day 1", type: "chat.observed", data: .object([:])))
+        state = state.reconcile(events)
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.phase, "all")
+        XCTAssertEqual(state.selectedIDs, [night.id])
+        XCTAssertEqual(state.label(in: events), "2 / 4")
+
+        state = state.choosePhase("Night 1", events: events)
+        state = state.select(id: day.id, in: events)
+        XCTAssertEqual(state.phase, "Night 1")
+        XCTAssertEqual(state.seat, "all")
+        XCTAssertEqual(state.selectedIDs, [night.id])
+        state = state.choosePhase("all", events: events)
+        state = state.reconcile(events)
+        XCTAssertEqual(state.phase, "all")
+
+        state = state.chooseSeat("p2", events: events)
+        state = state.chooseSeat("all", events: events)
+        XCTAssertEqual(state.seat, "all")
+        state = state.chooseSeat("harness", events: events)
+        XCTAssertEqual(state.seat, "harness")
+        state = state.reconcile(events)
+        XCTAssertEqual(state.seat, "harness")
+
+        var early = TimelineState()
+        early = early.chooseSeat("p1", events: [], files: ["p1"])
+        XCTAssertEqual(early.seat, "p1")
+        early = early.reconcile([], files: ["p1", "p2"])
+        XCTAssertEqual(early.seat, "p1")
+        early = early.chooseSeat("all", events: [], files: ["p1", "p2"])
+        early = early.reconcile([], files: ["p1", "p2", "p3"])
+        XCTAssertEqual(early.seat, "all")
+        XCTAssertEqual(early.phase, "all")
     }
 
     func testLaunchOptionsReadFixturePath() {
@@ -274,6 +372,12 @@ final class TraceCoreTests: XCTestCase {
         let pair = TraceLink.pair(for: call, in: events)
         XCTAssertEqual(pair.verdict?.type, "engine.validation")
         XCTAssertEqual(pair.verdict?.seat, call.seat)
+        XCTAssertEqual(call.data["callId"]?.string, "c1")
+        XCTAssertEqual(pair.verdict?.data["callId"]?.string, "c1")
+        let speech = try XCTUnwrap(events.first { $0.type == "llm.call" && $0.data["purpose"]?.string == "speech" })
+        XCTAssertEqual(TraceLink.pair(for: speech, in: events).verdict?.data["callId"]?.string, "c2")
+        let pregame = try XCTUnwrap(events.first { $0.type == "game.start" })
+        XCTAssertEqual(TimelineState.phaseLabel(pregame.phase), "—")
         let text = try String(contentsOf: fixture, encoding: .utf8)
         XCTAssertFalse(text.contains("sk-"))
         XCTAssertFalse(text.contains("Bearer "))

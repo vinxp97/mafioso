@@ -893,6 +893,8 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     }
     let verdict = validateAction(view, action);
     if (table.traceLog?.enabled) {
+      const fromModel = source === "llm" || source === "model";
+      const callId = fromModel ? (table.traceLog.linkCall?.(id, action) || "") : "";
       traceEvent(table, id, "engine.validation", {
         ok: !!verdict.ok,
         reason: verdict.ok ? "" : String(verdict.reason || ""),
@@ -901,6 +903,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
         selection: action.data?.selection ?? null,
         content: action.event === "speak" ? String(action.data?.content || "") : undefined,
         source: source || "",
+        ...(callId ? { callId } : {}),
       });
     }
     // chat-audit: a public line that states a wrong fact or leaks is dropped (logged) and replaced, when the

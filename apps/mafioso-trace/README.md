@@ -20,7 +20,7 @@ apps/mafioso-trace/build/Build/Products/Debug/MafiosoTrace.app/Contents/MacOS/Ma
 
 The fixture is synthetic. The names are Ada, Bea, Cal, Dee, and Eli. Cmd-R reloads. Settings changes the logs root. The default is `~/mafioso-mac/logs`.
 
-The sidebar is one row per game directory. A game whose files changed in the last 15 seconds is marked live. The middle column picks a seat, the harness, or all, and a phase. The detail column is a timeline and the selected event. Reasoning is monospaced selectable text. An `llm.call` is shown next to the next `engine.validation` for that seat. Follow scrolls to the new line until you pick an older row or turn Follow off. A finished game can be scrubbed with the slider when more than one event is visible. Zero or one event shows the position label only.
+The sidebar is one row per game directory. A game whose files changed in the last 15 seconds is marked live. The app opens on seat All and phase All. Choosing a row does not change those filters. The detail column is a timeline and the selected event. The scrubber and the `n / N` counter stay on the selected row. Reasoning is monospaced text you can select. An `llm.call` shows Proposal vs Verdict at the top: the parsed proposal beside the engine verdict with the same `callId`. Follow scrolls to the new line until you pick an older row or turn Follow off. A finished game can be scrubbed with the slider when more than one event is visible. Zero or one event shows the position label only.
 
 Lines are read a chunk at a time on a background task. The window keeps parsed events, not the file text.
 

@@ -26,12 +26,9 @@ enum LogsRoot {
 final class GameStore: ObservableObject {
     @Published var games: [TraceGame] = []
     @Published var selectedGameID: String?
-    @Published var seat = "all"
-    @Published var phase = "all"
+    @Published var timeline = TimelineState()
     @Published var events: [TraceEvent] = []
-    @Published var selection = Set<TraceEvent.ID>()
     @Published var follow = true
-    @Published var scrub: Double = 0
     @Published var logsRootPath = LogsRoot.defaultPath
     @Published var missingRoot = false
     @Published var fixtureMissing = false
@@ -50,67 +47,44 @@ final class GameStore: ObservableObject {
     private var epoch = 0
     private var fixtureTask: Task<Void, Never>?
 
-    /// Seat filter that is still present. A seat that disappeared falls back to all.
-    var resolvedSeat: String {
-        Scrub.choice(seat, allowed: playerSeats + ["harness"], fallback: "all")
+    var seat: String { timeline.seat }
+    var phase: String { timeline.phase }
+    var selection: Set<TraceEvent.ID> { timeline.selectedIDs }
+    var scrub: Double { timeline.scrub }
+
+    /// Seat names already on disk for the open game, before their lines have been read.
+    private var fileSeats: [String] {
+        games.first { $0.id == selectedGameID }?.seats ?? []
     }
+
+    /// Seat filter that is still present. A seat that disappeared falls back to all.
+    var resolvedSeat: String { timeline.resolvedSeat(in: events, files: fileSeats) }
 
     /// Phase filter that is still present. A phase that disappeared falls back to all.
-    var resolvedPhase: String {
-        Scrub.choice(phase, allowed: phases, fallback: "all")
-    }
+    var resolvedPhase: String { timeline.resolvedPhase(in: events) }
 
-    var visible: [TraceEvent] {
-        let seatFilter = resolvedSeat
-        let phaseFilter = resolvedPhase
-        return events.filter { event in
-            let seatOK: Bool
-            switch seatFilter {
-            case "all":
-                seatOK = true
-            case "harness":
-                seatOK = event.seat == "harness"
-            default:
-                seatOK = event.seat == seatFilter
-            }
-            return seatOK && (phaseFilter == "all" || event.phase == phaseFilter)
-        }
-    }
+    var visible: [TraceEvent] { timeline.visible(events, files: fileSeats) }
 
     var playerSeats: [String] {
         var seen: [String] = []
         func add(_ name: String) {
-            guard !name.isEmpty, name != "harness", !seen.contains(name) else { return }
+            guard !name.isEmpty, name != TimelineState.harness, !seen.contains(name) else { return }
             seen.append(name)
         }
-        if let game = games.first(where: { $0.id == selectedGameID }) {
-            game.seats.forEach(add)
-        }
-        events.forEach { add($0.seat) }
+        fileSeats.forEach(add)
+        TimelineState.playerSeats(in: events).forEach(add)
         return seen
     }
 
-    var phases: [String] {
-        var seen: [String] = []
-        for event in events where !event.phase.isEmpty && !seen.contains(event.phase) {
-            seen.append(event.phase)
-        }
-        return seen
-    }
+    var phases: [String] { TimelineState.phases(in: events) }
 
     var selectedEvent: TraceEvent? {
-        let rows = visible
-        let ids = Scrub.selection(selection, available: rows.map(\.id))
-        return rows.filter { ids.contains($0.id) }.max { $0.seq < $1.seq }
+        visible.first { timeline.selectedIDs.contains($0.id) }
     }
 
-    var scrubBounds: ClosedRange<Double>? {
-        Scrub.bounds(count: visible.count)
-    }
+    var scrubBounds: ClosedRange<Double>? { timeline.bounds(in: events, files: fileSeats) }
 
-    var scrubLabel: String {
-        Scrub.label(position: scrub, count: visible.count)
-    }
+    var scrubLabel: String { timeline.label(in: events, files: fileSeats) }
 
     var currentGameIsLive: Bool {
         guard fixtureURL == nil else { return false }
@@ -122,6 +96,18 @@ final class GameStore: ObservableObject {
         if let fixtureURL { return fixtureURL.path }
         if missingRoot { return "Missing \(LogsRoot.url(from: logsRootPath).path)" }
         return "\(events.count) events"
+    }
+
+    /// Path shown in the sidebar footer. The full string is the tooltip.
+    var sidebarPath: String {
+        if let fixtureURL { return fixtureURL.path }
+        return LogsRoot.url(from: logsRootPath).path
+    }
+
+    /// Path in the timeline toolbar. Nil while a live game is showing an event count.
+    var pathLine: String? {
+        if fixtureURL != nil || missingRoot { return sidebarPath }
+        return nil
     }
 
     func start(arguments: [String]) {
@@ -158,11 +144,29 @@ final class GameStore: ObservableObject {
         guard id != selectedGameID else { return }
         selectedGameID = id
         clearTimeline()
-        seat = "all"
-        phase = "all"
+        timeline = TimelineState()
         follow = games.first { $0.id == id }?.isLive ?? false
         watchedKey = ""
         wake.signal()
+    }
+
+    func chooseSeat(_ seat: String) {
+        timeline = timeline.chooseSeat(seat, events: events, files: fileSeats)
+    }
+
+    func choosePhase(_ phase: String) {
+        timeline = timeline.choosePhase(phase, events: events, files: fileSeats)
+    }
+
+    /// A timeline click. The seat and phase filters stay where the user left them.
+    func selectRow(_ id: TraceEvent.ID) {
+        let next = timeline.select(id: id, in: events, files: fileSeats)
+        guard next != timeline else { return }
+        if follow, next.selectedIDs.first != pinnedID {
+            follow = false
+        }
+        timeline = next
+        pinnedID = id
     }
 
     func setFollow(_ on: Bool) {
@@ -174,22 +178,8 @@ final class GameStore: ObservableObject {
 
     func userScrubbed(to value: Double) {
         follow = false
-        let rows = visible
-        scrub = Scrub.clamp(value, count: rows.count)
-        guard let index = Scrub.index(for: scrub, count: rows.count), rows.indices.contains(index) else {
-            selection = []
-            pinnedID = nil
-            return
-        }
-        let id = rows[index].id
-        pinnedID = id
-        selection = [id]
-    }
-
-    func userChangedSelection() {
-        guard follow, let chosen = selection.first else { return }
-        if chosen == pinnedID { return }
-        follow = false
+        timeline = timeline.scrub(to: value, in: events, files: fileSeats)
+        pinnedID = timeline.selectedIDs.first
     }
 
     func reload() {
@@ -254,7 +244,6 @@ final class GameStore: ObservableObject {
         missingRoot = false
         if let first = visible.first {
             pin(first.id)
-            scrub = 0
         }
     }
 
@@ -330,6 +319,7 @@ final class GameStore: ObservableObject {
             if lhs.seq != rhs.seq { return lhs.seq < rhs.seq }
             return lhs.seat < rhs.seat
         }
+        timeline = timeline.reconcile(events, files: fileSeats)
         if follow, let last = visible.last {
             pin(last.id)
         }
@@ -337,17 +327,16 @@ final class GameStore: ObservableObject {
 
     private func pin(_ id: TraceEvent.ID) {
         pinnedID = id
-        selection = [id]
-        if let index = visible.firstIndex(where: { $0.id == id }) {
-            scrub = Scrub.clamp(Double(index), count: visible.count)
-        }
+        timeline = timeline.select(id: id, in: events, files: fileSeats)
     }
 
     private func clearTimeline() {
         events = []
-        selection = []
+        var next = timeline
+        next.selectedIDs = []
+        next.scrub = 0
+        timeline = next
         pinnedID = nil
-        scrub = 0
     }
 
     private func stopSeatWatchers() {

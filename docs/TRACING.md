@@ -70,6 +70,7 @@ One model call.
 
 | `data` field | Meaning |
 | --- | --- |
+| `callId` | Id of this call, `c1`, `c2`, and so on, for the whole game. The matching `engine.validation` copies it. |
 | `model` | Model id sent on the request. |
 | `purpose` | `action`, `speech`, `candidates`, `memory`, `scheduler`, or empty. |
 | `latencyMs` | Time from the request start to the response. |
@@ -83,7 +84,7 @@ One model call.
 `prompt.systemChars` is the system-text length. The system text itself is not copied. `prompt.state` is the user briefing with other players' chat removed, capped at 8000 characters. `prompt.untrusted` is that chat, each item `{kind, text, untrusted: true}`. `kind` is `player-chat` (the `PLAYERS SAID` block) or `faction-chat`.
 
 `engine.validation`  
-One `validateAction` result on a line that reached send. `data.ok`, `data.reason` (empty when accepted), `data.action`, `data.meetingId`, `data.selection`, `data.content` for speech, `data.source`.
+One `validateAction` result on a line that reached send. `data.ok`, `data.reason` (empty when accepted), `data.action`, `data.meetingId`, `data.selection`, `data.content` for speech, `data.source`. `data.callId` is set when `source` is `llm` or `model` and the action matches an `llm.call` from that seat (the parsed vote, or the speech call). A rules action leaves `callId` off. The viewer puts that parsed proposal next to this verdict.
 
 `chat.sent`  
 A speak that was handed to send, or queued for send. `data.content`, `data.meetingId`, `data.meetingName`, `data.source`, `data.dryRun`, and `data.deferred` when the line waited on pacing.
@@ -154,10 +155,10 @@ apps/mafioso-trace/build/Build/Products/Debug/MafiosoTrace.app/Contents/MacOS/Ma
 
 The fixture is synthetic. The names are Ada, Bea, Cal, Dee, and Eli. Cmd-R reloads. The default logs root is `~/mafioso-mac/logs`, and Settings can point it at `logs/traces` or `MAFIOSO_TRACE_DIR`.
 
-The sidebar is one row per game directory. A game whose files changed in the last 15 seconds is marked live. The middle column picks a seat, `harness`, or all, and a phase. The detail column is a timeline and the selected event. Reasoning is monospaced selectable text. An `llm.call` is shown next to the next `engine.validation` for that seat, and a validation is shown next to the previous model call. Follow-live scrolls to the new line until you pick an older row or turn Follow off. A finished game can be scrubbed with the slider when the filtered timeline has more than one event. Zero or one event shows the position label only.
+The sidebar is one row per game directory. A game whose files changed in the last 15 seconds is marked live. The app opens with seat `All` and phase `All`. Choosing a timeline row does not change those filters, and choosing `All` stays put when more seats appear. The detail column is a timeline and the selected event. The scrubber and the `n / N` counter follow the selected row, and moving the scrubber selects that row. Reasoning is monospaced text you can select; it is not highlighted on its own. An `llm.call` opens with Proposal vs Verdict: the parsed proposal beside the `engine.validation` that carries the same `callId`. A line with no `callId` still pairs with the next validation for that seat, or the previous model call. The Phase column shows `—` before the first phase. Long paths are cut in the middle; the full path is the tooltip, and Reveal in Finder is on the path's menu. Follow-live scrolls to the new line until you pick an older row or turn Follow off. A finished game can be scrubbed with the slider when the filtered timeline has more than one event. Zero or one event shows the position label only.
 
 The app tails files. It does not read a whole file into view state. New bytes are parsed a line at a time.
 
 ## Tests
 
-`harness/test/trace.test.js` covers the record shape, a line showing up on disk before `close`, redaction of a planted secret, untrusted chat split out of the briefing, reasoning capture against a mocked OpenRouter response (the returned string is only `content`), a 429, the `response_format` retry, and a dry-run table that writes `game.start`, `phase.change`, `engine.validation`, `night.sent`, `vote.notice`, and `chat.observed`.
+`harness/test/trace.test.js` covers the record shape, a line showing up on disk before `close`, redaction of a planted secret, untrusted chat split out of the briefing, reasoning capture against a mocked OpenRouter response (the returned string is only `content`), a 429, the `response_format` retry, a dry-run table that writes `game.start`, `phase.change`, `engine.validation`, `night.sent`, `vote.notice`, and `chat.observed`, and a model vote whose `llm.call` and `engine.validation` share a `callId`.

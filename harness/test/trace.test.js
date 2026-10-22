@@ -278,6 +278,102 @@ test("a parsed action is stored beside the raw proposal", async () => {
   assert.equal(row.data.parsed.event, "vote");
   assert.equal(row.data.parsed.data.meetingId, "mCop");
   assert.equal(row.data.parsed.data.selection, "p3");
+  assert.equal(row.data.callId, "c1");
+});
+
+test("an llm.call and the engine.validation for that action share a call id", async () => {
+  const root = tmp();
+  const writer = createTraceWriter({ force: true, root, gameId: "g-call", now: () => "2026-10-22T11:00:06.000Z" });
+  const voteId = writer.run("seat-ada", () => {
+    writer.recordModel({
+      model: "example/model",
+      purpose: "action",
+      raw: '{"action":"vote","meeting":"mCop","target":"p3"}',
+    });
+    writer.recordModel({
+      model: "example/model",
+      purpose: "action",
+      raw: '{"action":"vote","meeting":"mCop","target":"p2"}',
+    });
+    writer.recordModel({
+      model: "example/model",
+      purpose: "speech",
+      raw: "Cal is quiet.",
+    });
+    const otherSeat = writer.linkCall("seat-bea", { event: "vote", data: { meetingId: "mCop", selection: "p2" } });
+    assert.equal(otherSeat, "");
+    const first = writer.linkCall("seat-ada", { event: "vote", data: { meetingId: "mCop", selection: "p3" } });
+    const second = writer.linkCall("seat-ada", { event: "vote", data: { meetingId: "mCop", selection: "p2" } });
+    const speech = writer.linkCall("seat-ada", { event: "speak", data: { meetingId: "village", content: "a rewritten line" } });
+    assert.equal(first, "c1");
+    assert.equal(second, "c2");
+    assert.equal(speech, "c3");
+    assert.equal(writer.linkCall("seat-ada", { event: "vote", data: { meetingId: "mCop", selection: "p2" } }), "");
+    writer.event({
+      type: "engine.validation",
+      data: { ok: true, reason: "", action: "vote", meetingId: "mCop", selection: "p2", source: "llm", callId: second },
+    });
+    return second;
+  });
+  writer.close();
+  const rows = readJsonl(path.join(root, "g-call", "seat-ada.jsonl"));
+  const calls = rows.filter((row) => row.type === "llm.call");
+  assert.deepEqual(calls.map((row) => row.data.callId), ["c1", "c2", "c3"]);
+  assert.equal(calls[1].data.parsed.data.selection, "p2");
+  const verdict = rows.find((row) => row.type === "engine.validation");
+  assert.equal(verdict.data.callId, voteId);
+  assert.equal(verdict.data.callId, "c2");
+
+  const liveRoot = tmp();
+  const live = createTraceWriter({ force: true, root: liveRoot, gameId: "g-live-call", now: () => "2026-10-22T11:00:07.000Z" });
+  const table = createBotTable([{ accountId: "A" }]);
+  table.traceLog = live;
+  const client = { api: async () => [{ id: "A", playerId: "p1" }] };
+  await seedSelfIds(client, table, ["A"], { sleep: async () => {} });
+  const complete = async (input) => {
+    const purpose = input?.purpose;
+    const raw = purpose === "speech"
+      ? "I am still reading the table."
+      : purpose === "scheduler"
+        ? '{"urgency":0,"speak":false,"reason":"night"}'
+        : purpose === "candidates"
+          ? "[]"
+          : purpose === "memory"
+            ? "none"
+            : '{"action":"vote","meeting":"mCop","target":"p2"}';
+    table.traceLog.recordModel({
+      model: "example/model",
+      purpose: purpose || "",
+      raw,
+      system: input?.system,
+      user: input?.user,
+    });
+    return raw;
+  };
+  let seq = 0;
+  const feed = async (event, data) => {
+    seq += 1;
+    return onGameEntry(table, { accountId: "A", seq, t: seq * 1000, event, data }, { complete, dryRun: true, fast: false, rng: () => 0 });
+  };
+  await feed("players", Object.fromEntries(["p1", "p2", "p3", "p4"].map((id, i) => [id, { id, name: ["Ada", "Bea", "Cal", "Dee"][i] }])));
+  await feed("roleReveal", { playerId: "p1", role: "Cop" });
+  await feed("state", { id: 2, name: "Night 1" });
+  await feed("meeting", {
+    id: "mCop", name: "Cop", actionName: "Learn Alignment", voting: true, canVote: true, amMember: true,
+    targets: ["p2", "p3", "p4"], members: [{ id: "p1" }], votes: {},
+  });
+  live.close();
+  const traced = readJsonl(path.join(liveRoot, "g-live-call", "A.jsonl"));
+  const proposal = traced.find((row) => row.type === "llm.call" && row.data.parsed?.data?.selection === "p2");
+  assert.ok(proposal, traced.map((row) => row.type).join(","));
+  assert.match(proposal.data.callId, /^c\d+$/);
+  const accepted = traced.find((row) => row.type === "engine.validation" && row.data.callId === proposal.data.callId);
+  assert.ok(accepted, traced.filter((row) => row.type === "engine.validation").map((row) => JSON.stringify(row.data)).join("\n"));
+  assert.equal(accepted.data.ok, true);
+  assert.equal(accepted.data.selection, "p2");
+  assert.equal(accepted.data.source, "llm");
+  const rules = traced.filter((row) => row.type === "engine.validation" && row.data.source !== "llm" && row.data.source !== "model");
+  assert.equal(rules.some((row) => row.data.callId), false);
 });
 
 test("429 and the response_format retry are trace events, and the reply is unchanged", async () => {

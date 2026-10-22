@@ -156,6 +156,7 @@ function disabledTrace() {
     root: "",
     event() {},
     recordModel() {},
+    linkCall() { return ""; },
     run(_seat, fn) { return typeof fn === "function" ? fn() : undefined; },
     close() {},
     phaseOf() { return ""; },
@@ -185,8 +186,22 @@ export function createTraceWriter(opts = {}) {
   const phases = new Map();
   const started = new Set();
   const ended = new Set();
+  /** Recent model calls, oldest first, so a validation can reuse that call's id. */
+  const calls = [];
   let seq = 0;
+  let callSeq = 0;
   let failed = false;
+
+  function sameAction(parsed, action) {
+    if (!parsed || parsed.event !== action?.event) return false;
+    const want = action.data || {};
+    const got = parsed.data || {};
+    if (String(got.meetingId || "") !== String(want.meetingId || "")) return false;
+    if (parsed.event === "speak") return true;
+    const left = got.selection == null ? "" : String(got.selection);
+    const right = want.selection == null ? "" : String(want.selection);
+    return left === right;
+  }
 
   function writeLine(seat, obj) {
     if (failed) return;
@@ -253,20 +268,51 @@ export function createTraceWriter(opts = {}) {
       let parsed = null;
       try { parsed = parseLlmAction(info.raw || "") || null; } catch { parsed = null; }
       const prompt = summarizePrompt(info.system, info.user, info.purpose || "");
+      callSeq += 1;
+      const callId = `c${callSeq}`;
+      const purpose = String(info.purpose || "");
+      const raw = cap(info.raw || "", TEXT_CAP);
+      calls.push({
+        seat: api.currentSeat(),
+        callId,
+        purpose,
+        parsed,
+        raw,
+        used: false,
+      });
+      if (calls.length > 400) calls.splice(0, calls.length - 400);
       api.event({
         type: "llm.call",
         data: {
+          callId,
           model,
-          purpose: String(info.purpose || ""),
+          purpose,
           latencyMs: info.latencyMs ?? null,
           usage: info.usage || null,
           reasoning: info.reasoning ? cap(info.reasoning, REASONING_CAP) : null,
           reasoningDetails: info.reasoningDetails || null,
-          raw: cap(info.raw || "", TEXT_CAP),
+          raw,
           parsed,
           prompt,
         },
       });
+    },
+    /**
+     * The call id of the model call that proposed this action, or "" when none matches.
+     * A match is consumed, so a later rules action does not reuse it.
+     */
+    linkCall(seat, action) {
+      const eventName = String(action?.event || "");
+      const pending = calls.filter((call) => call.seat === String(seat) && !call.used);
+      let hit = pending.find((call) => sameAction(call.parsed, action));
+      if (!hit && eventName === "speak") {
+        const text = String(action?.data?.content || "");
+        const speeches = pending.filter((call) => call.purpose === "speech" || call.parsed?.event === "speak");
+        hit = speeches.find((call) => text && (call.raw === text || call.parsed?.data?.content === text)) || speeches[0];
+      }
+      if (!hit) return "";
+      hit.used = true;
+      return hit.callId;
     },
     close() {
       for (const fd of fds.values()) {
