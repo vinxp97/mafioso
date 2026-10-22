@@ -90,7 +90,7 @@ struct DetailPane: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(event.type)
                 .font(.title3)
-            Text("\(event.seat)  \(TimelineState.phaseLabel(event.phase))  #\(event.seq)  \(event.ts)")
+            Text("\(event.seat)  \(TimelineState.phaseLabel(event.phase))  #\(event.seq)  \(TraceTime.display(event.ts))")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             if event.data["untrusted"]?.bool == true {

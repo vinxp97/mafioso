@@ -51,9 +51,13 @@ struct ContentView: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            Toggle("Trace reasoning", isOn: traceReasoning)
-                .toggleStyle(.switch)
-                .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
+            Toggle(isOn: traceReasoning) {
+                Text("Trace reasoning")
+            }
+            .toggleStyle(.switch)
+            .accessibilityLabel("Trace reasoning")
+            .fixedSize(horizontal: true, vertical: false)
+            .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             if run.isRunning {
@@ -65,6 +69,8 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 72, alignment: .leading)
                 .help(run.statusText)
         }
         if let banner {
@@ -337,7 +343,7 @@ struct ContentView: View {
                             let summary = TraceLink.summary(row)
                             timelineRow(
                                 seq: "\(row.seq)",
-                                time: Self.clock(row.ts),
+                                time: TraceTime.display(row.ts),
                                 seat: row.seat,
                                 phase: TimelineState.phaseLabel(row.phase),
                                 type: row.type,
@@ -393,7 +399,7 @@ struct ContentView: View {
                 .frame(width: 44, alignment: .leading)
             Text(time)
                 .monospacedDigit()
-                .frame(width: 112, alignment: .leading)
+                .frame(width: 140, alignment: .leading)
             Text(seat)
                 .lineLimit(1)
                 .frame(width: 72, alignment: .leading)
@@ -463,10 +469,6 @@ struct ContentView: View {
             .foregroundStyle(color)
     }
 
-    private static func clock(_ ts: String) -> String {
-        guard let time = ts.split(separator: "T").dropFirst().first else { return ts }
-        return String(time.prefix(12))
-    }
 }
 
 /// Sidebar path shortened on a `/` boundary. The tooltip stays the full path.

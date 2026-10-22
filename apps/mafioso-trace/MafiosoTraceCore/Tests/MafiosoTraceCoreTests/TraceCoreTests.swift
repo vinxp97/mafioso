@@ -385,6 +385,25 @@ final class TraceCoreTests: XCTestCase {
         XCTAssertTrue(text.contains("Bea"))
     }
 
+    func testLocalClockUsesTheZoneAbbreviation() throws {
+        let newYork = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let locale = Locale(identifier: "en_US")
+        XCTAssertEqual(
+            TraceTime.display("2026-10-22T11:00:05.000Z", in: newYork, locale: locale),
+            "07:00:05 EDT"
+        )
+        XCTAssertEqual(
+            TraceTime.display("2026-01-15T11:00:05.000Z", in: newYork, locale: locale),
+            "06:00:05 EST"
+        )
+        let utc = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        XCTAssertEqual(
+            TraceTime.display("2026-10-22T11:00:05Z", in: utc, locale: locale),
+            "11:00:05 GMT"
+        )
+        XCTAssertEqual(TraceTime.display("t", in: utc, locale: locale), "t")
+    }
+
     private func make(seq: Int, seat: String, type: String, data: JSONValue) -> TraceEvent {
         TraceEvent(
             v: 1,
