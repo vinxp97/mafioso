@@ -28,7 +28,7 @@ struct ContentView: View {
     private var sidebar: some View {
         List(selection: gameBinding) {
             if store.games.isEmpty {
-                Text(store.missingRoot ? "Logs folder is missing" : "No games")
+                Text(emptyTitle)
                     .foregroundStyle(.secondary)
             }
             ForEach(store.games) { game in
@@ -72,7 +72,7 @@ struct ContentView: View {
                 Text("Phase")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("Phase", selection: $store.phase) {
+                Picker("Phase", selection: phaseBinding) {
                     Text("All").tag("all")
                     ForEach(store.phases, id: \.self) { phase in
                         Text(phase).tag(phase)
@@ -94,12 +94,17 @@ struct ContentView: View {
                     store.reload()
                 }
                 if !store.currentGameIsLive {
-                    Slider(
-                        value: Binding(get: { store.scrub }, set: { store.userScrubbed(to: $0) }),
-                        in: 0 ... Double(max(store.visible.count - 1, 0)),
-                        step: 1
-                    )
-                    Text(scrubLabel)
+                    if let bounds = store.scrubBounds, bounds.upperBound > bounds.lowerBound {
+                        Slider(
+                            value: Binding(
+                                get: { Scrub.clamp(store.scrub, count: store.visible.count) },
+                                set: { store.userScrubbed(to: $0) }
+                            ),
+                            in: bounds,
+                            step: 1
+                        )
+                    }
+                    Text(store.scrubLabel)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 } else if store.follow {
@@ -115,7 +120,7 @@ struct ContentView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            Table(store.visible, selection: $store.selection) {
+            Table(store.visible, selection: tableSelection) {
                 TableColumn("Seq") { (row: TraceEvent) in
                     Text("\(row.seq)").monospacedDigit()
                 }
@@ -149,10 +154,17 @@ struct ContentView: View {
         return TraceLink.pair(for: event, in: store.events)
     }
 
-    private var scrubLabel: String {
-        let count = store.visible.count
-        if count == 0 { return "0 / 0" }
-        return "\(Int(store.scrub.rounded()) + 1) / \(count)"
+    private var emptyTitle: String {
+        if store.fixtureMissing { return "Fixture file is missing" }
+        if store.missingRoot { return "Logs folder is missing" }
+        return "No games"
+    }
+
+    private var tableSelection: Binding<Set<TraceEvent.ID>> {
+        Binding(
+            get: { Scrub.selection(store.selection, available: store.visible.map(\.id)) },
+            set: { store.selection = $0 }
+        )
     }
 
     private var gameBinding: Binding<String?> {
@@ -160,7 +172,11 @@ struct ContentView: View {
     }
 
     private var seatBinding: Binding<String?> {
-        Binding(get: { store.seat }, set: { store.seat = $0 ?? "all" })
+        Binding(get: { store.resolvedSeat }, set: { store.seat = $0 ?? "all" })
+    }
+
+    private var phaseBinding: Binding<String> {
+        Binding(get: { store.resolvedPhase }, set: { store.phase = $0 })
     }
 
     private func badge(_ title: String, color: Color) -> some View {

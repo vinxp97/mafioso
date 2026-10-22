@@ -165,6 +165,77 @@ final class TraceCoreTests: XCTestCase {
         XCTAssertTrue(games[0].isLive)
         XCTAssertFalse(games[1].isLive)
         XCTAssertEqual(TraceCatalog.games(in: root.appendingPathComponent("missing")), [])
+        let empty = try temporaryDirectory()
+        XCTAssertEqual(TraceCatalog.games(in: empty), [])
+        let file = empty.appendingPathComponent("not-a-directory")
+        try Data("x".utf8).write(to: file)
+        XCTAssertEqual(TraceCatalog.games(in: file), [])
+    }
+
+    func testScrubRangeForZeroOneAndMany() throws {
+        XCTAssertNil(Scrub.bounds(count: 0))
+        XCTAssertNil(Scrub.bounds(count: 1))
+        XCTAssertNil(Scrub.bounds(count: -3))
+        XCTAssertFalse(Scrub.showsSlider(count: 0))
+        XCTAssertFalse(Scrub.showsSlider(count: 1))
+        XCTAssertEqual(Scrub.clamp(4, count: 0), 0)
+        XCTAssertEqual(Scrub.clamp(.nan, count: 5), 0)
+        XCTAssertEqual(Scrub.clamp(.infinity, count: 5), 0)
+        XCTAssertNil(Scrub.index(for: 3, count: 0))
+        XCTAssertEqual(Scrub.label(position: 9, count: 0), "0 / 0")
+
+        XCTAssertEqual(Scrub.clamp(4, count: 1), 0)
+        XCTAssertEqual(Scrub.index(for: 4, count: 1), 0)
+        XCTAssertEqual(Scrub.label(position: 4, count: 1), "1 / 1")
+
+        let two = try XCTUnwrap(Scrub.bounds(count: 2))
+        XCTAssertEqual(two, 0 ... 1)
+        XCTAssertGreaterThan(two.upperBound, two.lowerBound)
+        XCTAssertTrue(Scrub.showsSlider(count: 2))
+        XCTAssertEqual(Scrub.clamp(5, count: 2), 1)
+        XCTAssertEqual(Scrub.clamp(-1, count: 2), 0)
+        XCTAssertEqual(Scrub.index(for: 0.4, count: 2), 0)
+        XCTAssertEqual(Scrub.index(for: 0.6, count: 2), 1)
+        XCTAssertEqual(Scrub.label(position: 5, count: 2), "2 / 2")
+
+        XCTAssertEqual(Scrub.bounds(count: 3), Optional(0 ... 2))
+        XCTAssertEqual(Scrub.index(for: 2, count: 3), 2)
+        XCTAssertEqual(Scrub.label(position: 0, count: 3), "1 / 3")
+    }
+
+    func testSelectionAndFiltersDropMissingValues() {
+        XCTAssertEqual(Scrub.selection(Set(["a", "gone"]), available: ["a"]), Set(["a"]))
+        XCTAssertEqual(Scrub.selection(Set(["gone"]), available: [String]()), Set())
+        XCTAssertEqual(Scrub.choice("Day 1", allowed: ["Night 1"], fallback: "all"), "all")
+        XCTAssertEqual(Scrub.choice("all", allowed: [], fallback: "all"), "all")
+        XCTAssertEqual(Scrub.choice("p1", allowed: ["p1"], fallback: "all"), "p1")
+        XCTAssertEqual(Scrub.choice("harness", allowed: ["p1", "harness"], fallback: "all"), "harness")
+    }
+
+    func testMissingAndDeletedFilesDoNotThrow() throws {
+        let missing = try temporaryDirectory().appendingPathComponent("gone.jsonl")
+        var absent = FileTail(url: missing)
+        let unread = absent.readNewLines()
+        XCTAssertEqual(unread.lines, [])
+        XCTAssertTrue(unread.reachedEnd)
+        XCTAssertEqual(absent.offset, 0)
+
+        let url = try temporaryFile()
+        try Data("ada\n".utf8).write(to: url)
+        var tail = FileTail(url: url)
+        XCTAssertEqual(tail.readNewLines().lines, ["ada"])
+        let kept = tail.offset
+        try FileManager.default.removeItem(at: url)
+        let afterDelete = tail.readNewLines()
+        XCTAssertEqual(afterDelete.lines, [])
+        XCTAssertTrue(afterDelete.reachedEnd)
+        XCTAssertEqual(tail.offset, kept)
+
+        try Data("hi\n".utf8).write(to: url)
+        var shrunk = FileTail(url: url, chunkSize: 8)
+        _ = shrunk.readNewLines()
+        try Data("z\n".utf8).write(to: url)
+        XCTAssertEqual(shrunk.readNewLines().lines, ["z"])
     }
 
     func testSampleFixtureStreamsLineByLine() async throws {

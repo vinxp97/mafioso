@@ -34,6 +34,7 @@ final class GameStore: ObservableObject {
     @Published var scrub: Double = 0
     @Published var logsRootPath = LogsRoot.defaultPath
     @Published var missingRoot = false
+    @Published var fixtureMissing = false
     @Published var fixtureName: String?
 
     private let pump = LinePump()
@@ -49,18 +50,30 @@ final class GameStore: ObservableObject {
     private var epoch = 0
     private var fixtureTask: Task<Void, Never>?
 
+    /// Seat filter that is still present. A seat that disappeared falls back to all.
+    var resolvedSeat: String {
+        Scrub.choice(seat, allowed: playerSeats + ["harness"], fallback: "all")
+    }
+
+    /// Phase filter that is still present. A phase that disappeared falls back to all.
+    var resolvedPhase: String {
+        Scrub.choice(phase, allowed: phases, fallback: "all")
+    }
+
     var visible: [TraceEvent] {
-        events.filter { event in
+        let seatFilter = resolvedSeat
+        let phaseFilter = resolvedPhase
+        return events.filter { event in
             let seatOK: Bool
-            switch seat {
+            switch seatFilter {
             case "all":
                 seatOK = true
             case "harness":
                 seatOK = event.seat == "harness"
             default:
-                seatOK = event.seat == seat
+                seatOK = event.seat == seatFilter
             }
-            return seatOK && (phase == "all" || event.phase == phase)
+            return seatOK && (phaseFilter == "all" || event.phase == phaseFilter)
         }
     }
 
@@ -86,7 +99,17 @@ final class GameStore: ObservableObject {
     }
 
     var selectedEvent: TraceEvent? {
-        events.filter { selection.contains($0.id) }.max { $0.seq < $1.seq }
+        let rows = visible
+        let ids = Scrub.selection(selection, available: rows.map(\.id))
+        return rows.filter { ids.contains($0.id) }.max { $0.seq < $1.seq }
+    }
+
+    var scrubBounds: ClosedRange<Double>? {
+        Scrub.bounds(count: visible.count)
+    }
+
+    var scrubLabel: String {
+        Scrub.label(position: scrub, count: visible.count)
     }
 
     var currentGameIsLive: Bool {
@@ -95,6 +118,7 @@ final class GameStore: ObservableObject {
     }
 
     var statusLine: String {
+        if fixtureMissing, let fixtureURL { return "Missing fixture \(fixtureURL.path)" }
         if let fixtureURL { return fixtureURL.path }
         if missingRoot { return "Missing \(LogsRoot.url(from: logsRootPath).path)" }
         return "\(events.count) events"
@@ -122,10 +146,8 @@ final class GameStore: ObservableObject {
         guard fixtureURL == nil else { return }
         guard path != logsRootPath else { return }
         logsRootPath = path
-        events = []
-        selection = []
+        clearTimeline()
         selectedGameID = nil
-        pinnedID = nil
         watchedKey = ""
         stopSeatWatchers()
         needsReset = true
@@ -135,9 +157,7 @@ final class GameStore: ObservableObject {
     func select(game id: String?) {
         guard id != selectedGameID else { return }
         selectedGameID = id
-        events = []
-        selection = []
-        pinnedID = nil
+        clearTimeline()
         seat = "all"
         phase = "all"
         follow = games.first { $0.id == id }?.isLive ?? false
@@ -154,10 +174,13 @@ final class GameStore: ObservableObject {
 
     func userScrubbed(to value: Double) {
         follow = false
-        scrub = value
         let rows = visible
-        let index = Int(value.rounded())
-        guard rows.indices.contains(index) else { return }
+        scrub = Scrub.clamp(value, count: rows.count)
+        guard let index = Scrub.index(for: scrub, count: rows.count), rows.indices.contains(index) else {
+            selection = []
+            pinnedID = nil
+            return
+        }
         let id = rows[index].id
         pinnedID = id
         selection = [id]
@@ -170,9 +193,7 @@ final class GameStore: ObservableObject {
     }
 
     func reload() {
-        events = []
-        selection = []
-        pinnedID = nil
+        clearTimeline()
         if fixtureURL != nil {
             fixtureTask?.cancel()
             fixtureTask = Task { await self.loadFixture() }
@@ -183,21 +204,28 @@ final class GameStore: ObservableObject {
         Task {
             let next = await self.pump.bump()
             self.epoch = next
-            self.events = []
-            self.selection = []
-            self.pinnedID = nil
+            self.clearTimeline()
             self.wake.signal()
         }
     }
 
     private func loadFixture() async {
         guard let fixtureURL else { return }
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: fixtureURL.path, isDirectory: &isDirectory)
+        if !exists || isDirectory.boolValue {
+            fixtureMissing = true
+            clearTimeline()
+            games = []
+            selectedGameID = nil
+            return
+        }
+        fixtureMissing = false
         await pump.setFiles([fixtureURL])
         let generation = await pump.bump()
         epoch = generation
         if Task.isCancelled { return }
-        events = []
-        selection = []
+        clearTimeline()
         var spins = 0
         while spins < 4000 {
             if Task.isCancelled { return }
@@ -238,9 +266,7 @@ final class GameStore: ObservableObject {
             if needsReset {
                 needsReset = false
                 await pump.reset()
-                events = []
-                selection = []
-                pinnedID = nil
+                clearTimeline()
             }
             var spins = 0
             while spins < 2000, !Task.isCancelled, !needsReset {
@@ -264,9 +290,7 @@ final class GameStore: ObservableObject {
         let found = TraceCatalog.games(in: root)
         games = found
         if let id = selectedGameID, !found.contains(where: { $0.id == id }) {
-            events = []
-            selection = []
-            pinnedID = nil
+            clearTimeline()
             selectedGameID = found.first?.id
             watchedKey = ""
             follow = found.first?.isLive ?? false
@@ -283,11 +307,12 @@ final class GameStore: ObservableObject {
             await pump.setFiles([])
             return
         }
-        let key = game.files.map(\.path).sorted().joined(separator: "\n")
+        let files = game.files.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let key = files.map(\.path).sorted().joined(separator: "\n")
         if key == watchedKey { return }
         watchedKey = key
         stopSeatWatchers()
-        for file in game.files {
+        for file in files {
             let watcher = SeatWatcher()
             watcher.onChange = { [weak self] in
                 self?.wake.signal()
@@ -295,7 +320,7 @@ final class GameStore: ObservableObject {
             watcher.start(path: file.path)
             seatWatchers[file.path] = watcher
         }
-        await pump.setFiles(game.files)
+        await pump.setFiles(files)
     }
 
     private func append(_ batch: [TraceEvent]) {
@@ -314,8 +339,15 @@ final class GameStore: ObservableObject {
         pinnedID = id
         selection = [id]
         if let index = visible.firstIndex(where: { $0.id == id }) {
-            scrub = Double(index)
+            scrub = Scrub.clamp(Double(index), count: visible.count)
         }
+    }
+
+    private func clearTimeline() {
+        events = []
+        selection = []
+        pinnedID = nil
+        scrub = 0
     }
 
     private func stopSeatWatchers() {
