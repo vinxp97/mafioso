@@ -43,9 +43,7 @@ struct DetailPane: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
-            ContentUnavailableView("No event", systemImage: "list.bullet") {
-                Text("Select a row in the timeline.")
-            }
+            ContentUnavailableView("No event", systemImage: "list.bullet", description: Text("Select a row in the timeline."))
         }
     }
 
