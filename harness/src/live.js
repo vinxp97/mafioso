@@ -3,7 +3,7 @@
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
 import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, passEchoRewrite, CHAT_PASS, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, chatLineReject, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine, copSecondLine, vtLeft, mafiaCounterclaim, soloFlagsOf, voteHoldPick, voteHoldBlind, groundedSpeechLines, kickAimedAtMe } from "mafioso-engine";
-import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
+import { accountsResult, assertAllowedBase, createAccountsFailure, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
 import { createExperientialComplete } from "./experiential.js";
@@ -167,9 +167,19 @@ export async function openTestingGame(client, { gameId = "", setupId = "", botCo
     hostedHere = true;
   }
   // Seat bots before the host leaves. leaveGame first empties the lobby and POST /dev/accounts returns 400.
-  const created = await client.createAccounts({ gameId: id, count: botCount });
-  const accounts = normalizeAccounts(created);
-  if (accounts.length !== botCount) throw new Error(`createAccounts returned ${accounts.length}, expected ${botCount}`);
+  const createdResult = await client.createAccounts({ gameId: id, count: botCount });
+  const wrapped = createdResult != null && typeof createdResult === "object" && createdResult[accountsResult] === true;
+  const created = wrapped ? createdResult.body : createdResult;
+  const status = wrapped ? createdResult.status : undefined;
+  let accounts;
+  try {
+    accounts = normalizeAccounts(created);
+  } catch {
+    throw new Error(createAccountsFailure({ status, body: created, got: 0, expected: botCount }));
+  }
+  if (accounts.length !== botCount) {
+    throw new Error(createAccountsFailure({ status, body: created, got: accounts.length, expected: botCount }));
+  }
   if (hostedHere) await leaveHostIfSeated(client, id);
   return { gameId: id, accounts };
 }

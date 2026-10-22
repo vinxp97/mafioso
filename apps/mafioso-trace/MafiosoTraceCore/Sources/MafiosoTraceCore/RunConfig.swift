@@ -344,6 +344,23 @@ public struct AppConfig: Codable, Equatable, Sendable {
         AppConfig()
     }
 
+    /// A saved dev profile that still has the old public host is pointed at the SSH tunnel.
+    /// The `/dev` routes are on that API. A client id the user already typed is kept.
+    public func migratingDevTunnel() -> AppConfig {
+        var copy = self
+        for index in copy.environments.indices where copy.environments[index].id == .dev {
+            let api = copy.environments[index].apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let socket = copy.environments[index].socketURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            if api == "https://dev.ultimafia.gg" {
+                copy.environments[index].apiBaseURL = "http://127.0.0.1:3000"
+            }
+            if socket == "wss://dev.ultimafia.gg/3010" {
+                copy.environments[index].socketURL = "ws://127.0.0.1:3010"
+            }
+        }
+        return copy
+    }
+
     public static func prefilledEnvironments() -> [EnvironmentProfile] {
         let tunnel = TunnelSettings.localDefaults
         return [
@@ -355,8 +372,9 @@ public struct AppConfig: Codable, Equatable, Sendable {
             ),
             EnvironmentProfile(
                 id: .dev,
-                apiBaseURL: "https://dev.ultimafia.gg",
-                socketURL: "wss://dev.ultimafia.gg/3010",
+                apiBaseURL: "http://127.0.0.1:3000",
+                socketURL: "ws://127.0.0.1:3010",
+                oauthClientID: "",
                 tunnel: tunnel
             ),
             EnvironmentProfile(id: .qa, apiBaseURL: "", socketURL: ""),

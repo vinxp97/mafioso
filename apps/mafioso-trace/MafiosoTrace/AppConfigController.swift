@@ -140,7 +140,7 @@ final class AppConfigController: ObservableObject {
         guard let data = try? Data(contentsOf: url), let decoded = try? AppConfig.decode(data) else {
             return .prefilled()
         }
-        return normalize(decoded)
+        return normalize(decoded).migratingDevTunnel()
     }
 
     /// A hand-edited file that drops an environment gets the blank preset back. Secrets are not in the file.

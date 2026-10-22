@@ -17,8 +17,10 @@ final class RunConfigTests: XCTestCase {
         XCTAssertEqual(local.tunnel.socketPort, 3010)
         XCTAssertEqual(local.tunnel.containerGateway, "192.168.64.1")
         XCTAssertEqual(local.lobby, "Testing")
-        XCTAssertEqual(dev.apiBaseURL, "https://dev.ultimafia.gg")
-        XCTAssertEqual(dev.socketURL, "wss://dev.ultimafia.gg/3010")
+        XCTAssertEqual(dev.apiBaseURL, "http://127.0.0.1:3000")
+        XCTAssertEqual(dev.socketURL, "ws://127.0.0.1:3010")
+        XCTAssertEqual(dev.oauthClientID, "")
+        XCTAssertEqual(local.oauthClientID, "")
         XCTAssertEqual(dev.tunnel.containerGateway, "192.168.64.1")
         XCTAssertEqual(qa.apiBaseURL, "")
         XCTAssertEqual(prod.apiBaseURL, "")
@@ -31,6 +33,25 @@ final class RunConfigTests: XCTestCase {
         XCTAssertEqual(config.inference.openCodeBaseURL, "https://opencode.ai/zen/go/v1")
         XCTAssertEqual(config.inference.openRouterBaseURL, "https://openrouter.ai/api/v1")
         XCTAssertEqual(config.inference.provider.llmValue, "lmstudio")
+    }
+
+    func testSavedPublicDevHostMovesToTheTunnel() {
+        var config = AppConfig.prefilled()
+        let index = config.environments.firstIndex { $0.id == .dev }!
+        config.environments[index].apiBaseURL = "https://dev.ultimafia.gg"
+        config.environments[index].socketURL = "wss://dev.ultimafia.gg/3010"
+        config.environments[index].oauthClientID = "kept-id"
+        let migrated = config.migratingDevTunnel()
+        let dev = migrated.profile(.dev)!
+        XCTAssertEqual(dev.apiBaseURL, "http://127.0.0.1:3000")
+        XCTAssertEqual(dev.socketURL, "ws://127.0.0.1:3010")
+        XCTAssertEqual(dev.oauthClientID, "kept-id")
+
+        config.environments[index].apiBaseURL = "http://127.0.0.1:3999"
+        config.environments[index].socketURL = "ws://127.0.0.1:3998"
+        let custom = config.migratingDevTunnel().profile(.dev)!
+        XCTAssertEqual(custom.apiBaseURL, "http://127.0.0.1:3999")
+        XCTAssertEqual(custom.socketURL, "ws://127.0.0.1:3998")
     }
 
     func testConfigRoundTripOmitsSecrets() throws {
