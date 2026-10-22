@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import MafiosoTraceCore
 
@@ -34,7 +35,9 @@ final class RunController: ObservableObject {
         }
     }
 
-    private var process: Process?
+    private var child: GroupedChild?
+    private var tracksContainer = false
+    private var launchEnvironment: [String: String] = [:]
     private var outBuffer = LineBuffer()
     private var errBuffer = LineBuffer()
     private var secretSnapshot: [String] = []
@@ -90,7 +93,7 @@ final class RunController: ObservableObject {
     func stop() {
         prepTask?.cancel()
         prepRunner?.cancel()
-        if process == nil {
+        guard let child else {
             if phase == .starting {
                 phase = .idle
                 pendingImageStamp = nil
@@ -98,7 +101,25 @@ final class RunController: ObservableObject {
             }
             return
         }
-        process?.terminate()
+        child.signalGroup(SIGTERM)
+    }
+
+    /// SIGTERM the process group, wait, SIGKILL if needed, then stop the local container.
+    func stopForQuit() async {
+        prepTask?.cancel()
+        prepRunner?.cancel()
+        let request = ShutdownRequest(
+            pid: child?.pid ?? 0,
+            stopContainer: tracksContainer,
+            containerName: RunShutdown.containerName(environment: launchEnvironment)
+        )
+        let terminator = AppRunTerminator(child: child)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                RunShutdown.perform(request, using: terminator)
+                continuation.resume()
+            }
+        }
     }
 
     private func begin(
@@ -211,47 +232,42 @@ final class RunController: ObservableObject {
             pendingImageStamp = (prepared.imageStampPath, prepared.commit)
         }
 
-        let child = Process()
-        child.executableURL = URL(fileURLWithPath: request.executable)
-        child.arguments = request.arguments
-        child.environment = request.environment
-        child.currentDirectoryURL = URL(fileURLWithPath: request.currentDirectory, isDirectory: true)
-        child.standardInput = FileHandle.nullDevice
-        let output = Pipe()
-        let errors = Pipe()
-        child.standardOutput = output
-        child.standardError = errors
-        output.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        let spawned: GroupedChild
+        do {
+            spawned = try GroupedChild.spawn(
+                executable: request.executable,
+                arguments: request.arguments,
+                environment: request.environment,
+                currentDirectory: request.currentDirectory
+            )
+        } catch {
+            pendingImageStamp = nil
+            phase = .exited(1)
+            appendLine("The process did not start.")
+            return
+        }
+        spawned.stdout.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             Task { @MainActor in
                 self?.ingest(data, error: false)
             }
         }
-        errors.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        spawned.stderr.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             Task { @MainActor in
                 self?.ingest(data, error: true)
             }
         }
-        child.terminationHandler = { [weak self] child in
-            let code = child.terminationStatus
+        child = spawned
+        tracksContainer = local
+        launchEnvironment = request.environment
+        spawned.startWatching { [weak self] code in
             Task { @MainActor in
                 self?.finish(code, store: store)
             }
         }
-        process = child
-        do {
-            try child.run()
-            phase = .running
-            startPolling(store)
-        } catch {
-            output.fileHandleForReading.readabilityHandler = nil
-            errors.fileHandleForReading.readabilityHandler = nil
-            process = nil
-            pendingImageStamp = nil
-            phase = .exited(1)
-            appendLine("The process did not start.")
-        }
+        phase = .running
+        startPolling(store)
     }
 
     private func scriptPath(_ request: LaunchRequest, local: Bool) -> String {
@@ -280,16 +296,13 @@ final class RunController: ObservableObject {
     }
 
     private func finish(_ code: Int32, store: GameStore) {
-        guard process != nil || phase == .starting || phase == .running else { return }
-        if let output = process?.standardOutput as? Pipe {
-            output.fileHandleForReading.readabilityHandler = nil
-        }
-        if let errors = process?.standardError as? Pipe {
-            errors.fileHandleForReading.readabilityHandler = nil
-        }
+        guard child != nil || phase == .starting || phase == .running else { return }
+        child?.stdout.readabilityHandler = nil
+        child?.stderr.readabilityHandler = nil
         if let tail = outBuffer.flush() { appendChildLine(tail) }
         if let tail = errBuffer.flush() { appendChildLine(tail) }
-        process = nil
+        child = nil
+        tracksContainer = false
         phase = .exited(code)
         pollTask?.cancel()
         pollTask = nil
