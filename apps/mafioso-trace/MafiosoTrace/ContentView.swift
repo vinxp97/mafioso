@@ -10,27 +10,18 @@ struct ContentView: View {
     @FocusState private var focusedRow: TraceEvent.ID?
 
     var body: some View {
-        // The run bar is a sibling above the split view. A safeAreaInset on
-        // NavigationSplitView is painted over the columns, and the sidebar and
-        // seat Lists do not inset their rows for it.
-        VStack(spacing: 0) {
-            runBar
-                .background(Color(nsColor: .windowBackgroundColor))
-            Divider()
-            NavigationSplitView {
-                sidebar
-            } content: {
-                seatColumn
-            } detail: {
-                detail
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if showLog {
-                Divider()
-                logPane
-                    .background(Color(nsColor: .windowBackgroundColor))
-            }
+        // The split view is the window root so each column's top inset is the
+        // real toolbar. A bar above the split view leaves the columns inset
+        // for a title bar they are no longer under.
+        NavigationSplitView {
+            sidebar
+        } content: {
+            seatColumn
+        } detail: {
+            detail
         }
+        .toolbar { runControls }
+        .toolbarBackground(.visible, for: .windowToolbar)
         .onAppear {
             store.start(arguments: CommandLine.arguments)
             store.setLogsRoot(logsRoot)
@@ -43,43 +34,55 @@ struct ContentView: View {
         }
     }
 
-    private var runBar: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
-                Button("Start game") {
-                    run.requestStart(config: config, store: store)
-                }
-                .disabled(startDisabled)
-                Picker("Environment", selection: environment) {
-                    ForEach(GameEnvironment.allCases) { item in
-                        Text(item.displayName).tag(item)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 220)
-                Toggle("Trace reasoning", isOn: traceReasoning)
-                    .toggleStyle(.switch)
-                    .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
-                if run.isRunning {
-                    Button("Stop") {
-                        run.stop()
-                    }
-                }
-                Spacer()
-                Text(run.statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    @ToolbarContentBuilder
+    private var runControls: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button("Start game") {
+                run.requestStart(config: config, store: store)
             }
-            if let banner {
+            .disabled(startDisabled)
+            .help(startHelp)
+        }
+        ToolbarItemGroup(placement: .principal) {
+            Picker("Environment", selection: environment) {
+                ForEach(GameEnvironment.allCases) { item in
+                    Text(item.displayName).tag(item)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            Toggle("Trace reasoning", isOn: traceReasoning)
+                .toggleStyle(.switch)
+                .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            if run.isRunning {
+                Button("Stop") {
+                    run.stop()
+                }
+            }
+            Text(run.statusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .help(run.statusText)
+        }
+        if let banner {
+            ToolbarItem(placement: .status) {
                 Text(banner.text)
                     .font(.caption)
                     .foregroundStyle(banner.warning ? Color.orange : Color.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 320)
+                    .help(banner.text)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+    }
+
+    private var startHelp: String {
+        if let banner { return banner.text }
+        return "Start a traced game with the selected environment."
     }
 
     private var logPane: some View {
@@ -261,6 +264,11 @@ struct ContentView: View {
             Divider()
             DetailPane(event: store.selectedEvent, pair: pair)
                 .frame(minHeight: 180)
+            if showLog {
+                Divider()
+                logPane
+                    .background(Color(nsColor: .windowBackgroundColor))
+            }
         }
         .navigationTitle(store.selectedGameID ?? "Trace")
     }

@@ -45,13 +45,13 @@ struct SettingsView: View {
                 labeled("API base URL", text: profileString(\.apiBaseURL), prompt: "Required")
                 labeled("Socket URL", text: profileString(\.socketURL), prompt: "Optional")
                 labeled("OAuth client id", text: profileString(\.oauthClientID), prompt: "Required")
-                labeledSecret("Client secret", text: clientSecret, revealed: revealClient, prompt: "Paste key")
-                namedButton(
-                    revealClient ? "Hide" : "Show",
+                labeledSecret(
+                    "Client secret",
+                    text: clientSecret,
+                    revealed: $revealClient,
+                    prompt: "Paste secret",
                     accessibility: "\(revealClient ? "Hide" : "Show") client secret"
-                ) {
-                    revealClient.toggle()
-                }
+                )
                 labeled("Setup id", text: profileString(\.setupID), prompt: "Required")
                 LabeledContent("Bot count") {
                     Stepper(value: botCount, in: 1 ... 50) {
@@ -82,11 +82,9 @@ struct SettingsView: View {
                 ) {
                     probeAPI()
                 }
-                Text(apiProbe)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !apiProbe.isEmpty {
+                    probeStatus(apiProbe)
+                }
                 if let keychainError = config.keychainError {
                     Text(keychainError)
                         .foregroundStyle(.red)
@@ -127,13 +125,22 @@ struct SettingsView: View {
             } footer: {
                 help(providerHelp)
             }
-            Section {
-                labeled("Base URL", text: baseURL, prompt: "Required")
-                LabeledContent("Model id") {
-                    borderedField(modelPlaceholder, text: modelID)
+            if showsModelSearch {
+                Section {
+                    labeled("Base URL", text: baseURL, prompt: "Required")
+                    LabeledContent("Model id") {
+                        borderedField(modelPlaceholder, text: modelID)
+                    }
+                } footer: {
+                    help("The list comes from /models. Type an id if that request fails.")
                 }
-            } footer: {
-                help("The list comes from /models. Type an id if that request fails.")
+            } else {
+                Section {
+                    labeled("Base URL", text: baseURL, prompt: "Required")
+                    LabeledContent("Model id") {
+                        borderedField(modelPlaceholder, text: modelID)
+                    }
+                }
             }
             if config.config.inference.provider == .openRouter {
                 Toggle("Free only", isOn: inferenceBool(\.openRouterFreeOnly))
@@ -164,13 +171,13 @@ struct SettingsView: View {
                 help("Automatic omits MAFIOSO_REASONING. On sends 1. Off sends 0. Concurrency 0 omits MAFIOSO_LLM_CONCURRENCY, and the harness then uses 1 for LM Studio and 4 for the others. Trace reasoning on sets MAFIOSO_TRACE_REASONING=1.")
             }
             Section {
-                labeledSecret("API key", text: apiKey, revealed: revealKey, prompt: apiKeyPrompt)
-                namedButton(
-                    revealKey ? "Hide" : "Show",
+                labeledSecret(
+                    "API key",
+                    text: apiKey,
+                    revealed: $revealKey,
+                    prompt: apiKeyPrompt,
                     accessibility: "\(revealKey ? "Hide" : "Show") API key"
-                ) {
-                    revealKey.toggle()
-                }
+                )
                 namedButton(
                     modelProbing ? "Testing…" : "Test connection",
                     accessibility: "Test \(config.config.inference.provider.displayName) connection",
@@ -178,11 +185,9 @@ struct SettingsView: View {
                 ) {
                     probeModels()
                 }
-                Text(modelProbe)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !modelProbe.isEmpty {
+                    probeStatus(modelProbe)
+                }
             } footer: {
                 help(keyHelp)
             }
@@ -313,22 +318,46 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
     }
 
-    /// The field stays inside `LabeledContent`. The button is its own row so the
-    /// row name does not replace this label.
-    private func labeledSecret(_ title: String, text: Binding<String>, revealed: Bool, prompt: String) -> some View {
+    private func probeStatus(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Show sits in the field's row. The button keeps its own accessibility
+    /// element so the row title does not replace that label.
+    private func labeledSecret(
+        _ title: String,
+        text: Binding<String>,
+        revealed: Binding<Bool>,
+        prompt: String,
+        accessibility: String
+    ) -> some View {
         LabeledContent(title) {
-            Group {
-                if revealed {
-                    TextField(prompt, text: text, prompt: Text(prompt))
-                        .textFieldStyle(.roundedBorder)
-                } else {
-                    SecureField(prompt, text: text, prompt: Text(prompt))
-                        .textFieldStyle(.roundedBorder)
+            HStack {
+                Group {
+                    if revealed.wrappedValue {
+                        TextField(prompt, text: text, prompt: Text(prompt))
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        SecureField(prompt, text: text, prompt: Text(prompt))
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                namedButton(
+                    revealed.wrappedValue ? "Hide" : "Show",
+                    accessibility: accessibility
+                ) {
+                    revealed.wrappedValue.toggle()
                 }
             }
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .contain)
         }
+        .accessibilityElement(children: .contain)
     }
 
     private var apiKeyPrompt: String {
