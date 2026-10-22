@@ -46,6 +46,12 @@ function mergeHeaders(apiKey, extra, withContentType) {
   return headers;
 }
 
+/** message.content when it is a string. Null is "". A non-string is returned unchanged so the caller still rejects it. */
+function defaultVisibleText(data) {
+  const content = data?.choices?.[0]?.message?.content;
+  return typeof content === "string" ? content : content == null ? "" : content;
+}
+
 /** Non-2xx that names the structured-output field. Auth and 404 are not retried. */
 function rejectsResponseFormat(status, text) {
   if (status < 400 || status === 401 || status === 403 || status === 404) return false;
@@ -55,10 +61,12 @@ function rejectsResponseFormat(status, text) {
 /**
  * @param {{baseUrl:string, model?:string|null, apiKey?:string|null, headers?:Record<string,string>,
  *   extraBody?:Record<string,unknown>|null, fetch?:Function, temperature?:number, maxTokens?:number,
- *   label?:string, discoverModels?:boolean, reasoningEffort?:string}} opts
+ *   label?:string, discoverModels?:boolean, reasoningEffort?:string,
+ *   readReply?:(data:object)=>string}} opts
  *   Does not read process.env. Empty model lists /models when discoverModels is true (the default).
  *   apiKey "" omits Authorization. headers are copied onto every request; apiKey still sets authorization.
  *   extraBody is merged into each chat body (OpenRouter uses it for `reasoning`).
+ *   readReply picks the assistant string (OpenRouter ignores a separate reasoning field).
  * @returns {(input:{system?:string, user?:string})=>Promise<string>}
  */
 export function createOpenAICompatibleComplete(opts = {}) {
@@ -74,6 +82,7 @@ export function createOpenAICompatibleComplete(opts = {}) {
   const temperature = finiteNumber(opts.temperature);
   const maxTokens = finiteNumber(opts.maxTokens);
   const defaultEffort = opts.reasoningEffort || undefined;
+  const readReply = typeof opts.readReply === "function" ? opts.readReply : defaultVisibleText;
   const doFetch = opts.fetch !== undefined ? opts.fetch : globalThis.fetch?.bind(globalThis);
   if (typeof doFetch !== "function") throw new Error("fetch must be injected or available as global fetch");
 
@@ -150,9 +159,15 @@ export function createOpenAICompatibleComplete(opts = {}) {
       throw err;
     }
     const data = parseJson(text, "POST /chat/completions");
-    const message = data?.choices?.[0]?.message;
-    // Only the visible reply. OpenRouter may put chain-of-thought in message.reasoning / reasoning_details.
-    const content = message?.content;
+    const choice = data?.choices?.[0];
+    // A length cutoff is a partial chat line. Drop it (the caller falls back) instead of sending the stub.
+    if (allowEmpty && choice?.finish_reason === "length") {
+      const err = new Error("truncated (finish_reason length)");
+      err.chatReject = "truncated (finish_reason length)";
+      throw err;
+    }
+    // Only the visible reply. A separate reasoning field is not chat (readReply may ignore it).
+    const content = readReply(data);
     // Plain-text (chat line) calls: an empty reply is the caller's to judge (a reasoning model that spent its budget).
     if (allowEmpty && (content == null || content === "")) return "";
     if (typeof content !== "string" || content.length === 0)
