@@ -59,5 +59,6 @@ export function createLmStudioComplete(opts = {}) {
     maxTokens: opts.maxTokens,
     label: "LM Studio",
     discoverModels: true,
+    onCall: opts.onCall,
   });
 }

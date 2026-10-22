@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { shotDeadline, adaptiveClaimLine, agreedPlan, chatAudit, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, selfAlive, summarizeMetrics, tally, validateAction } from "mafioso-engine";
 import { FJ_ROLES, alignOf, mixSeed, shuffle, winnerFor } from "./arena.js";
 import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
+import { createTraceWriter, traceEnabled } from "./trace.js";
 import { createVirtualClock } from "./clock.js";
 import { plantAndAudit, plantReport } from "./auditPlant.js";
 import { loadLatency, createSimLatencyComplete } from "./simLatency.js";
@@ -127,6 +128,7 @@ function createServer({ seed, game, opts }) {
   const clock = createVirtualClock(T0);
   const botIds = new Set(mixedRole ? [ids[botIdx]] : ids);
   const table = createBotTable(ids.filter((id) => botIds.has(id)).map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), sheriffDelayRng: createSeededRng(mixSeed(gseed, "sheriff-delay")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}), ...(opts.quietTable ? { quietTable: opts.quietTable } : {}), ...(opts.claimPressure ? { claimPressure: opts.claimPressure } : {}), ...(opts.staleFix ? { staleFix: opts.staleFix } : {}), ...(opts.auditTight === "on" ? { auditTight: "on" } : {}), ...soloFlagOpts(opts), ...(opts.chatPassthrough ? { chatPassthrough: true } : {}) });
+  if (traceEnabled(process.env)) table.traceLog = createTraceWriter({ env: process.env, gameId: `selfplay-${seed}-${game}` });
   table.onHammer = (id, hv) => S.stats.hammer.push({ day: S.day, seat: names[pidOf[id]], role: roles[pidOf[id]], self: hv.target === pidOf[id], target: names[hv.target] || hv.target, why: hv.why });
   table.onDayVoteShaped = ({ id, scum, sinceGateMs }) => S.stats.voteDelays.push({ day: S.day, seat: names[pidOf[id]], scum, ms: sinceGateMs });
   const S = {
@@ -785,6 +787,7 @@ export async function playSelfplayGame({ seed = 1, game = 0, ...rest } = {}) {
 }
 
 function finish(S, error) {
+  S.table?.traceLog?.close?.();
   S.simClose?.();
   const winner = S.winner || (error ? "error" : "draw");
   S.trace.winner = S.winner || "draw";

@@ -7,6 +7,48 @@ export const ALLOWED_HOSTS = DEV_HOSTS; // ["https://dev.ultimafia.gg","http://1
 export class HostNotAllowedError extends Error {}
 export class IllegalActionError extends Error {}
 
+/** Marks `{ status, body }` from `DevApiClient.createAccounts`. A fake client returns the raw body. */
+export const accountsResult = Symbol("mafiosoAccountsResult");
+
+function accountItems(data) {
+  if (Array.isArray(data)) return data;
+  const list = data?.accounts || data?.ids;
+  return Array.isArray(list) ? list : null;
+}
+
+function shapeKey(key) {
+  const clean = String(key).replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 24);
+  return clean || "key";
+}
+
+/** Keys and types only. String contents stay out, including tokens. */
+export function responseShape(value, depth = 0) {
+  if (value == null) return value === null ? "null" : "missing";
+  if (typeof value === "string") return `string(${value.length})`;
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (Array.isArray(value)) {
+    if (value.length === 0 || depth >= 2) return `array(${value.length})`;
+    return `array(${value.length}) of ${responseShape(value[0], depth + 1)}`;
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value);
+    if (depth >= 2) return `object(${keys.length})`;
+    const shown = keys.slice(0, 6);
+    const parts = shown.map((key) => `${shapeKey(key)}:${responseShape(value[key], depth + 1)}`);
+    const extra = keys.length > shown.length ? ",…" : "";
+    return `{${parts.join(",")}${extra}}`;
+  }
+  return typeof value;
+}
+
+export function createAccountsFailure({ status, body, got, expected }) {
+  const http = Number.isInteger(status) ? ` HTTP ${status}` : "";
+  const shape = responseShape(body);
+  const text = `createAccounts returned ${got}, expected ${expected}:${http} ${shape}`;
+  return text.length > 240 ? `${text.slice(0, 237)}…` : text;
+}
+
 export function assertAllowedBase(baseUrl) {
   let origin;
   try { origin = new URL(baseUrl).origin; } catch { throw new HostNotAllowedError(`Invalid base URL: ${baseUrl}`); }
@@ -32,7 +74,7 @@ export class DevApiClient {
     this.token = token;
   }
 
-  async api(method, path, body) {
+  async exchange(method, path, body) {
     const url = `${this.base}/api${path}`;
     assertAllowedBase(url);
     const res = await this.fetch(url, {
@@ -42,9 +84,14 @@ export class DevApiClient {
     });
     const text = await res.text();
     let data; try { data = JSON.parse(text); } catch { data = text; }
+    return { status: res.status, ok: res.ok, data };
+  }
+
+  async api(method, path, body) {
+    const res = await this.exchange(method, path, body);
     // never echo request bodies (may contain secrets)
     if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
-    return data;
+    return res.data;
   }
 
   async getToken({ clientId, clientSecret }) {
@@ -67,7 +114,14 @@ export class DevApiClient {
 
   createAccounts({ gameId, count }) {
     if (!gameId || !(count >= 1 && count <= 50)) throw new Error("createAccounts: gameId and count 1..50 required");
-    return this.api("POST", "/dev/accounts", { gameId, count });
+    return this.exchange("POST", "/dev/accounts", { gameId, count }).then((res) => {
+      if (!res.ok) {
+        const list = accountItems(res.data);
+        const got = Array.isArray(list) ? list.length : 0;
+        throw new Error(createAccountsFailure({ status: res.status, body: res.data, got, expected: count }));
+      }
+      return { [accountsResult]: true, status: res.status, body: res.data };
+    });
   }
 
   leaveAccount(accountId) { return this.api("POST", `/dev/accounts/${encodeURIComponent(accountId)}/leave`); }

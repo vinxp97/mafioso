@@ -21,7 +21,8 @@ const games = () => sse().filter((f) => f.type === "game").map((f) => f.entry);
 test("allowlist: dev and localhost ok, prod and others rejected", () => {
   assert.equal(assertAllowedBase("https://dev.ultimafia.gg/x"), DEV);
   assert.equal(assertAllowedBase("http://127.0.0.1:3000"), "http://127.0.0.1:3000");
-  for (const bad of ["https://ultimafia.gg", "https://ultimafia.com", "https://www.ultimafia.gg",
+  assert.equal(assertAllowedBase("http://192.168.64.1:3000"), "http://192.168.64.1:3000");
+  for (const bad of ["https://ultimafia.gg", "https://ultimafia.com", "https://qa.ultimafia.gg", "https://www.ultimafia.gg",
     "http://dev.ultimafia.gg", "https://dev.ultimafia.gg.evil.com", "http://127.0.0.1:3010", "nope"])
     assert.throws(() => new DevApiClient({ baseUrl: bad, fetch: mockFetch() }), HostNotAllowedError, bad);
 });

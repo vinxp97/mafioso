@@ -73,6 +73,8 @@ They share `createOpenAICompatibleComplete`: `POST {baseUrl}/chat/completions`, 
 
 `OPENROUTER_REASONING` defaults to `low`. Unset, empty, `on`, `true`, `1`, `yes`, or `enabled` sends `{ effort: "low", exclude: true }`. `off`, `none`, `0`, `false`, `no`, or `disabled` omits the field. `minimal`, `low`, `medium`, `high`, `xhigh`, or `max` sets that effort, still with `exclude: true`, so chain-of-thought stays out of `message.content`. Speech still asks for `reasoning_effort: "none"`; when the OpenRouter `reasoning` object is present, that `none` is dropped. A model name matching `minimax` counts as a reasoning model, so public speech uses the 640-token budget (`SPEECH_TOKENS.reasoning` in `engine/src/llmDecide.js`). When reasoning is on and the caller does not pass `maxTokens`, this client sends `max_tokens: 1024`.
 
+`MAFIOSO_TRACE=1` appends JSONL under `logs/traces/<gameId>/<seat>.jsonl` (override the root with `MAFIOSO_TRACE_DIR`). Unset, it writes nothing and does not change calls. `MAFIOSO_TRACE_REASONING=1` sets OpenRouter `exclude` to false and stores `message.reasoning` / `reasoning_details` on the trace only. The string returned to the game is still `message.content`. The schema is [docs/TRACING.md](TRACING.md). The macOS viewer is `apps/mafioso-trace/`.
+
 Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`, `OPENROUTER_BASE_URL`. OpenCode Go also reads `OPENCODE_SESSION` and sends `user-agent: mafioso/0.1`. OpenRouter sends `HTTP-Referer` and `X-Title` only when `OPENROUTER_HTTP_REFERER` and `OPENROUTER_TITLE` are set. `EXPLABS_ZDR=1` adds `provider.zdr` on that backend.
 
 Names only. Defaults in parentheses come from the code.
@@ -91,7 +93,7 @@ Names only. Defaults in parentheses come from the code.
 
 **Model backends**
 
-`LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY`, `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY`, `EXPLABS_ZDR`, `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`, `OPENROUTER_REASONING` (`low`).
+`LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY`, `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY`, `EXPLABS_ZDR`, `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`, `OPENROUTER_REASONING` (`low`), `MAFIOSO_TRACE` (off unless `1`), `MAFIOSO_TRACE_DIR` (`logs/traces`), `MAFIOSO_TRACE_REASONING` (off unless `1`).
 
 ## CLI flags
 
@@ -160,4 +162,6 @@ Offline unless noted. Run them from `harness/`.
 
 The image copies `engine/` and `harness/`, installs production dependencies, and runs `node scripts/live.mjs`. Prompt history is mounted at `harness/data/prompts/runtime`. The image does not copy `.env`; Compose reads it via `env_file`.
 
-`scripts/mac-container-run.sh` builds and runs the image with Apple's `container` CLI. It sets `DEV_API_BASE_URL` to the host gateway on `DEV_HOSTS`. `MAFIOSO_HOST_GATEWAY` overrides that address. The script reads `.env` and exits when `OPENROUTER_API_KEY` is empty. Do not commit `.env`.
+`scripts/mac-container-run.sh` builds and runs the image with Apple's `container` CLI. It sets `DEV_API_BASE_URL` to the host gateway on `DEV_HOSTS` when that variable is empty. `MAFIOSO_HOST_GATEWAY` overrides that address. The script reads `.env` and exits when `OPENROUTER_API_KEY` is empty. Do not commit `.env`.
+
+`MAFIOSO_ENV_FROM_PROCESS=1` reads the same variables from the process environment instead of `.env`. Values are passed to `container run` as `-e NAME` with no value on argv, and they are not written to a temp file. The `.env` path is unchanged. `MAFIOSO_TRACE_MOUNT` is a host path (the trace viewer sets it to the logs root). The script mounts that directory at `/app/logs/traces` and does not forward `MAFIOSO_TRACE_DIR`, so the writer keeps its container default. Without the mount, `$ROOT/logs` is mounted at `/app/logs` as before.

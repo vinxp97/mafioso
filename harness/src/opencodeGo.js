@@ -65,5 +65,6 @@ export function createOpenCodeGoComplete(opts = {}) {
     maxTokens: opts.maxTokens,
     label: "OpenCode Go",
     discoverModels: false,
+    onCall: opts.onCall,
   });
 }

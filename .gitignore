@@ -13,4 +13,9 @@ logs/replays/*
 !logs/replays/.gitkeep
 logs/selfplay/*
 !logs/selfplay/.gitkeep
+logs/traces/*
+!logs/traces/.gitkeep
+apps/mafioso-trace/**/*.xcodeproj/
+apps/mafioso-trace/build/
+apps/mafioso-trace/MafiosoTraceCore/.build/
 .ssh-local/

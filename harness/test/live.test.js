@@ -104,6 +104,44 @@ test("openTestingGame forces a private Testing lobby and can join an existing id
   assert.deepEqual(failed, ["host", "accounts"]);
 });
 
+test("createAccounts failure reports the HTTP status and body shape", async () => {
+  const secret = "super-secret-token";
+  const empty = mockFetch((url) => {
+    if (String(url).endsWith("/game/host")) return { body: "game-9" };
+    return { status: 200, body: { error: "no bots here", token: secret, accounts: [] } };
+  });
+  const client = new DevApiClient({ baseUrl: "http://127.0.0.1:3000", fetch: empty, token: "t" });
+  await assert.rejects(
+    () => openTestingGame(client, { setupId: "setup-1", botCount: 9 }),
+    (err) => {
+      assert.match(err.message, /createAccounts returned 0, expected 9/);
+      assert.match(err.message, /HTTP 200/);
+      assert.match(err.message, /error:string\(\d+\)/);
+      assert.match(err.message, /accounts:array\(0\)/);
+      assert.equal(err.message.includes(secret), false);
+      assert.equal(err.message.includes("no bots here"), false);
+      return true;
+    },
+  );
+
+  const denied = mockFetch((url) => {
+    if (String(url).endsWith("/game/host")) return { body: "game-9" };
+    return { status: 404, body: { message: "no /dev route", secret } };
+  });
+  const missing = new DevApiClient({ baseUrl: "http://127.0.0.1:3000", fetch: denied, token: "t" });
+  await assert.rejects(
+    () => openTestingGame(missing, { setupId: "setup-1", botCount: 9 }),
+    (err) => {
+      assert.match(err.message, /HTTP 404/);
+      assert.match(err.message, /message:string\(\d+\)/);
+      assert.match(err.message, /secret:string\(\d+\)/);
+      assert.equal(err.message.includes(secret), false);
+      assert.equal(err.message.includes("no /dev route"), false);
+      return true;
+    },
+  );
+});
+
 test("driveAccounts sends only validated actions and keeps each bot's prompt", async () => {
   const systems = [];
   const sent = [];

@@ -25,6 +25,8 @@ The setup this tree plays is [Frontier Justice](https://ultimafia.com/learn/setu
 
 `harness/` is the Dev API client. It speaks HTTPS and server-sent events, asks an LLM when one is configured, and posts an action only after `validateAction` accepts it. The site's raw game socket is not the live transport. `engine/src/wire.js` is that codec, kept for reference.
 
+`apps/mafioso-trace/` is the macOS viewer for the optional JSONL trace. The parser is the `MafiosoTraceCore` package. [Tracing](docs/TRACING.md) is the schema.
+
 ```mermaid
 flowchart LR
   subgraph api [Ultimafia Dev API]
@@ -462,6 +464,7 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 | `clock.js` | Wall clock and a virtual clock for tests and self-play |
 | `openaiCompatible.js` | Shared `POST {base}/chat/completions` client. Not the game API |
 | `lmstudio.js`, `experiential.js`, `opencodeGo.js`, `openrouter.js` | Backend factories |
+| `trace.js` | Optional JSONL trace (`MAFIOSO_TRACE=1`). One file per seat. Redacts secrets |
 | `prompts.js` | Seed prompt, epsilon-greedy selection, evolve gate |
 | `arena.js` | Offline [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY). RuleBot mixed with model seats. No socket |
 | `selfplay.js` | Offline [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY) on the live decision path. No model and no socket |
@@ -502,6 +505,7 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 | File | What it is |
 | --- | --- |
 | `docs/QUICKSTART.md` | Install, tests, self-play, arena, the live dev run, env vars |
+| `docs/TRACING.md` | JSONL trace schema and the macOS viewer |
 | `docs/PROTOCOL.md` | Frames the harness handles, checked by `protocol-doc.test.js` |
 | `docs/protocol-map.md` | Earlier notes from the Ultimafia client and the Dev API |
 | `docs/prior-bots.md` | Notes on `UM-Autobot-Player` and `claude-um-bot-1` |
@@ -515,8 +519,9 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 - The client talks only to `DEV_HOSTS`. A production host is rejected with `HostNotAllowedError`. There is no flag in this tree that switches the client onto a public lobby. The [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY) page is documentation. The client does not connect to it.
 - `hostGame` forces a private Testing lobby and refuses ranked or competitive games.
 - `docs/prior-bots.md` records the project rule that a production or public game still needs the owner's explicit yes.
-- Credentials and model keys are environment variables. `runLiveCli` redacts those values in log lines. `DevApiClient.api` does not echo request bodies.
-- Do not commit `.env`, tokens, or live logs. `logs/replays/` and `logs/selfplay/` are gitignored. The prompt runtime directory is gitignored.
+- Credentials and model keys are environment variables. `runLiveCli` redacts those values in log lines. `DevApiClient.api` does not echo request bodies. The trace writer redacts the same class of value before it writes a line, and it does not write `process.env`.
+- Do not commit `.env`, tokens, or live logs. `logs/replays/`, `logs/selfplay/`, and `logs/traces/` are gitignored. The prompt runtime directory is gitignored.
+- `MAFIOSO_TRACE_REASONING=1` may store model chain-of-thought in the trace. That text is not sent as game chat.
 - The arena's `--live` path checks the allowlist and then still does not open a socket.
 
 Commands, flags, and the environment table are in the [quickstart](docs/QUICKSTART.md).

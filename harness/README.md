@@ -30,6 +30,8 @@ Thin factories resolve env, then call that client. Pass `env: {}` in tests. Expl
 
 `temperature` and `maxTokens` are omitted unless you pass a finite number (`maxTokens` → `max_tokens`). Experiential Labs models sometimes reject sampling params; leave them unset there.
 
+`MAFIOSO_TRACE=1` writes `logs/traces/<gameId>/<seat>.jsonl` while a live game or a self-play game runs. `MAFIOSO_TRACE_REASONING=1` sets OpenRouter `reasoning.exclude` to false and stores `message.reasoning` on that trace only. The reply string is still `message.content`. Schema: [docs/TRACING.md](../docs/TRACING.md). Viewer: `apps/mafioso-trace/`.
+
 ```bash
 node scripts/lmstudio-smoke.mjs   # live local LM Studio only
 ```
