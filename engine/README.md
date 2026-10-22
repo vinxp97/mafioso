@@ -1,6 +1,6 @@
 # mafioso-engine (offline)
 
-Pure state/rules engine for the Mafioso Ultimafia AI player. No network, no deps. The repository [README](../README.md) covers architecture, how to run, and the license.
+Pure state/rules engine for the Mafioso Ultimafia AI player. No network, no deps. The repository [README](../README.md) covers the engine, the harness, and the license. The [quickstart](../docs/QUICKSTART.md) is how to install, test, and run.
 
 - `src/wire.js` frame codec (copied from UM-Autobot-Player)
 - `src/reducer.js` pure `reduce(view, {event,data})` (accepts Dev API envelopes)
