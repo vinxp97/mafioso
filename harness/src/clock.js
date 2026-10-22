@@ -28,6 +28,8 @@ export function createVirtualClock(start = 0) {
     },
     clearTimer(id) { timers.delete(id); },
     get pending() { return timers.size; },
+    /** When the earliest timer is due, or null (read-only: nothing fires). */
+    get nextAt() { const d = due(); return d ? d[1].at : null; },
     /** Fire the earliest timer (moving time to it). Returns false when none are left. */
     runNext() {
       const d = due();

@@ -1,4 +1,5 @@
 import { planClaim } from "./adaptiveMafia.js";
+import { copSecondLine, vtLeft } from "./claimLines.js";
 import { sheriffShotCheck } from "./sheriffGate.js";
 import { isPublicSpeechMeeting } from "./scheduler.js";
 import { selfAlive } from "./reducer.js";
@@ -266,6 +267,11 @@ export function validateAction(view, action) {
     if (String(action.data?.content || "").length > PUBLIC_MAX) return no("too long for chat");
     const claim = earlyClaimBlock(view, action.data?.content, planClaim(view));
     if (claim) return no(claim);
+    // Night 5: one Cop line per seat per day; no vt left after the wording repair (claimLines.js).
+    const split = copSecondLine(view, action.data?.content);
+    if (split) return no(split);
+    const vt = vtLeft(view, action.data?.content);
+    if (vt) return no(`town claim wording: says "${vt}" (villager or blue only)`);
     // A role claim is information, not chatter: a real Cop answering a fake Cop's identical line must go out.
     const again = claimedRoleIn(action.data?.content) ? repeatedDefense(view, action.data?.content) : repeatBlock(view, action.data.meetingId, action.data?.content);
     if (again) return no(again);

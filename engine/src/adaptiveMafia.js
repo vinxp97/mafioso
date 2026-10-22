@@ -13,7 +13,7 @@ import { allies, alignmentOf } from "./faction.js";
 import { townReads } from "./townReads.js";
 import { NO_ONE } from "./types.js";
 import { agreedPlan } from "./scumPlan.js";
-import { underPressure, claimedRoleIn, villagerDefense, earlyClaimBlock } from "./chatStyle.js";
+import { underPressure, claimedRoleIn, claimOpts, villagerDefense, earlyClaimBlock } from "./chatStyle.js";
 import { revealedSheriff } from "./legal.js";
 import { sheriffSeat } from "./sheriffAsk.js";
 
@@ -76,14 +76,18 @@ export function claimOptions(view, reads = publicReads(view)) {
   const cleaned = cleanedRoles(view);
   const copOut = holders("Cop").some((id) => alive(view, id));
   const copDead = holders("Cop").some((id) => !alive(view, id));
-  const cop = !flipped("Cop") && !copOut && !copDead && !reads.verified.some((id) => rec.claims[id] === "Cop");
+  // Night 6 part 4, config.teamClaimGuard "on" (off by default): a teammate's own public Cop/Journalist claim
+  // closes the fake power claims for this seat. Without it, holders() skips the team, so a seat asked after a
+  // teammate faked Cop answered "im cop" too (two mafia Cop claims), or added a second fake power role.
+  const teamPower = view?.config?.teamClaimGuard === "on" && [...mates].some((id) => rec.claims[id] === "Cop" || rec.claims[id] === "Journalist");
+  const cop = !teamPower && !flipped("Cop") && !copOut && !copDead && !reads.verified.some((id) => rec.claims[id] === "Cop");
   const jOut = holders("Journalist").length > 0;
-  const journalist = !flipped("Journalist") && !jOut;
+  const journalist = !teamPower && !flipped("Journalist") && !jOut;
   // A cleaned Cop/Journalist cannot be contradicted by a flip: the Janitor may take that role.
   // Only when that player never claimed it and no outsider holds the claim (else the claim is contradicted).
   const cleanedPower = Object.entries(cleaned).find(([id, r]) => /^(cop|journalist)$/i.test(r) && !rec.claims[id]
     && !holders(r[0].toUpperCase() + r.slice(1).toLowerCase()).some((h) => alive(view, h)));
-  return { cop, journalist, cleanedRole: cleanedPower ? cleanedPower[1][0].toUpperCase() + cleanedPower[1].slice(1).toLowerCase() : null, liveCop: holders("Cop").find((id) => alive(view, id)) || null };
+  return { cop, journalist, cleanedRole: cleanedPower ? cleanedPower[1][0].toUpperCase() + cleanedPower[1].slice(1).toLowerCase() : null, liveCop: holders("Cop").find((id) => alive(view, id)) || null, ...(teamPower ? { teamPower: true } : {}) };
 }
 
 /** Night kill: Cop > Sheriff > Journalist claimers; else spread over the players town trusts most. */
@@ -182,7 +186,7 @@ export function exposedTeam(view) {
   for (const m of view.messages || []) {
     if (m?.public === false || !m.senderId || team.has(m.senderId) || !view.players?.[m.senderId]) continue;
     const text = String(m.content || "");
-    const c = claimedRoleIn(text);
+    const c = claimedRoleIn(text, claimOpts(view));
     if (c === "cop" || c === "journalist") claimed[m.senderId] = c;
     const role = claimed[m.senderId];
     if (!role || !alive(view, m.senderId) || !ACCUSE_ROLE.test(text)) continue;

@@ -873,12 +873,12 @@
 {"accountId":"acc04","seq":99,"t":1800000032301,"event":"message","data":{"id":"msg3-42","senderId":"p01","content":"Journalist here. Nothing useful yet, no visits worth reporting. Bland read: quiet players on a no-de","meetingId":"m07","time":1800000032264}}
 {"accountId":"acc05","seq":103,"t":1800000032338,"event":"message","data":{"id":"msg3-43","senderId":"p01","content":"Journalist here. Nothing useful yet, no visits worth reporting. Bland read: quiet players on a no-de","meetingId":"m07","time":1800000032301}}
 {"accountId":"acc08","seq":105,"t":1800000032375,"event":"message","data":{"id":"msg3-44","senderId":"p01","content":"Journalist here. Nothing useful yet, no visits worth reporting. Bland read: quiet players on a no-de","meetingId":"m07","time":1800000032338}}
-{"accountId":"acc07","seq":96,"t":1800000032412,"event":"message","data":{"id":"msg3-45","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032375}}
-{"accountId":"acc06","seq":106,"t":1800000032449,"event":"message","data":{"id":"msg3-46","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032412}}
-{"accountId":"acc01","seq":96,"t":1800000032486,"event":"message","data":{"id":"msg3-47","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032449}}
-{"accountId":"acc04","seq":100,"t":1800000032523,"event":"message","data":{"id":"msg3-48","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032486}}
-{"accountId":"acc05","seq":104,"t":1800000032560,"event":"message","data":{"id":"msg3-49","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032523}}
-{"accountId":"acc08","seq":106,"t":1800000032597,"event":"message","data":{"id":"msg3-50","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a x03 pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032560}}
+{"accountId":"acc07","seq":96,"t":1800000032412,"event":"message","data":{"id":"msg3-45","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032375}}
+{"accountId":"acc06","seq":106,"t":1800000032449,"event":"message","data":{"id":"msg3-46","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032412}}
+{"accountId":"acc01","seq":96,"t":1800000032486,"event":"message","data":{"id":"msg3-47","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032449}}
+{"accountId":"acc04","seq":100,"t":1800000032523,"event":"message","data":{"id":"msg3-48","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032486}}
+{"accountId":"acc05","seq":104,"t":1800000032560,"event":"message","data":{"id":"msg3-49","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032523}}
+{"accountId":"acc08","seq":106,"t":1800000032597,"event":"message","data":{"id":"msg3-50","senderId":"p08","content":"p06 has 2 votes with no case stated. That's a scum-driven pile, not reads. Sheriff, don't was","meetingId":"m07","time":1800000032560}}
 {"accountId":"acc07","seq":97,"t":1800000032634,"event":"message","data":{"id":"msg3-51","senderId":"p07","content":"I'm Cop. N1 got no result to share yet, so don't lynch me for it. Early reads: p01 is collect","meetingId":"m07","time":1800000032597}}
 {"accountId":"acc06","seq":107,"t":1800000032671,"event":"message","data":{"id":"msg3-52","senderId":"p07","content":"I'm Cop. N1 got no result to share yet, so don't lynch me for it. Early reads: p01 is collect","meetingId":"m07","time":1800000032634}}
 {"accountId":"acc01","seq":97,"t":1800000032708,"event":"message","data":{"id":"msg3-53","senderId":"p07","content":"I'm Cop. N1 got no result to share yet, so don't lynch me for it. Early reads: p01 is collect","meetingId":"m07","time":1800000032671}}
@@ -1167,14 +1167,14 @@
 {"accountId":"acc02","seq":126,"t":1800000043179,"event":"message","data":{"id":"msg4-190","senderId":"p09","content":"x01: Sheriff plus a day gun in one seat is a big claim. Name a real target with reasoning or","meetingId":"m07","time":1800000043142}}
 {"accountId":"acc04","seq":137,"t":1800000043216,"event":"message","data":{"id":"msg4-191","senderId":"p09","content":"x01: Sheriff plus a day gun in one seat is a big claim. Name a real target with reasoning or","meetingId":"m07","time":1800000043179}}
 {"accountId":"acc08","seq":143,"t":1800000043253,"event":"message","data":{"id":"msg4-192","senderId":"p09","content":"x01: Sheriff plus a day gun in one seat is a big claim. Name a real target with reasoning or","meetingId":"m07","time":1800000043216}}
-{"accountId":"acc07","seq":132,"t":1800000043290,"event":"message","data":{"id":"msg4-193","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043253}}
-{"accountId":"acc01","seq":134,"t":1800000043327,"event":"message","data":{"id":"msg4-194","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043290}}
-{"accountId":"acc05","seq":142,"t":1800000043364,"event":"message","data":{"id":"msg4-195","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043327}}
-{"accountId":"acc09","seq":132,"t":1800000043401,"event":"message","data":{"id":"msg4-196","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043364}}
-{"accountId":"acc06","seq":142,"t":1800000043438,"event":"message","data":{"id":"msg4-197","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043401}}
-{"accountId":"acc02","seq":127,"t":1800000043475,"event":"message","data":{"id":"msg4-198","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043438}}
-{"accountId":"acc04","seq":138,"t":1800000043512,"event":"message","data":{"id":"msg4-199","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043475}}
-{"accountId":"acc08","seq":144,"t":1800000043549,"event":"message","data":{"id":"msg4-200","senderId":"p06","content":"Journalist here, now dead. My only report was on a x04 (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043512}}
+{"accountId":"acc07","seq":132,"t":1800000043290,"event":"message","data":{"id":"msg4-193","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043253}}
+{"accountId":"acc01","seq":134,"t":1800000043327,"event":"message","data":{"id":"msg4-194","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043290}}
+{"accountId":"acc05","seq":142,"t":1800000043364,"event":"message","data":{"id":"msg4-195","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043327}}
+{"accountId":"acc09","seq":132,"t":1800000043401,"event":"message","data":{"id":"msg4-196","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043364}}
+{"accountId":"acc06","seq":142,"t":1800000043438,"event":"message","data":{"id":"msg4-197","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043401}}
+{"accountId":"acc02","seq":127,"t":1800000043475,"event":"message","data":{"id":"msg4-198","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043438}}
+{"accountId":"acc04","seq":138,"t":1800000043512,"event":"message","data":{"id":"msg4-199","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043475}}
+{"accountId":"acc08","seq":144,"t":1800000043549,"event":"message","data":{"id":"msg4-200","senderId":"p06","content":"Journalist here, now dead. My only report was on a non-player (Guest05) - useless. Warnin","meetingId":"m07","time":1800000043512}}
 {"accountId":"acc07","seq":133,"t":1800000043586,"event":"message","data":{"id":"msg4-201","senderId":"p08","content":"Still plain Villager. No-lynch stalls help scum, so I'm keeping my vote on p01 for now: he op","meetingId":"m07","time":1800000043549}}
 {"accountId":"acc01","seq":135,"t":1800000043623,"event":"message","data":{"id":"msg4-202","senderId":"p08","content":"Still plain Villager. No-lynch stalls help scum, so I'm keeping my vote on p01 for now: he op","meetingId":"m07","time":1800000043586}}
 {"accountId":"acc05","seq":143,"t":1800000043660,"event":"message","data":{"id":"msg4-203","senderId":"p08","content":"Still plain Villager. No-lynch stalls help scum, so I'm keeping my vote on p01 for now: he op","meetingId":"m07","time":1800000043623}}
@@ -1671,14 +1671,14 @@
 {"accountId":"acc02","seq":189,"t":1800000061827,"event":"message","data":{"id":"msg4-694","senderId":"p01","content":"Cop here. p05 is soft-counterclaiming with no result posted - that's a scum fishing for cove","meetingId":"m07","time":1800000061790}}
 {"accountId":"acc04","seq":200,"t":1800000061864,"event":"message","data":{"id":"msg4-695","senderId":"p01","content":"Cop here. p05 is soft-counterclaiming with no result posted - that's a scum fishing for cove","meetingId":"m07","time":1800000061827}}
 {"accountId":"acc08","seq":206,"t":1800000061901,"event":"message","data":{"id":"msg4-696","senderId":"p01","content":"Cop here. p05 is soft-counterclaiming with no result posted - that's a scum fishing for cove","meetingId":"m07","time":1800000061864}}
-{"accountId":"acc07","seq":195,"t":1800000061938,"event":"message","data":{"id":"msg4-697","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000061901}}
-{"accountId":"acc01","seq":197,"t":1800000061975,"event":"message","data":{"id":"msg4-698","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000061938}}
-{"accountId":"acc05","seq":205,"t":1800000062012,"event":"message","data":{"id":"msg4-699","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000061975}}
-{"accountId":"acc09","seq":195,"t":1800000062049,"event":"message","data":{"id":"msg4-700","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000062012}}
-{"accountId":"acc06","seq":205,"t":1800000062086,"event":"message","data":{"id":"msg4-701","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000062049}}
-{"accountId":"acc02","seq":190,"t":1800000062123,"event":"message","data":{"id":"msg4-702","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000062086}}
-{"accountId":"acc04","seq":201,"t":1800000062160,"event":"message","data":{"id":"msg4-703","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000062123}}
-{"accountId":"acc08","seq":207,"t":1800000062197,"event":"message","data":{"id":"msg4-704","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 x05 to Journalist. That c","meetingId":"m07","time":1800000062160}}
+{"accountId":"acc07","seq":195,"t":1800000061938,"event":"message","data":{"id":"msg4-697","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000061901}}
+{"accountId":"acc01","seq":197,"t":1800000061975,"event":"message","data":{"id":"msg4-698","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000061938}}
+{"accountId":"acc05","seq":205,"t":1800000062012,"event":"message","data":{"id":"msg4-699","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000061975}}
+{"accountId":"acc09","seq":195,"t":1800000062049,"event":"message","data":{"id":"msg4-700","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000062012}}
+{"accountId":"acc06","seq":205,"t":1800000062086,"event":"message","data":{"id":"msg4-701","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000062049}}
+{"accountId":"acc02","seq":190,"t":1800000062123,"event":"message","data":{"id":"msg4-702","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000062086}}
+{"accountId":"acc04","seq":201,"t":1800000062160,"event":"message","data":{"id":"msg4-703","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000062123}}
+{"accountId":"acc08","seq":207,"t":1800000062197,"event":"message","data":{"id":"msg4-704","senderId":"p02","content":"Three Cop claims: p06, p05, p04 - and p06 flip-flopped to Journalist. That c","meetingId":"m07","time":1800000062160}}
 {"accountId":"acc07","seq":196,"t":1800000062234,"event":"message","data":{"id":"msg4-705","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062197}}
 {"accountId":"acc01","seq":198,"t":1800000062271,"event":"message","data":{"id":"msg4-706","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062234}}
 {"accountId":"acc05","seq":206,"t":1800000062308,"event":"message","data":{"id":"msg4-707","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062271}}
@@ -1687,148 +1687,144 @@
 {"accountId":"acc02","seq":191,"t":1800000062419,"event":"message","data":{"id":"msg4-710","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062382}}
 {"accountId":"acc04","seq":202,"t":1800000062456,"event":"message","data":{"id":"msg4-711","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062419}}
 {"accountId":"acc08","seq":208,"t":1800000062493,"event":"message","data":{"id":"msg4-712","senderId":"p05","content":"Sheriff with the day gun, and I'm firing. Three Cop claims (p06, p05, p04) is at least two lies.","meetingId":"m07","time":1800000062456}}
-{"accountId":"acc07","seq":197,"t":1800000062530,"event":"message","data":{"id":"msg4-713","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062493}}
-{"accountId":"acc01","seq":199,"t":1800000062567,"event":"message","data":{"id":"msg4-714","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062530}}
-{"accountId":"acc05","seq":207,"t":1800000062604,"event":"message","data":{"id":"msg4-715","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062567}}
-{"accountId":"acc09","seq":197,"t":1800000062641,"event":"message","data":{"id":"msg4-716","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062604}}
-{"accountId":"acc06","seq":207,"t":1800000062678,"event":"message","data":{"id":"msg4-717","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062641}}
-{"accountId":"acc02","seq":192,"t":1800000062715,"event":"message","data":{"id":"msg4-718","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062678}}
-{"accountId":"acc04","seq":203,"t":1800000062752,"event":"message","data":{"id":"msg4-719","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062715}}
-{"accountId":"acc08","seq":209,"t":1800000062789,"event":"message","data":{"id":"msg4-720","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000062752}}
-{"accountId":"acc07","seq":198,"t":1800000062826,"event":"message","data":{"id":"msg4-721","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062789}}
-{"accountId":"acc01","seq":200,"t":1800000062863,"event":"message","data":{"id":"msg4-722","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062826}}
-{"accountId":"acc05","seq":208,"t":1800000062900,"event":"message","data":{"id":"msg4-723","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062863}}
-{"accountId":"acc09","seq":198,"t":1800000062937,"event":"message","data":{"id":"msg4-724","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062900}}
-{"accountId":"acc06","seq":208,"t":1800000062974,"event":"message","data":{"id":"msg4-725","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062937}}
-{"accountId":"acc02","seq":193,"t":1800000063011,"event":"message","data":{"id":"msg4-726","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000062974}}
-{"accountId":"acc04","seq":204,"t":1800000063048,"event":"message","data":{"id":"msg4-727","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000063011}}
-{"accountId":"acc08","seq":210,"t":1800000063085,"event":"message","data":{"id":"msg4-728","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000063048}}
-{"accountId":"acc09","seq":199,"t":1800000063122,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":209,"t":1800000063159,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":194,"t":1800000063196,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":205,"t":1800000063233,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":211,"t":1800000063270,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":201,"t":1800000063307,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":200,"t":1800000063344,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":210,"t":1800000063381,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":195,"t":1800000063418,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":206,"t":1800000063455,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":212,"t":1800000063492,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":202,"t":1800000063529,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":201,"t":1800000063566,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":211,"t":1800000063603,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":196,"t":1800000063640,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":207,"t":1800000063677,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":213,"t":1800000063714,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":203,"t":1800000063751,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":202,"t":1800000063788,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":212,"t":1800000063825,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":197,"t":1800000063862,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":208,"t":1800000063899,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":214,"t":1800000063936,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":204,"t":1800000063973,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":203,"t":1800000064010,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":213,"t":1800000064047,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":198,"t":1800000064084,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":209,"t":1800000064121,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":215,"t":1800000064158,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":205,"t":1800000064195,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":204,"t":1800000064232,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc05","seq":214,"t":1800000064269,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc02","seq":199,"t":1800000064306,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc04","seq":210,"t":1800000064343,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc08","seq":216,"t":1800000064380,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc01","seq":206,"t":1800000064417,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
-{"accountId":"acc09","seq":205,"t":1800000064454,"event":"vote","data":{"voterId":"p09","target":"p06","meetingId":"m10"}}
-{"accountId":"acc06","seq":209,"t":1800000064491,"event":"youAreBeingVoteKicked","data":{"status":true}}
-{"accountId":"acc01","seq":207,"t":1800000064528,"event":"clearTimer","data":"main"}
-{"accountId":"acc02","seq":200,"t":1800000064565,"event":"clearTimer","data":"main"}
-{"accountId":"acc04","seq":211,"t":1800000064602,"event":"clearTimer","data":"main"}
-{"accountId":"acc05","seq":215,"t":1800000064639,"event":"clearTimer","data":"main"}
-{"accountId":"acc06","seq":210,"t":1800000064676,"event":"clearTimer","data":"main"}
-{"accountId":"acc07","seq":199,"t":1800000064713,"event":"clearTimer","data":"main"}
-{"accountId":"acc08","seq":217,"t":1800000064750,"event":"clearTimer","data":"main"}
-{"accountId":"acc09","seq":206,"t":1800000064787,"event":"clearTimer","data":"main"}
-{"accountId":"acc09","seq":207,"t":1800000064824,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc05","seq":216,"t":1800000064861,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc02","seq":201,"t":1800000064898,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc04","seq":212,"t":1800000064935,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc08","seq":218,"t":1800000064972,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc01","seq":208,"t":1800000065009,"event":"leftMeeting","data":"m09"}
-{"accountId":"acc09","seq":208,"t":1800000065046,"event":"leftMeeting","data":"m10"}
-{"accountId":"acc01","seq":209,"t":1800000065083,"event":"gunshot"}
-{"accountId":"acc02","seq":202,"t":1800000065120,"event":"gunshot"}
-{"accountId":"acc04","seq":213,"t":1800000065157,"event":"gunshot"}
-{"accountId":"acc05","seq":217,"t":1800000065194,"event":"gunshot"}
-{"accountId":"acc06","seq":211,"t":1800000065231,"event":"gunshot"}
-{"accountId":"acc07","seq":200,"t":1800000065268,"event":"gunshot"}
-{"accountId":"acc08","seq":219,"t":1800000065305,"event":"gunshot"}
-{"accountId":"acc09","seq":209,"t":1800000065342,"event":"gunshot"}
-{"accountId":"acc01","seq":210,"t":1800000065379,"event":"death","data":"p06"}
-{"accountId":"acc02","seq":203,"t":1800000065416,"event":"death","data":"p06"}
-{"accountId":"acc04","seq":214,"t":1800000065453,"event":"death","data":"p06"}
-{"accountId":"acc05","seq":218,"t":1800000065490,"event":"death","data":"p06"}
-{"accountId":"acc06","seq":212,"t":1800000065527,"event":"death","data":"p06"}
-{"accountId":"acc07","seq":201,"t":1800000065564,"event":"death","data":"p06"}
-{"accountId":"acc08","seq":220,"t":1800000065601,"event":"death","data":"p06"}
-{"accountId":"acc09","seq":210,"t":1800000065638,"event":"death","data":"p06"}
-{"accountId":"acc01","seq":211,"t":1800000065675,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc02","seq":204,"t":1800000065712,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc04","seq":215,"t":1800000065749,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc05","seq":219,"t":1800000065786,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc06","seq":213,"t":1800000065823,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc07","seq":202,"t":1800000065860,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc08","seq":221,"t":1800000065897,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc09","seq":211,"t":1800000065934,"event":"deathSounds","data":["/audio/death.mp3"]}
-{"accountId":"acc01","seq":212,"t":1800000065971,"event":"exorcised","data":"p06"}
-{"accountId":"acc02","seq":205,"t":1800000066008,"event":"exorcised","data":"p06"}
-{"accountId":"acc04","seq":216,"t":1800000066045,"event":"exorcised","data":"p06"}
-{"accountId":"acc05","seq":220,"t":1800000066082,"event":"exorcised","data":"p06"}
-{"accountId":"acc06","seq":214,"t":1800000066119,"event":"exorcised","data":"p06"}
-{"accountId":"acc07","seq":203,"t":1800000066156,"event":"exorcised","data":"p06"}
-{"accountId":"acc08","seq":222,"t":1800000066193,"event":"exorcised","data":"p06"}
-{"accountId":"acc09","seq":212,"t":1800000066230,"event":"exorcised","data":"p06"}
-{"accountId":"acc01","seq":213,"t":1800000066267,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066230,"dayCount":4}}
-{"accountId":"acc02","seq":206,"t":1800000066304,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066267,"dayCount":4}}
-{"accountId":"acc04","seq":217,"t":1800000066341,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066304,"dayCount":4}}
-{"accountId":"acc05","seq":221,"t":1800000066378,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066341,"dayCount":4}}
-{"accountId":"acc06","seq":215,"t":1800000066415,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066378,"dayCount":4}}
-{"accountId":"acc07","seq":204,"t":1800000066452,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066415,"dayCount":4}}
-{"accountId":"acc08","seq":223,"t":1800000066489,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066452,"dayCount":4}}
-{"accountId":"acc09","seq":213,"t":1800000066526,"event":"obituaries","data":{"id":"4:Day","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was found dead"]}],"source":"Day","time":1800000066489,"dayCount":4}}
-{"accountId":"acc01","seq":214,"t":1800000066563,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc02","seq":207,"t":1800000066600,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc04","seq":218,"t":1800000066637,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc05","seq":222,"t":1800000066674,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc06","seq":216,"t":1800000066711,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc07","seq":205,"t":1800000066748,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc08","seq":224,"t":1800000066785,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc09","seq":214,"t":1800000066822,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
-{"accountId":"acc06","seq":217,"t":1800000066859,"event":"isSpectator"}
-{"accountId":"acc01","seq":215,"t":1800000066896,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc02","seq":208,"t":1800000066933,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc03","seq":87,"t":1800000066970,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc04","seq":219,"t":1800000067007,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc05","seq":223,"t":1800000067044,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc06","seq":218,"t":1800000067081,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc07","seq":206,"t":1800000067118,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc08","seq":225,"t":1800000067155,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc09","seq":215,"t":1800000067192,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
-{"accountId":"acc01","seq":216,"t":1800000067229,"event":"finished"}
-{"accountId":"acc02","seq":209,"t":1800000067266,"event":"finished"}
-{"accountId":"acc03","seq":88,"t":1800000067303,"event":"finished"}
-{"accountId":"acc04","seq":220,"t":1800000067340,"event":"finished"}
-{"accountId":"acc05","seq":224,"t":1800000067377,"event":"finished"}
-{"accountId":"acc06","seq":219,"t":1800000067414,"event":"finished"}
-{"accountId":"acc07","seq":207,"t":1800000067451,"event":"finished"}
-{"accountId":"acc08","seq":226,"t":1800000067488,"event":"finished"}
-{"accountId":"acc09","seq":216,"t":1800000067525,"event":"finished"}
-{"accountId":"acc01","seq":217,"t":1800000067562,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc02","seq":210,"t":1800000067599,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc03","seq":89,"t":1800000067636,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc04","seq":221,"t":1800000067673,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc05","seq":225,"t":1800000067710,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc06","seq":220,"t":1800000067747,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc07","seq":208,"t":1800000067784,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc08","seq":227,"t":1800000067821,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
-{"accountId":"acc09","seq":217,"t":1800000067858,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc09","seq":197,"t":1800000062530,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":207,"t":1800000062567,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":192,"t":1800000062604,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":203,"t":1800000062641,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":209,"t":1800000062678,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":199,"t":1800000062715,"event":"vote","data":{"voterId":"p09","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":198,"t":1800000062752,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":208,"t":1800000062789,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":193,"t":1800000062826,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":204,"t":1800000062863,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":210,"t":1800000062900,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":200,"t":1800000062937,"event":"vote","data":{"voterId":"p05","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":199,"t":1800000062974,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":209,"t":1800000063011,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":194,"t":1800000063048,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":205,"t":1800000063085,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":211,"t":1800000063122,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":201,"t":1800000063159,"event":"vote","data":{"voterId":"p02","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":200,"t":1800000063196,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":210,"t":1800000063233,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":195,"t":1800000063270,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":206,"t":1800000063307,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":212,"t":1800000063344,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":202,"t":1800000063381,"event":"vote","data":{"voterId":"p04","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":201,"t":1800000063418,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":211,"t":1800000063455,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":196,"t":1800000063492,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":207,"t":1800000063529,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":213,"t":1800000063566,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":203,"t":1800000063603,"event":"vote","data":{"voterId":"p08","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":202,"t":1800000063640,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc05","seq":212,"t":1800000063677,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc02","seq":197,"t":1800000063714,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc04","seq":208,"t":1800000063751,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc08","seq":214,"t":1800000063788,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc01","seq":204,"t":1800000063825,"event":"vote","data":{"voterId":"p01","target":"Kick","meetingId":"m09"}}
+{"accountId":"acc09","seq":203,"t":1800000063862,"event":"vote","data":{"voterId":"p09","target":"p06","meetingId":"m10"}}
+{"accountId":"acc01","seq":205,"t":1800000063899,"event":"message","data":{"id":"msg4-713","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000063862}}
+{"accountId":"acc02","seq":198,"t":1800000063936,"event":"message","data":{"id":"msg4-714","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000063899}}
+{"accountId":"acc04","seq":209,"t":1800000063973,"event":"message","data":{"id":"msg4-715","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000063936}}
+{"accountId":"acc05","seq":213,"t":1800000064010,"event":"message","data":{"id":"msg4-716","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000063973}}
+{"accountId":"acc06","seq":207,"t":1800000064047,"event":"message","data":{"id":"msg4-717","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000064010}}
+{"accountId":"acc07","seq":197,"t":1800000064084,"event":"message","data":{"id":"msg4-718","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000064047}}
+{"accountId":"acc08","seq":215,"t":1800000064121,"event":"message","data":{"id":"msg4-719","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000064084}}
+{"accountId":"acc09","seq":204,"t":1800000064158,"event":"message","data":{"id":"msg4-720","senderId":"server","content":":gun: Player09 pulls a gun and shoots at Player06!","meetingId":"m07","time":1800000064121}}
+{"accountId":"acc01","seq":206,"t":1800000064195,"event":"gunshot"}
+{"accountId":"acc02","seq":199,"t":1800000064232,"event":"gunshot"}
+{"accountId":"acc04","seq":210,"t":1800000064269,"event":"gunshot"}
+{"accountId":"acc05","seq":214,"t":1800000064306,"event":"gunshot"}
+{"accountId":"acc06","seq":208,"t":1800000064343,"event":"gunshot"}
+{"accountId":"acc07","seq":198,"t":1800000064380,"event":"gunshot"}
+{"accountId":"acc08","seq":216,"t":1800000064417,"event":"gunshot"}
+{"accountId":"acc09","seq":205,"t":1800000064454,"event":"gunshot"}
+{"accountId":"acc01","seq":207,"t":1800000064491,"event":"death","data":"p06"}
+{"accountId":"acc02","seq":200,"t":1800000064528,"event":"death","data":"p06"}
+{"accountId":"acc04","seq":211,"t":1800000064565,"event":"death","data":"p06"}
+{"accountId":"acc05","seq":215,"t":1800000064602,"event":"death","data":"p06"}
+{"accountId":"acc06","seq":209,"t":1800000064639,"event":"death","data":"p06"}
+{"accountId":"acc07","seq":199,"t":1800000064676,"event":"death","data":"p06"}
+{"accountId":"acc08","seq":217,"t":1800000064713,"event":"death","data":"p06"}
+{"accountId":"acc09","seq":206,"t":1800000064750,"event":"death","data":"p06"}
+{"accountId":"acc01","seq":208,"t":1800000064787,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc02","seq":201,"t":1800000064824,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc04","seq":212,"t":1800000064861,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc05","seq":216,"t":1800000064898,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc06","seq":210,"t":1800000064935,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc07","seq":200,"t":1800000064972,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc08","seq":218,"t":1800000065009,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc09","seq":207,"t":1800000065046,"event":"deathSounds","data":["/audio/death.mp3"]}
+{"accountId":"acc01","seq":209,"t":1800000065083,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065046,"dayCount":4}}
+{"accountId":"acc02","seq":202,"t":1800000065120,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065083,"dayCount":4}}
+{"accountId":"acc04","seq":213,"t":1800000065157,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065120,"dayCount":4}}
+{"accountId":"acc05","seq":217,"t":1800000065194,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065157,"dayCount":4}}
+{"accountId":"acc06","seq":211,"t":1800000065231,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065194,"dayCount":4}}
+{"accountId":"acc07","seq":201,"t":1800000065268,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065231,"dayCount":4}}
+{"accountId":"acc08","seq":219,"t":1800000065305,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065268,"dayCount":4}}
+{"accountId":"acc09","seq":208,"t":1800000065342,"event":"obituaries","data":{"id":"4:Day:gun","obituaries":[{"id":"p06","playerInfo":{"id":"p06","anonId":null,"name":"Player06","userId":"u06","avatar":false},"snippets":["was shot"]}],"source":"Day","time":1800000065305,"dayCount":4}}
+{"accountId":"acc01","seq":210,"t":1800000065379,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc02","seq":203,"t":1800000065416,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc04","seq":214,"t":1800000065453,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc05","seq":218,"t":1800000065490,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc06","seq":212,"t":1800000065527,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc07","seq":202,"t":1800000065564,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc08","seq":220,"t":1800000065601,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc09","seq":209,"t":1800000065638,"event":"reveal","data":{"playerId":"p06","role":"Lawyer"}}
+{"accountId":"acc06","seq":213,"t":1800000065675,"event":"isSpectator"}
+{"accountId":"acc07","seq":203,"t":1800000065712,"event":"message","data":{"id":"msg4-721","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065675}}
+{"accountId":"acc01","seq":211,"t":1800000065749,"event":"message","data":{"id":"msg4-722","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065712}}
+{"accountId":"acc05","seq":219,"t":1800000065786,"event":"message","data":{"id":"msg4-723","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065749}}
+{"accountId":"acc09","seq":210,"t":1800000065823,"event":"message","data":{"id":"msg4-724","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065786}}
+{"accountId":"acc02","seq":204,"t":1800000065860,"event":"message","data":{"id":"msg4-726","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065823}}
+{"accountId":"acc04","seq":215,"t":1800000065897,"event":"message","data":{"id":"msg4-727","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065860}}
+{"accountId":"acc08","seq":221,"t":1800000065934,"event":"message","data":{"id":"msg4-728","senderId":"p06","content":"Dead Journalist here — x02 is a FAKE, I hold that role. Also THREE Cop claims: p06, z","meetingId":"m07","time":1800000065897}}
+{"accountId":"acc07","seq":204,"t":1800000065971,"event":"message","data":{"id":"msg4-729","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000065934}}
+{"accountId":"acc01","seq":212,"t":1800000066008,"event":"message","data":{"id":"msg4-730","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000065971}}
+{"accountId":"acc05","seq":220,"t":1800000066045,"event":"message","data":{"id":"msg4-731","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000066008}}
+{"accountId":"acc09","seq":211,"t":1800000066082,"event":"message","data":{"id":"msg4-732","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000066045}}
+{"accountId":"acc02","seq":205,"t":1800000066119,"event":"message","data":{"id":"msg4-734","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000066082}}
+{"accountId":"acc04","seq":216,"t":1800000066156,"event":"message","data":{"id":"msg4-735","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000066119}}
+{"accountId":"acc08","seq":222,"t":1800000066193,"event":"message","data":{"id":"msg4-736","senderId":"p01","content":"Still Cop. p03 keeps sliding off every read request - that's the scummiest slot on the board.","meetingId":"m07","time":1800000066156}}
+{"accountId":"acc01","seq":213,"t":1800000066230,"event":"clearTimer","data":"main"}
+{"accountId":"acc02","seq":206,"t":1800000066267,"event":"clearTimer","data":"main"}
+{"accountId":"acc04","seq":217,"t":1800000066304,"event":"clearTimer","data":"main"}
+{"accountId":"acc05","seq":221,"t":1800000066341,"event":"clearTimer","data":"main"}
+{"accountId":"acc07","seq":205,"t":1800000066378,"event":"clearTimer","data":"main"}
+{"accountId":"acc08","seq":223,"t":1800000066415,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":212,"t":1800000066452,"event":"clearTimer","data":"main"}
+{"accountId":"acc09","seq":213,"t":1800000066489,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc05","seq":222,"t":1800000066526,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc02","seq":207,"t":1800000066563,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc04","seq":218,"t":1800000066600,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc08","seq":224,"t":1800000066637,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc01","seq":214,"t":1800000066674,"event":"leftMeeting","data":"m09"}
+{"accountId":"acc09","seq":214,"t":1800000066711,"event":"leftMeeting","data":"m10"}
+{"accountId":"acc01","seq":215,"t":1800000066748,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc02","seq":208,"t":1800000066785,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc03","seq":87,"t":1800000066822,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc04","seq":219,"t":1800000066859,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc05","seq":223,"t":1800000066896,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc06","seq":214,"t":1800000066933,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc07","seq":206,"t":1800000066970,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc08","seq":225,"t":1800000067007,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc09","seq":215,"t":1800000067044,"event":"winners","data":{"groups":["Village"],"players":[],"messages":[],"playersByGroup":{}}}
+{"accountId":"acc01","seq":216,"t":1800000067081,"event":"finished"}
+{"accountId":"acc02","seq":209,"t":1800000067118,"event":"finished"}
+{"accountId":"acc03","seq":88,"t":1800000067155,"event":"finished"}
+{"accountId":"acc04","seq":220,"t":1800000067192,"event":"finished"}
+{"accountId":"acc05","seq":224,"t":1800000067229,"event":"finished"}
+{"accountId":"acc06","seq":215,"t":1800000067266,"event":"finished"}
+{"accountId":"acc07","seq":207,"t":1800000067303,"event":"finished"}
+{"accountId":"acc08","seq":226,"t":1800000067340,"event":"finished"}
+{"accountId":"acc09","seq":216,"t":1800000067377,"event":"finished"}
+{"accountId":"acc01","seq":217,"t":1800000067414,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc02","seq":210,"t":1800000067451,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc03","seq":89,"t":1800000067488,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc04","seq":221,"t":1800000067525,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc05","seq":225,"t":1800000067562,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc06","seq":216,"t":1800000067599,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc07","seq":208,"t":1800000067636,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc08","seq":227,"t":1800000067673,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}
+{"accountId":"acc09","seq":217,"t":1800000067710,"event":"kudos","data":{"open":true,"votes":{},"myVote":null}}

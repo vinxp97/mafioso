@@ -1,7 +1,7 @@
 # dev.ultimafia.gg protocol reference (Mafioso harness)
 
 This covers what the harness actually uses: how it connects, which frames it receives and sends, and how it
-reconnects. It doesn't contain any secret values. It's based on [`protocol-map.md`](protocol-map.md) in this directory, the Dev API notes
+reconnects. It doesn't contain any secret values. It's based on [`docs/protocol-map.md`](protocol-map.md), the Dev API notes
 (`/workspace/ultimafia-bot-api.md`, dev checkout c02aa8d), the server source (`Games/core/*.js`,
 `Games/games.js`, `lib/sockets.js` in the restartq checkout), the replay fixtures in
 `harness/test/fixtures/replays/`, and the harness/engine code (`harness/src/client.js`, `harness/src/live.js`,

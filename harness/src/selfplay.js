@@ -12,12 +12,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { adaptiveClaimLine, agreedPlan, chatAudit, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, selfAlive, summarizeMetrics, tally, validateAction } from "mafioso-engine";
+import { shotDeadline, adaptiveClaimLine, agreedPlan, chatAudit, claimedRoleIn, mafiaModeOf, createSeededRng, scoreGame, selfAlive, summarizeMetrics, tally, validateAction } from "mafioso-engine";
 import { FJ_ROLES, alignOf, mixSeed, shuffle, winnerFor } from "./arena.js";
 import { createBotTable, createLlmLimiter, onGameEntry } from "./live.js";
 import { createVirtualClock } from "./clock.js";
 import { plantAndAudit, plantReport } from "./auditPlant.js";
 import { loadLatency, createSimLatencyComplete } from "./simLatency.js";
+import { createHumans } from "./mixedTable.js";
 
 export const SELFPLAY_DIR = fileURLToPath(new URL("../../logs/selfplay", import.meta.url));
 export const SELFPLAY_DEFAULTS = Object.freeze({ dayMs: 300_000, nightMs: 60_000, tickMs: 5_000, maxDays: 8, vegKickMs: 60_000, speech: "prescribed", copRule: "vinman", sheriffRule: "vinman", lawyer: "loyal", mafia: "adaptive", town: "rules", chatAudit: "enforce", staleVotes: "clear", hammer: "on", quietTable: null });
@@ -114,17 +115,22 @@ function createServer({ seed, game, opts }) {
   const rng = createSeededRng(gseed);
   const roleList = shuffle(FJ_ROLES, rng);
   const ids = roleList.map(() => makeId(rng, 11));
+  // Mixed table (Night 6, off unless opts.mixed): the bot holds opts.mixed.botRole; the other eight seats are scripted.
+  const mixedRole = opts.mixed?.botRole || null;
+  if (opts.mixed && !roleList.includes(mixedRole)) throw new Error(`mixed: unknown bot role ${mixedRole}`);
+  const botIdx = mixedRole ? roleList.map((r, i) => [r, i]).filter(([r]) => r === mixedRole)[Math.floor(rng() * roleList.filter((r) => r === mixedRole).length)][1] : -1;
   const roles = {}; const names = {}; const accOf = {}; const pidOf = {};
   ids.forEach((id, i) => {
     roles[id] = roleList[i]; names[id] = NAMES[i];
     const acc = makeId(rng, 10); accOf[id] = acc; pidOf[acc] = id;
   });
   const clock = createVirtualClock(T0);
-  const table = createBotTable(ids.map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}), ...(opts.quietTable ? { quietTable: opts.quietTable } : {}), ...(opts.claimPressure ? { claimPressure: opts.claimPressure } : {}), ...(opts.staleFix ? { staleFix: opts.staleFix } : {}), ...(opts.auditTight === "on" ? { auditTight: "on" } : {}) });
+  const botIds = new Set(mixedRole ? [ids[botIdx]] : ids);
+  const table = createBotTable(ids.filter((id) => botIds.has(id)).map((id) => ({ accountId: accOf[id], promptId: "rulebot" })), { clock, rng: createSeededRng(mixSeed(gseed, "table")), sheriffDelayRng: createSeededRng(mixSeed(gseed, "sheriff-delay")), copRule: opts.copRule, sheriffRule: opts.sheriffRule, lawyer: opts.lawyer, mafia: opts.mafia, town: opts.town, chatAudit: opts.chatAudit, hammer: opts.hammer || "on", ...(opts.hammerGate ? { hammerGate: opts.hammerGate } : {}), ...(opts.quietTable ? { quietTable: opts.quietTable } : {}), ...(opts.claimPressure ? { claimPressure: opts.claimPressure } : {}), ...(opts.staleFix ? { staleFix: opts.staleFix } : {}), ...(opts.auditTight === "on" ? { auditTight: "on" } : {}), ...soloFlagOpts(opts), ...(opts.chatPassthrough ? { chatPassthrough: true } : {}) });
   table.onHammer = (id, hv) => S.stats.hammer.push({ day: S.day, seat: names[pidOf[id]], role: roles[pidOf[id]], self: hv.target === pidOf[id], target: names[hv.target] || hv.target, why: hv.why });
   table.onDayVoteShaped = ({ id, scum, sinceGateMs }) => S.stats.voteDelays.push({ day: S.day, seat: names[pidOf[id]], scum, ms: sinceGateMs });
   const S = {
-    seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table,
+    seed, game, gseed, opts, ids, roles, names, accOf, pidOf, clock, table, botIds, humans: null,
     complete: null, limiter: createLlmLimiter(opts.simLatency ? 1 : 4),
     alive: new Set(ids), seq: {}, stateId: 1, phase: "", day: 0, meetings: new Map(),
     gunUsed: false, cleansLeft: 1, pastMeetings: new Set(), cursor: 0, winner: null, events: [], errors: [],
@@ -150,6 +156,7 @@ function createServer({ seed, game, opts }) {
     }
     return push(...items);
   };
+  if (mixedRole) S.humans = createHumans(S, botIds, opts.mixed.human);
   S.stampOf = (p) => stamps.get(p) || null;
   S.auditOf = (p) => audits.get(p) || [];
   table.onChatAudit = (acc, reason, text, source) => S.stats.chatDrops.push({ phase: S.phase, seat: names[pidOf[acc]], role: roles[pidOf[acc]], reason, text, source });
@@ -162,7 +169,8 @@ function createServer({ seed, game, opts }) {
     S.simClose = w.close;
     S.stats.sim = { model: w.sim, rejects: {}, lines: [], days: [], rechecks: 0 };
     const kind = (r) => /^stale reply/.test(r) ? "stale reply" : /^model (?:error: )?stale/.test(r) ? "model stale" : /^held line invalid/.test(r) ? "held invalid"
-      : /^model (?:error: )?cancelled/.test(r) ? "cancelled" : /^model (?:error: )?fallback/.test(r) ? "fallback" : /chat-audit|too similar|model error|early claim/.test(r) ? "rejected line" : "other";
+      : /^model (?:error: )?cancelled/.test(r) ? "cancelled" : /^model (?:error: )?fallback/.test(r) ? "fallback" : /chat-audit|too similar|model error|early claim/.test(r) ? "rejected line"
+      : /^(?:cop claim is one line|send guard:|town claim wording)/.test(r) ? "claim guard" : "other";
     table.onSpeechReject = (acc, reasons) => {
       const k = kind(String(reasons?.[0] || ""));
       S.stats.sim.rejects[k] = (S.stats.sim.rejects[k] || 0) + 1;
@@ -185,6 +193,7 @@ const living = (S) => S.ids.filter((id) => S.alive.has(id));
 const isScum = (S, id) => alignOf(S.roles[id]) === "Mafia";
 
 async function deliver(S, pid, event, data) {
+  if (S.humans && !S.botIds.has(pid)) return S.humans.observe(pid, event, data);
   const acc = S.accOf[pid];
   S.seq[acc] = (S.seq[acc] || 0) + 1;
   await onGameEntry(S.table, { accountId: acc, seq: S.seq[acc], t: S.clock.now(), event, data }, {
@@ -303,6 +312,23 @@ function serverVerdict(S, p) {
   return null;
 }
 
+/** A scripted human seat acts: the server's own checks (no engine validation), then the same apply path. */
+async function humanAct(S, pid, event, meetingName, value) {
+  const m = [...S.meetings.values()].find((x) => x.name === meetingName && !x.closed && x.members.includes(pid));
+  const fail = (why) => { S.stats.humanIllegal = (S.stats.humanIllegal || 0) + 1; (S.stats.humanIllegalWhy ||= []).push(why); };
+  if (!m || !S.alive.has(pid)) return fail(`no ${meetingName} meeting`);
+  const p = { accountId: S.accOf[pid], source: "human", event, data: event === "speak" ? { meetingId: m.id, content: value } : { meetingId: m.id, selection: value } };
+  if (event === "speak") { if (!m.speech) return fail(`cannot speak in ${m.name}`); S.humans.noteLine(pid); return speak(S, pid, m, value, p); }
+  if (!m.voting || !(m.targets || []).includes(value)) return fail(`bad target in ${m.name}`);
+  if (m.instant && m.ballots[pid] != null) return fail("vote locked");
+  return applyLegal(S, pid, m, p);
+}
+
+async function humansTick(S) {
+  if (!S.humans || S.winner) return;
+  await S.humans.tick((pid, event, meeting, value) => (S.winner ? null : humanAct(S, pid, event, meeting, value)));
+}
+
 async function applyProposal(S, p) {
   const pid = S.pidOf[p.accountId];
   const why = serverVerdict(S, p);
@@ -313,6 +339,10 @@ async function applyProposal(S, p) {
     return illegal(S, p, pid, atSend || why);
   }
   const m = S.meetings.get(p.data.meetingId);
+  return applyLegal(S, pid, m, p);
+}
+
+async function applyLegal(S, pid, m, p) {
   if (p.event === "speak") return speak(S, pid, m, String(p.data.content), p);
   if (p.event === "unvote") {
     delete m.ballots[pid];
@@ -340,7 +370,7 @@ async function speak(S, pid, m, content, p) {
   const pub = m.name === "Village";
   if (pub) {
     S.stats.publicLines += 1;
-    if (S.stats.sim) S.stats.sim.lines.push({ day: S.day, t: S.clock.now() });
+    if (S.stats.sim && S.botIds.has(pid)) S.stats.sim.lines.push({ day: S.day, t: S.clock.now() });
     S.trace.messages[pid] = (S.trace.messages[pid] || 0) + 1;
     S.trace.speechSent[pid] = (S.trace.speechSent[pid] || 0) + 1;
     S.trace.speech.push({ seat: pid, phase: S.phase, text: content, allowed: true });
@@ -353,10 +383,11 @@ async function speak(S, pid, m, content, p) {
       for (const r of plantAndAudit(S, pid, S.table.views[S.accOf[pid]], rng, done, { held: S.opts.plantAudit !== true && S.opts.plantAudit })) S.stats.planted.push({ ...r, day: S.day, role: S.roles[pid] });
     }
     const claimed = claimedRoleIn(content);
-    if (claimed) S.stats.claims.push({ phase: S.phase, seat: S.names[pid], role: S.roles[pid], claimed, truthful: claimed === S.roles[pid], text: content.slice(0, 160) });
+    if (claimed) S.stats.claims.push({ phase: S.phase, seat: S.names[pid], role: S.roles[pid], claimed, truthful: claimed === S.roles[pid], text: content.slice(0, 160), ...(S.humans ? { t: Math.round((S.clock.now() - (S.phaseStart || S.clock.now())) / 1000) } : {}) });
     if (/\bPLAN\b/.test(content)) S.stats.illegal.push({ phase: S.phase, seat: S.names[pid], role: S.roles[pid], event: "speak", source: p.source, reason: "faction PLAN leaked to public" });
   } else S.stats.scumChat += 1;
   S.events.push(`${S.phase} ${pub ? "" : `[${m.name}] `}${S.names[pid]}: ${content.slice(0, 200)}`);
+  if (S.humans && pub) (S.stats.lineTimes ||= []).push({ i: S.events.length - 1, day: S.day, seat: S.names[pid], t: Math.round((S.clock.now() - (S.phaseStart || S.clock.now())) / 1000) });
   await deliverMany(S, viewersOf(S, m), "message", { meetingId: m.id, senderId: pid, content, t: S.clock.now() });
 }
 
@@ -400,12 +431,25 @@ async function resolveInstant(S, m, shooter, target) {
   m.closed = true; S.gunUsed = true;
   const hit = isScum(S, target);
   const pool = living(S).filter((id) => id !== shooter);
-  S.stats.shots.push({ day: S.day, sheriff: S.names[shooter], target: S.names[target], targetRole: S.roles[target], hit, baseline: pool.filter((id) => isScum(S, id)).length / pool.length, t: Math.round((S.clock.now() - S.phaseStart) / 1000) });
+  S.stats.shots.push({ day: S.day, sheriff: S.names[shooter], target: S.names[target], targetRole: S.roles[target], hit, baseline: pool.filter((id) => isScum(S, id)).length / pool.length, t: Math.round((S.clock.now() - S.phaseStart) / 1000), ...(S.humans ? shotContext(S, shooter, target) : {}) });
   await deliverMany(S, S.ids, "message", { senderId: "server", content: `:gun: ${S.names[shooter]} pulls a gun and shoots at ${S.names[target]}!` });
   await deliverMany(S, S.ids, "reveal", { playerId: shooter, role: S.roles[shooter] });
   await deliver(S, shooter, "leftMeeting", m.id);
   await kill(S, target, { how: "shot by the Sheriff" });
   checkWin(S);
+}
+
+/** Mixed table: what the shot looked like from the table (bot shooter: its deadline and gun-send source; target: a pending human answer). */
+function shotContext(S, shooter, target) {
+  const acc = S.accOf[shooter]; const view = S.table.views[acc]; const now = S.clock.now();
+  const send = (S.table.gunSends || []).filter((g) => g.id === acc).slice(-1)[0];
+  return {
+    bySeat: S.botIds.has(shooter) ? "bot" : "human",
+    deadline: view ? !!shotDeadline({ ...view, clock: now }, now) : null,
+    source: send?.source || null,
+    pendingAnswer: S.humans.pendingAnswer(target),
+    answeredAgoS: S.humans.answeredAgo(target, now),
+  };
 }
 
 function checkWin(S) {
@@ -423,6 +467,7 @@ async function runPhase(S, ms, { endEarly, timer = "main" } = {}) {
   for (let left = ms - S.opts.tickMs; left >= 0 && !S.winner; left -= S.opts.tickMs) {
     S.clock.advance(S.opts.tickMs);
     await settle(S.table); await pump(S);
+    if (S.humans) { await humansTick(S); await settle(S.table); await pump(S); }
     await deliverMany(S, living(S), "time", { name: timer, time: left });
     await settle(S.table); await pump(S);
     if (S.opts.onTick) S.opts.onTick(S, left);
@@ -489,10 +534,10 @@ function vegCause(S, pid, m) {
   const proposed = S.table.proposed.some((p) => p.accountId === S.accOf[pid] && p.event === "vote" && p.data?.meetingId === m.id);
   if (m.clearedVoters?.has(pid)) return `${m.name}: vote cleared when its target died; never re-voted`;
   if (m.name === "Litigate") {
-    const plan = agreedPlan(S.table.views[S.accOf[pid]]);
+    const plan = S.table.views[S.accOf[pid]] ? agreedPlan(S.table.views[S.accOf[pid]]) : null;
     if (plan && !plan.lawyerTarget) return "Litigate: PLAN names no lawyer target; Lawyer never voted";
   }
-  if (isScum(S, pid) && S.phase.startsWith("Day")) {
+  if (isScum(S, pid) && S.phase.startsWith("Day") && S.table.views[S.accOf[pid]]) {
     const plan = agreedPlan(S.table.views[S.accOf[pid]]);
     if (plan?.speakerId === pid && plan.lynchTarget && !S.alive.has(plan.lynchTarget)) return `${m.name}: PLAN speaker whose PLAN lynch target died (shot) before the vote`;
     if (plan?.lynchTarget && !S.alive.has(plan.lynchTarget)) return `${m.name}: PLAN lynch target died before the vote`;
@@ -502,7 +547,7 @@ function vegCause(S, pid, m) {
 
 /** The mafia's agreed PLAN as a living mafia seat sees it (null when none). */
 function mafiaPlan(S) {
-  for (const id of living(S)) if (isScum(S, id)) { const plan = agreedPlan(S.table.views[S.accOf[id]]); if (plan) return plan; }
+  for (const id of living(S)) if (isScum(S, id) && S.table.views[S.accOf[id]]) { const plan = agreedPlan(S.table.views[S.accOf[id]]); if (plan) return plan; }
   return null;
 }
 
@@ -518,7 +563,10 @@ async function playNight(S) {
   const live = living(S);
   const mk = byName(S, "Mafia Kill");
   const killTarget = mk ? mafiaKillTarget(Object.fromEntries(mk.members.filter((id) => S.alive.has(id) && mk.ballots[id] != null).map((id) => [id, mk.ballots[id]]))) : null;
-  const victim = killTarget && S.alive.has(killTarget) && !isScum(S, killTarget) ? killTarget : null;
+  const victim0 = killTarget && S.alive.has(killTarget) && !isScum(S, killTarget) ? killTarget : null;
+  // Mixed-table counterclaim scenario (Night 6 part 4): the scripted Sheriff and the asked power seat survive Night 1.
+  const victim = victim0 && S.humans?.scenarioProtects?.(victim0, S.day) ? null : victim0;
+  if (victim0 && !victim) S.stats.scenarioSaved = (S.stats.scenarioSaved || 0) + 1;
   const lit = byName(S, "Litigate");
   const lawyer = lit?.members[0];
   const litTarget = lit && S.alive.has(lawyer) ? lit.ballots[lawyer] : null;
@@ -567,6 +615,7 @@ async function playDay(S, night) {
   for (const [pid, lines] of Object.entries(night.reports || {})) {
     for (const content of lines) await deliver(S, pid, "message", { senderId: "server", content });
   }
+  for (const pid of S.humans?.scenarioRemove?.(S.day) || []) await kill(S, pid, { reveal: false, how: "scenario: removed" });
   if (checkWin(S)) return;
   const made = [];
   for (const spec of daySpecs(S)) made.push(newMeeting(S, spec));
@@ -703,6 +752,12 @@ export function quantiles(xs) {
 }
 
 /** Play one seeded FJ game end to end. Never throws: errors land on the result. */
+/** Night 5 solo flags (engine soloFlags.js), the gun fix (gunOnce) and the Night 6 part 4 flags (sheriffLateGrace, teamClaimGuard), each passed only when "on" (all off by default). */
+export const SOLO_FLAG_OPTS = Object.freeze(["voteHold", "soloCounterclaim", "groundedSpeech", "voteKickGuard", "gunOnce", "sheriffLateGrace", "teamClaimGuard", "wideClaimParse"]);
+function soloFlagOpts(opts) {
+  return Object.fromEntries(SOLO_FLAG_OPTS.filter((k) => opts?.[k] === "on").map((k) => [k, "on"]));
+}
+
 export async function playSelfplayGame({ seed = 1, game = 0, ...rest } = {}) {
   const opts = { ...SELFPLAY_DEFAULTS, ...rest };
   const S = createServer({ seed, game, opts });
@@ -711,6 +766,10 @@ export async function playSelfplayGame({ seed = 1, game = 0, ...rest } = {}) {
     const players = Object.fromEntries(S.ids.map((id) => [id, { id, name: S.names[id] }]));
     for (const pid of S.ids) { await deliver(S, pid, "self", pid); await deliver(S, pid, "players", players); }
     for (const pid of S.ids) await deliver(S, pid, "roleReveal", { playerId: pid, role: S.roles[pid] });
+    // Mixed table, opts.mixed.teamReveal (Night 6 part 4, off by default): live FJ reveals faction teammates to each
+    // other at game start (restartq WinWithFaction -> revealToPlayer). An all-bot table gets them from the harness
+    // roster; a lone bot seat only learns its scripted mafia teammates from these frames.
+    if (S.humans && opts.mixed?.teamReveal) for (const pid of S.botIds) if (isScum(S, pid)) for (const mate of S.ids) if (mate !== pid && isScum(S, mate)) await deliver(S, pid, "reveal", { playerId: mate, role: S.roles[mate] });
     await settle(S.table);
     while (!S.winner && S.day < opts.maxDays) {
       const night = await playNight(S);
@@ -743,6 +802,7 @@ function finish(S, error) {
     roles: Object.fromEntries(S.ids.map((id) => [S.names[id], S.roles[id]])),
     survivors: living(S).map((id) => `${S.names[id]} (${S.roles[id]})`),
     proposals: S.table.proposed.length, harnessErrors: S.errors.length, stats: S.stats, record,
+    ...(S.humans ? { mixed: { bot: S.names[[...S.botIds][0]], botRole: S.roles[[...S.botIds][0]], humans: S.humans.stats, ...(S.humans.scenario ? { scenario: S.humans.scenario } : {}) } } : {}),
     log: S.events,
   };
   if (S.opts.keepServer) Object.defineProperty(out, "server", { value: S, enumerable: false });

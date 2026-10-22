@@ -720,3 +720,73 @@ Selfplay compared head (`c423b07`) with head minus quiet-table (openers, silence
 - Openers and fillers that state the seat's own read leak to a human table. If they stay, use public facts only. In selfplay they cost nothing either way.
 - Making key lines skip the 2.5s gap does not help in selfplay. Keep the gap.
 - Extra lines shift the table RNG (varyOpener), so paired games diverge chaotically. Judge a change on 10+ seeds with paired CIs, not on single games.
+
+# 2026-10-20: a game-state model, and what L9 and L10 taught (branch `overnight-state-model-20261020`, off `d8c60ab`)
+
+`engine/src/stateModel.js` is the whole table as the server runs it, one event at a time. The reducer shows what one seat sees, and `resolve.js` resolves a phase from its ballots. The model sits between them: `stepModel(model, event)` either applies the event or refuses it with a reason and leaves the model untouched. It tracks the phase (Pregame, Night N, Day N, ended), the living and the dead (cause, phase, flip, cleaned), public claims, results (Cop, Journalist, Janitor, the Sheriff's reveal by gunshot), votes per phase and meeting, each day's lynch or no-lynch next to the ballots' plurality, and the winner. `modelLegalActions` lists what a seat may do right now. It reuses `MEETING_DEFS`, `tally`, `winnerOf` and `extractClaim`, so it adds no second copy of the rules. `harness/src/stateReplay.js` turns a fixture's per-seat frames into model events, and `scripts/state-replay.mjs` prints the table.
+
+## Replay (g01-g16, L2-L8, and L9-L10, newly sanitized into `test/fixtures/live-1019`)
+- That's 1,643 events, 1,415 of them actions (votes, shots, speech, results). The model refused 15 events: 9 actions and 6 transitions. Every refusal is pinned in `test/stateReplay.test.js` with its cause, and none of them is an engine or bot action the server took. The refused actions: g04 2 (guessed binding: a seat "targets itself"), g05 2 (guessed phases), g14 2 (the server's stale-vote tie, see below), and l02, l05 and l09 1 each (the builder bugs below). The refused transitions: g05 4 (fallout from the guessed phases), and the endings of g09 and L4.
+- **Builder bug 1, L2 and L9:** the Sheriff was killed and cleaned on Night 1, so he never had a gun meeting. The builder then gave him a leftover Villager role and handed the Sheriff role to a living Villager, which produced a fake flip in L2 on Night 4. The model caught it from the Janitor's report ("role is Sheriff"). Fix: `--alert-roles`, off by default.
+- **Builder bug 2, L5:** the Janitor voted before the Sheriff shot him, but the builder sent every ballot after the shot, so the replay had a dead voter. Fix: `--vote-order=log`, off by default.
+- With both options on, L2-L8 replay with 0 refusals. The only thing left is L4's ending, which isn't in the log. With the options off, the rebuilt L2-L8 and g01-g16 are byte-identical to what the old builder produced.
+- **g14 is the server's stale-vote bug:** the builder condemns p06 on Day 1, but the server's Night 2 meetings show 7 players alive. Votes on the shot player stayed (Meeting.js `generateTargets`) and made a 2-2 tie. The mafia's Night 2 kill on "dead" p06 is really a kill on a living player. Pinned.
+- Pinned as fixture gaps: g04 and g05 (guessed binding and phases, as in `legalActions.test.js`), and the endings of g09 and L4, which aren't in their logs.
+
+## L9 and L10, 10/19, OpenRouter MiniMax free on the Mac container
+- **L9: 1,347 "Reasoning is mandatory" 400s, 0 LLM lines sent.** The free MiniMax route refuses a chat completion without reasoning. Every model line failed and the table ran on rules lines. PR #17 sends `reasoning: { effort: "low" }`, and L10 had 0 such errors. The model can't see transport errors. Count model errors per game and stop early when every call fails.
+- **L9's Journalist line was cut mid-name:** `im journalist. <name> got a cop report, real cop, it said <first 14 letters of the Lawyer's name>`. `roleClaimLine` cut it at `.slice(0, 80)`. PR #17 raises PUBLIC_MAX to 160 and fits claim lines without cutting a name (`fitClaimLine`), with exact-case names. The model's rule that a result must name a seated player would refuse that stub as a report. The fixture builder maps the stub to the right placeholder name, so the committed L9 fixture no longer shows the cut.
+- **L10: the chat audit is the bottleneck, not the API.** 2 of about 210 LLM lines landed. The rest were 44 early villager claims, 43 dead-target lines (sus or vote on a dead player, mostly the D1 shot victim), 38 attacks on the revealed Sheriff, plus stale and too-slow replies. Each of those targets is one the model knows is off the table (dead, or the revealed Sheriff), but the speech prompt only lists the last 3 deaths and the shooter as "(sheriff)". Telling the model in its prompt who is dead and who the Sheriff is would be a prompt change, and it hasn't been approved. It isn't built here.
+
+## Lessons
+- A replay that checks every event against a table model finds builder bugs that per-seat replays miss: a fake flip, a ballot out of order. Run it whenever the builder or the fixtures change.
+- Report a refusal with its cause (builder, guessed fixture, server bug) and pin it. Don't drop it from the count.
+- Committed g05, g14 and g16 differ from what the current builder rebuilds out of the same logs, with or without these changes. They were built by an older builder, so rebuild them on purpose and never by accident.
+
+# 2026-10-20: Night 5 claim rules (branch `night5-claims-20261020` off `0494378`; port `night5-claims-pr17-20261020` off `6f61576`)
+
+Vinman's five rules for the claims the table hears, relayed by Nightshift:
+1. **Sheriff vs a Villager answer:** he doesn't shoot at once. `shotStatus` marks a fresh Villager/blue claim `pending-vt` until 12s and 4 lines from other players have passed, or until 30s. While he holds, a contested claim or a refusal can take the shot. Afterwards he re-ranks on evidence only, so he may ask or shoot someone else. The Day 1 deadline still fires the gun on a held claimer. The old rules hold: he always shoots on D1, asks first, and won't shoot an uncountered power claim.
+2. **Mafia counterclaim:** when the asked target claims Cop or Journalist, one living mafia member says `<name> is lying, im the real <role>` 3-7s after the answer. The pick is the same on every mafia seat, from mates with no public claim. When every mate's role is known, the Janitor is passed over if another mate can do it. The counterclaim is only ever Cop or Journalist, so the Janitor never counterclaims the Sheriff. It fires once per game, never on a mate, never on an already-countered claim, and never past the Sheriff's counterclaim window. It never calls the Sheriff sus. `engine/src/mafiaCounter.js`, `config.mafiaCounterclaim = "off"` to disable.
+3. **One Cop line:** the claim and its report go out as one line. `chatShorten` joins split lines and drops whole result items to fit (inno first). `capSpeechWords` keeps a Cop claim whole. `copSecondLine` refuses a second same-day Cop line, except a new guilty. The live send guard checks again on both send paths, and a Cop with no report yet waits up to 5s into the day.
+4. **Sheriff claim delay:** uniform 1000-10000ms, drawn once per table (once per game live), seedable through `sheriffDelayRng`. Logged as `sheriff-claim-delay`.
+5. **Never vt:** `rewriteVt` turns every vt / v/t / vts token into villager. A bare town/townie/vanilla claim becomes villager. Names stay untouched. `validateAction` and the send guard refuse any vt left over.
+
+## Baselines (`node harness/scripts/night5-eval.mjs <log>`)
+- L9 (free MiniMax, no reasoning): LLM 0/1376, every call a 400. 30 public lines, all rules or canned. No Sheriff (N1 kill). Rules 3 and 5 clean.
+- L10 (reasoning on): LLM 2/211 sent. The top rejects were early claim 44, stale reply 37, dead target sus 31, attacks/lynch/accuses Sheriff 36. The Sheriff claimed ~0.3s after day start, which fails rule 4 on the old code. Ask→answer took 5.8s. The D1 shot came at 134s. The rule 2 case was a mafia fake Journalist (correctly no mafia CC). Rules 3 and 5 clean, 0 seat errors.
+- Selfplay, 100 games, seed 1, same seeds, base `0494378` → Night 5: Village 57% → 62%, 0 illegal actions on both, town ballots on scum 61.5% → 61.0%, chat audit 0 leaks and 0 contradictions on both. The win-rate move is inside the noise for n=100 (±~10pp).
+- Fixture history: 4 distinct vt lines (L7, L8). The guard rewrites all of them to villager. Default replay unchanged: 1,643 events, 15 refusals, all pinned.
+
+## Lessons
+- A hold that "waits for more reads" must re-rank on evidence only. With the filler candidates in the list, the Sheriff chained asks on random players and burned the day.
+- Re-export new modules from files that both bases share (`speechNames.js`, `sheriffAsk.js`) instead of editing `index.js`. Then the same commits apply cleanly on both branches.
+- A once-per-game random draw needs its own rng. Drawing from the table rng shifts every later jitter and makes paired selfplay games diverge for no reason.
+- Selfplay reject tallies classify by reason prefix. A new guard needs its own kind, or it lands in "other".
+- PR #17 (6f61576) fails 3 engine and 4 harness tests on its own: exact-cased names, and the MiniMax default needs reasoning. The port branch fixes the expectations in their own commits.
+
+## Night 5 fixtures: g05, g14 and g16 rebuilt (branch `night5-fixtures-20261020` off `0cbb98f`)
+- The three stale fixtures came from an older builder. All three put the Sheriff's shot at the end of the day with generic death frames ("was found dead", plus an `exorcised` the gun never sends). The current builder puts it where the log has it. That's the old fixtures' fault, not the builder's. Per-event account: `docs/night5-fixture-diff.md`, made with `scripts/fixture-diff.mjs`.
+- A default rebuild adds 6 refusals in g14 and g16: ballots on the shot player, and the victim's own ballot, sent after his death. That's the Night 4 voteOrder bug. So the three are rebuilt with `--alert-roles --vote-order=log --nick-variants` and the manifest says so (`buildOptions`). With those options the other 13 rebuild byte-identical.
+- **New builder fault, `--nick-variants` (off by default):** bots wrote the plural and the "ck" spelling of a dev's 3-letter first name. The nickname matcher needs 5+ letters to guess, so both reached g14 (7 lines, also in the old fixture). On the real logs the option changes g14 only.
+- g14's stale-vote tie is the server's bug and stays: kept ballots tie at `*`, cleared ones condemn p06. Pinned in `fixtureRebuild.test.js`.
+- Defaults are proven two ways. A sha256 of the default build of a synthetic log, taken from the `0cbb98f` builder before any change. And all 25 real fixtures (with sidecars) rebuild byte-identical with the new option off.
+- L9 and L10 are now checked against the Night 5 rules (`live1019Night5.test.js`). In L10 the Sheriff's shot as played was on a contested power claim. With the asked seat's answer swapped to villager or blue (or "im vt"), he holds for the rest of the day. L9's Sheriff died on Night 1. The fixture's Sheriff label there is the pinned alert-roles gap, so the Sheriff rules use L10.
+
+## Lessons
+- When a fixture and its rebuild disagree, sort each event by kind first: **content** (a payload only one side has) or **delivery** (the same payload reaching a different set of seats). Delivery changes follow from a death moving. Only content changes need a cause.
+- Test a scrubber on the rebuild's own output, not only on the names it was told about. A matcher tuned to keep English words safe (5+ letters) lets short names' plurals and spellings through.
+- Pin the default output with a hash taken *before* the change. A "flag off == old" check written after the change can't catch a default that already moved.
+
+## Night 5 single-bot eval (branch `night5-solo-eval-20261020` off `385fe71`; docs/night5-solo-eval.md)
+- No fixture has a human: all 25 tables are 9 harness bot seats (761 public lines, all ours). The closest stand-in for a human table is L5-L10, which have a seatmap and real `t=` stamps. The "humans" around the bot are LLM bots.
+- `--timeline=log` (builder, off by default) puts the log's clock on the frames. The order-only build gives a whole day about 5 s, so every time-based rule (claim delay, the Sheriff's holds, the counterclaim window, ballot timing) is meaningless on it. `test/fixtures/solo-timeline/` holds L5-L10 built that way.
+- `scripts/solo-eval.mjs` puts one seat on the rules path (a one-account live table, no model) against the log. It takes the occupant's own votes and lines out and echoes the bot's sends back. Nothing reaches the other seats.
+- Found and fixed: a one-bot table whose first vote is the Sheriff's gun threw an error (`table.voteCount` didn't exist yet), so the shot was lost.
+
+## Lessons
+- A counterfactual replay must echo the bot's own sends back to it, and must remove the occupant's. Otherwise its view says it already voted (the logged ballot), and it never votes.
+- The builder places structural frames (meetings, timers, Vote Kick) at phase start. A seat that reacts to them (the ballot net's "vote kick open") fires at second 1. Check what a frame's position means before scoring timing.
+- A shot after an ask the log never heard is an artifact: nobody could answer it. Flag it rather than scoring it as the Sheriff's decision.
+- Judge a rule at the moment it applies, not from an end-of-day snapshot. The counterclaim pick changes once someone has claimed.
+- An all-bot table hides single-bot bugs. Other seats initialise shared table state (`voteCount`), and the bots follow each other's conventions (the counterclaim pick).

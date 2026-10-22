@@ -1,0 +1,213 @@
+{"accountId":"acc01","phase":"Night 1","source":"llm","reasons":["model stale"],"line":"Player03, too quiet to earn trust","outIndex":362}
+{"accountId":"acc07","phase":"Night 1","source":"llm","reasons":["model stale"],"line":"Player01, your silence looks guilty—time to answer.","outIndex":365}
+{"accountId":"acc02","phase":"Night 1","source":"llm","reasons":["model stale"],"line":"Player05, your silence looks evasive, so I’m voting you","outIndex":368}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["model stale"],"line":null,"outIndex":507}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["model stale"],"line":null,"outIndex":515}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":"vote Player03, still no claim","outIndex":515}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":515}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["stale reply (30s after the line it answers)"],"line":"vote Player07, only cop claimer says guilty","outIndex":515}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (31s after the line it answers)"],"line":"voting Player07, Player06 found them guilty","outIndex":515}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["stale reply (31s after the line it answers)"],"line":"Player06's cop claim makes Player07 the priority vote.","outIndex":515}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["stale reply (33s after the line it answers)"],"line":"Player07 stays my top read, vote her now.","outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["stale reply (37s after the line it answers)"],"line":"Player07, the cop says guilty; voting them.","outIndex":515}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["stale reply (80s after the line it answers)"],"line":"Player06 your cop result is garbage, read the room","outIndex":515}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["stale reply (82s after the line it answers)"],"line":"voting Player07, cop claim and guilty result.","outIndex":515}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["stale reply (87s after the line it answers)"],"line":"voting Player07, cop claim marks her guilty","outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07)"],"line":null,"outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["stale reply (107s after the line it answers)"],"line":"Player07, the only cop claim points you guilty","outIndex":515}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (110s after the line it answers)"],"line":"Player07, the cop result makes you our clearest target","outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":515}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["stale reply (112s after the line it answers)"],"line":"Player06, that cop result is suspiciously convenient.","outIndex":515}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["stale reply (115s after the line it answers)"],"line":"Player06’s result makes Player07 today’s priority vote.","outIndex":515}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["stale reply (123s after the line it answers)"],"line":"Player03 sheriff claim, Player07 still reads guilty.","outIndex":515}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["stale reply (130s after the line it answers)"],"line":"Player07 looks guilty, but who confirms the cop claim?","outIndex":531}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote, cop claim says guilty.","outIndex":588}
+{"accountId":"acc07","phase":"Day 1","source":"llm","reasons":["model stale"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, Player06's cop claim says guilty.","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 copied a journalist claim, vote Player07","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["stale reply (140s after the line it answers)"],"line":"Player07 is guilty per cop, vote them out.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"voting Player06, Player07’s journalist claim makes the result suspicious","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06's cop claim makes Player07 the top lynch.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, my top read is guilty","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, Player06's cop result is credible","outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07 based on Player06's cop claim","outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["stale reply (160s after the line it answers)"],"line":"Player06’s cop claim is suspiciously convenient. Vote Player06 now.","outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote, Player06 called them guilty.","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["stale reply (30s after the line it answers)"],"line":"Player08 overlaps Player07’s journalist claim, suspicious vote","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["stale reply (32s after the line it answers)"],"line":"Player07, the mafioso flip makes the journalist claim suspicious.","outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["stale reply (168s after the line it answers)"],"line":"Player07, your behavior still feels off—please explain.","outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["stale reply (36s after the line it answers)"],"line":"Player07 flipped mafioso, making Player03’s sheriff claim suspicious","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"counter-rule","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"lawyer cant fake a guilty, only an inno, so Player07 is mafia, vote Player07","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, Player06 says guilty","outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07's guilty claim makes them my priority vote.","outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06 claims Player07 guilty, so vote Player07.","outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["stale reply (182s after the line it answers)"],"line":"Player07, Player06's result makes this the clearest vote.","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 mafioso? player03 is alive)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"day-speech","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, only cop claimer says guilty","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"day-speech","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, Player06 found them guilty","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"day-speech","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06's cop claim makes Player07 the priority vote.","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07"],"line":"Player07 is guilty according to the only cop claim.","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote; the cop claim points guilt","outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote; Player06's cop claim confirms it","outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote, cop claim looks solid","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION doubts-sheriff (doubts the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06's cop result makes Player07 my vote.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07"],"line":"Player07 is guilty based on the only cop claim.","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, cop claim is our best evidence","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"i’m voting Player07, that’s my read","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, only cop says guilty","outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION sheriff-cop-conflict (Sheriff and Cop claims do not conflict)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07"],"line":"Player06 claims cop, Player07 guilty, vote Player07","outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07"],"line":"Player07 is guilty per the only cop claim; vote Player07","outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION sheriff-cop-conflict (Sheriff and Cop claims do not conflict)"],"line":null,"outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, only cop claim confirms guilt","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, the cop result needs explaining","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 flip? player03 is alive)"],"line":null,"outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 flip? player03 is alive)"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, the only cop claim says guilty.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION role (player03 flipped Sheriff, not Mafioso)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 has my vote, based on Player06's cop claim.","outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is my vote, only cop claim","outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, only cop claim implicates her","outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"voting Player07, only cop claim points guilty","outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06's cop result makes Player07 my priority vote","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION doubts-sheriff (doubts the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc03","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION vote-dead (urges a vote on player07, who is dead)"],"line":"Cop claim by Player06 supports voting Player07.","outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["chat-audit: SCUM_MISTAKE accuses-sheriff (calls the Sheriff (player03) suspicious)"],"line":null,"outIndex":588}
+{"accountId":"acc01","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player06, explain the Player07 check before we vote.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (sheriff flip? nobody flipped Sheriff)"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, only cop claimer confirmed her.","outIndex":588}
+{"accountId":"acc06","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION lynch-sheriff (calls for the Sheriff's lynch (player03))"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: LEAK result-not-received (player07 guilty: this seat got no result on player07)"],"line":null,"outIndex":588}
+{"accountId":"acc05","phase":"Day 1","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, guilty per the cop claim","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, the cop says guilty","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (sheriff flip? nobody flipped Sheriff)"],"line":null,"outIndex":588}
+{"accountId":"acc08","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (player03 flip? player03 is alive)"],"line":null,"outIndex":588}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION flip (sheriff flip? nobody flipped Sheriff)"],"line":null,"outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"Player07 is guilty, vote Player07.","outIndex":588}
+{"accountId":"acc04","phase":"Day 1","source":"llm","reasons":["chat-audit: CONTRADICTION attacks-sheriff (attacks the revealed Sheriff (player03))"],"line":null,"outIndex":595}
+{"accountId":"acc02","phase":"Day 1","source":"llm","reasons":["held line invalid at send: chat-audit: CONTRADICTION dead-sus (calls player07 sus, who is dead)"],"line":"vote Player07, the cop called them guilty.","outIndex":595}
+{"accountId":"acc04","phase":"Night 2","source":"llm","reasons":["model stale"],"line":"thanks Player05, that actually makes sense.","outIndex":746}
+{"accountId":"acc02","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":746}
+{"accountId":"acc02","phase":"Night 2","source":"llm","reasons":["model stale"],"line":"Player04 wrong guy, not me","outIndex":746}
+{"accountId":"acc06","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":746}
+{"accountId":"acc06","phase":"Night 2","source":"llm","reasons":["model stale"],"line":null,"outIndex":746}
+{"accountId":"acc03","phase":"Night 2","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":746}
+{"accountId":"acc03","phase":"Night 2","source":"llm","reasons":["model stale"],"line":null,"outIndex":746}
+{"accountId":"acc01","phase":"Night 2","source":"llm","reasons":["model stale"],"line":"Player04, four votes means your claim needs actual defense","outIndex":746}
+{"accountId":"acc08","phase":"Night 2","source":"llm","reasons":["model stale"],"line":"Player07 flipped mafioso, confirming Player06’s result. Vote Player04.","outIndex":750}
+{"accountId":"acc05","phase":"Night 2","source":"llm","reasons":["model stale"],"line":null,"outIndex":750}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["model stale"],"line":null,"outIndex":840}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["model stale"],"line":null,"outIndex":840}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player04 sus, who is dead)"],"line":null,"outIndex":845}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (33s after the line it answers)"],"line":"Player02, the relayed cop report already confirms guilt.","outIndex":850}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (34s after the line it answers)"],"line":"Player05 joined a town wagon, so vote them off.","outIndex":850}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (34s after the line it answers)"],"line":"Player05 joined a flipped-town wagon, so vote them now.","outIndex":855}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (35s after the line it answers)"],"line":"Player05 vote them, Player04 flip was obvious.","outIndex":860}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (36s after the line it answers)"],"line":"voting Player02, the relayed cop report says guilty","outIndex":860}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (36s after the line it answers)"],"line":"Player02, you’re my vote; reported cop result names you guilty.","outIndex":860}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player04 sus, who is dead)"],"line":null,"outIndex":860}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (37s after the line it answers)"],"line":"Player05 joined a flipped-town wagon, vote him.","outIndex":860}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (38s after the line it answers)"],"line":"Player02, the relayed cop report says guilty.","outIndex":860}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (39s after the line it answers)"],"line":"Player05 joined Player04’s flipped-town wagon, so vote Player05.","outIndex":860}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (39s after the line it answers)"],"line":"voting Player02, journalist relayed guilty report","outIndex":860}
+{"accountId":"acc01","phase":"Day 2","source":"llm","reasons":["stale reply (39s after the line it answers)"],"line":"Player05, you joined a flipped-town wagon, so vote him now.","outIndex":860}
+{"accountId":"acc03","phase":"Day 2","source":"llm","reasons":["stale reply (39s after the line it answers)"],"line":"Player02, the relayed guilty report makes you the priority","outIndex":860}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["stale reply (41s after the line it answers)"],"line":"Player05 why would i lie here?","outIndex":860}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["stale reply (41s after the line it answers)"],"line":"Player05 joined the flipped-town wagon, so i suspect them","outIndex":860}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["stale reply (41s after the line it answers)"],"line":"Player05, what exactly makes you think i'm lying?","outIndex":860}
+{"accountId":"acc02","phase":"Day 2","source":"llm","reasons":["stale reply (41s after the line it answers)"],"line":"Player05, why call me lying if i got no report?","outIndex":860}
+{"accountId":"acc01","phase":"Night 3","source":"llm","reasons":["chat-audit: CONTRADICTION dead-sus (calls player04 sus, who is dead)"],"line":null,"outIndex":946}
+{"accountId":"acc01","phase":"Night 3","source":"llm","reasons":["model stale"],"line":null,"outIndex":946}
+{"accountId":"acc08","phase":"Night 3","source":"llm","reasons":["model error: stale"],"line":null,"outIndex":946}
+{"accountId":"acc08","phase":"Night 3","source":"llm","reasons":["model stale"],"line":null,"outIndex":946}
+{"accountId":"acc02","phase":"Night 3","source":"llm","reasons":["model stale"],"line":"Player05, i'm villager, why call me lying?","outIndex":946}
+{"accountId":"acc05","phase":"Night 3","source":"llm","reasons":["model stale"],"line":"Player03, vote Player02; the cop report confirms guilt.","outIndex":947}
+{"accountId":"acc03","phase":"Night 3","source":"llm","reasons":["model stale"],"line":"voting Player08, their report is contradictory.","outIndex":947}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["chat-audit: CONTRADICTION self-third-person (refers to itself as player05)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["chat-audit: CONTRADICTION result (player02 guilty: this seat's result on player02 says otherwise)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["chat-audit: CONTRADICTION self-third-person (refers to itself as player05)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc05","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc01","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["early claim (villager)"],"line":null,"outIndex":1000}
+{"accountId":"acc08","phase":"Day 3","source":"llm","reasons":["chat-audit: CONTRADICTION result (player02 guilty: this seat's result on player02 says otherwise)"],"line":null,"outIndex":1003}
+{"accountId":"acc08","phase":"Postgame","source":"llm","reasons":["model stale"],"line":"Player01 claims blue but was called lying; vote her.","outIndex":1042}
+{"accountId":"acc01","phase":"Postgame","source":"llm","reasons":["model stale"],"line":"Player05, vote Player08 and save me.","outIndex":1042}

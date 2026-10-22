@@ -101,7 +101,55 @@ Names only. Defaults in parentheses come from the code.
 
 `selfplay.mjs`: `--games`, `--seed`, `--days`, `--out`, `--quiet`, `--cop-rule` (`vinman` or `wait`), `--sheriff-rule` (`vinman` or `evidence`), `--lawyer` (`loyal` or `plain`), `--mafia` (`adaptive` or `script`), `--town` (`rules`, `suspicion`, or `random`), `--chat-audit` (`enforce` or `measure`), `--audit-tight` (`on` or `off`), `--stale-votes` (`clear` or `server`), `--hammer` (`on` or `off`), `--hammer-gate`, `--qt-filler`, `--qt-repair`, `--qt-keyfirst`, `--claim-pressure`, `--plant-audit`, `--sim-latency`, `--stale-recheck`, `--stale-cancel`, `--stale-fallback`.
 
-`build-replays.mjs` takes an output directory and log paths. `audit-rejects.mjs` takes a fixture directory and optional `--json`, `--engine`. `sheriff-eval.mjs` takes one directory per arm. `stale-latency.mjs` takes log paths and optional `--json`, `--dist`.
+Night 5–6 flags, all off by default. They are `createBotTable` options. `selfplay.mjs` is the CLI. `scripts/live.mjs` has no switch for them yet, so a live dev game that needs one still takes a small wiring change in the runner.
+
+| Config key | CLI | What it does |
+| --- | --- | --- |
+| `voteHold` | `--vote-hold on` | A town ballot waits for a confident read, or 60% of the day |
+| `soloCounterclaim` | `--solo-cc on` | A lone mafia bot counterclaims the Sheriff's asked Cop or Journalist, once |
+| `groundedSpeech` | `--grounded-speech on` | Drops filler lines |
+| `voteKickGuard` | `--kick-guard on` | Stops duplicate Vote Kick (gun) sends |
+| (the four above) | `--solo-flags all` | Turns those four on together |
+| `gunOnce` | `--gun-once on` | Marks the Sheriff's gun as used when the shot goes out |
+| `chatPassthrough` | `--chat-pass on` | Loosens speech rules that blocked good lines, and adds guards for unsafe ones |
+| `sheriffLateGrace` | `--late-grace on` | +30 s for an asked seat's late answer before the Sheriff shoots |
+| `teamClaimGuard` | `--team-claim-guard on` | At most one fake power claim per mafia team |
+| `wideClaimParse` | `--wide-claims on` | Parses "cop X guilty", "journalist lol, …" and "Journalist, nothing to report yet." as claims |
+
+`mixed.teamReveal` is harness-eval only (`mixed-table.mjs --team-reveal=on`). It is on by default in `cc-scenarios.mjs` and off everywhere else. A mafia bot then learns its scripted teammates.
+
+### `recommended` preset
+
+`harness/src/presets.js` only names flags. Code defaults stay off. `recommended` turns on `soloCounterclaim`, `groundedSpeech`, `voteKickGuard`, `gunOnce`, `chatPassthrough`, `sheriffLateGrace`, `teamClaimGuard`, and `wideClaimParse`. `voteHold` is added for a single-bot table only.
+
+```bash
+cd harness
+node scripts/selfplay.mjs --preset recommended
+node scripts/selfplay.mjs --preset recommended --preset-solo
+node scripts/mixed-table.mjs --configs=base,recommended
+```
+
+`--preset-solo` adds `voteHold` on self-play. Mixed-table config `recommended` adds `voteHold` on its own, because that table is one bot. Explicit flag CLIs add on top of the preset.
+
+The numbers behind that preset are local self-play and mixed-table runs with a stubbed model and scripted seats (self-play seeds 51–54 × 50 = 200 games per config; mixed table seeds 12001–12100 × 7 roles, Sheriff and Lawyer extended to 12001–12200). They are simulated results, not games against human players. Self-play village win was 51.0% with every flag off, 57.0% on `recommended` (paired Δ +6.0 [−0.9, +12.9]), and 67.5% on `recommended` plus `voteHold` (paired Δ +16.5 [+8.4, +24.6]). The same runs are tabulated in the [README](../README.md).
+
+### Eval scripts
+
+Offline unless noted. Run them from `harness/`.
+
+| Script | What it does |
+| --- | --- |
+| `node scripts/night5-eval.mjs <log...> [--json]` | Read-only score of a live log: speech success, rejects, timing, five claim checks |
+| `node scripts/solo-eval.mjs` | One-seat counterfactual replay of the timed fixtures on the rules path |
+| `node scripts/solo-flags-eval.mjs` | The same replay for each flag config |
+| `node scripts/solo-flags-selfplay.mjs <runsDir>` | Summarize self-play runs per config, with Wilson CIs and paired differences |
+| `node scripts/mixed-table.mjs --roles= --seeds= --configs=` | One bot and eight scripted human-like seats |
+| `node scripts/cc-scenarios.mjs --cases=lone,team,teamCop` | Counterclaim scenarios |
+| `node scripts/fixture-diff.mjs` | Per-event diff of two fixture builds |
+| `node scripts/state-replay.mjs` | Replay fixtures through the state model |
+| `node scripts/rescrub.mjs <src> <dst> [--raw=…]` | Re-scrub sanitized logs. Prints counts only |
+
+`build-replays.mjs` takes an output directory and log paths. Optional, all off by default: `--timeline=log`, `--nick-variants`, `--alert-roles`, `--vote-order=log`. `audit-rejects.mjs` takes a fixture directory and optional `--json`, `--engine`. `sheriff-eval.mjs` takes one directory per arm. `stale-latency.mjs` takes log paths and optional `--json`, `--dist`.
 
 ## Docker
 
