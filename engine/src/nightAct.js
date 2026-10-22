@@ -7,7 +7,7 @@ import { isAlive } from "./reducer.js";
 import { memoryOf } from "./notes.js";
 import { ALIGNMENT } from "./faction.js";
 import { townReads } from "./townReads.js";
-import { claimedRoleIn } from "./chatStyle.js";
+import { claimedRoleIn, claimOpts } from "./chatStyle.js";
 
 const DEFAULT_MAP = createRequire(import.meta.url)("../data/night-actions.json");
 const KILL_MEETING = /^(mafia|cult)$/i;
@@ -131,7 +131,7 @@ function publicClaimOf(view, id) {
   let role = null;
   for (const m of view.messages || []) {
     if (m?.senderId !== id || m.public === false) continue;
-    const r = claimedRoleIn(m.content);
+    const r = claimedRoleIn(m.content, claimOpts(view));
     if (r) role = /^(vanilla|vt|v\/t|town|townie|blue)$/.test(r) ? "villager" : r;
   }
   return role || (view.claims?.[id]?.kind !== "retract" ? String(view.claims?.[id]?.role || "").toLowerCase() || null : null);

@@ -1,5 +1,5 @@
 {
-  "note": "Rebuilt from live-harness logs (frame-type counts, meeting lines, sends, public chat, alerts, dead-seat lines, winners), not raw frame dumps. Ids, names and game ids are fake. seatBinding: seatmap (exact), recovered (the only binding the log allows), partial (ambiguousSeats could swap without contradicting the log), guessed (no evidence). roles: meetings (from the log's meeting lines), inferred (from sends; a town night actor's Cop/Journalist split may be swapped), setup order (made up). Payload shapes follow the server source.",
+  "note": "Rebuilt from live-harness logs (frame-type counts, meeting lines, sends, public chat, alerts, dead-seat lines, winners), not raw frame dumps. Ids, names and game ids are fake. seatBinding: seatmap (exact), recovered (the only binding the log allows), partial (ambiguousSeats could swap without contradicting the log), guessed (no evidence). roles: meetings (from the log's meeting lines), inferred (from sends; a town night actor's Cop/Journalist split may be swapped), setup order (made up). Payload shapes follow the server source. buildOptions: the builder options a fixture was rebuilt with (none listed: default options). g05, g14 and g16 were rebuilt on 2026-10-20 (docs/night5-fixture-diff.md); with these options the other 13 rebuild byte-identical to what is committed.",
   "fixtures": [
     {
       "fixture": "g01.jsonl",
@@ -243,7 +243,7 @@
       "deathsConfirmedByDeadLines": 0,
       "cleaned": 0,
       "alerts": 0,
-      "entries": 1834,
+      "entries": 1830,
       "observedFrameCounts": {
         "time": 135729,
         "clearTimer": 341,
@@ -280,7 +280,12 @@
         "winners": 31,
         "finished": 62,
         "kudos": 70
-      }
+      },
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants"
+      ]
     },
     {
       "fixture": "g06.jsonl",
@@ -705,7 +710,7 @@
       "deathsConfirmedByDeadLines": 3,
       "cleaned": 1,
       "alerts": 0,
-      "entries": 2785,
+      "entries": 2557,
       "observedFrameCounts": {
         "connected": 9,
         "authSuccess": 9,
@@ -738,7 +743,12 @@
         "deathSounds": 27,
         "gunshot": 9,
         "leftMeeting": 1
-      }
+      },
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants"
+      ]
     },
     {
       "fixture": "g15.jsonl",
@@ -823,7 +833,7 @@
       "deathsConfirmedByDeadLines": 5,
       "cleaned": 1,
       "alerts": 5,
-      "entries": 1120,
+      "entries": 1123,
       "observedFrameCounts": {
         "connected": 9,
         "authSuccess": 9,
@@ -858,7 +868,12 @@
         "leftMeeting": 1,
         "condemn": 18,
         "winners": 1
-      }
+      },
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants"
+      ]
     }
   ]
 }

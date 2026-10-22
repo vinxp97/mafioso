@@ -1,6 +1,8 @@
 // Offline self-play: full Frontier Justice 9p games on the real harness decision path, no server.
 // Usage: npm run selfplay -- --games 50 --seed 1 [--days 8] [--cop-rule vinman|wait] [--sheriff-rule vinman|evidence] [--lawyer loyal|plain] [--mafia adaptive|script] [--town rules|suspicion|random] [--chat-audit enforce|measure] [--stale-votes clear|server] [--hammer on|off] [--plant-audit [held|held2]] [--qt-filler facts] [--qt-repair intent] [--qt-keyfirst on] [--out ../logs/selfplay] [--quiet]
 // Never opens a socket and never calls a model.
+import { presetFlags } from "../src/presets.js";
+import fs from "node:fs";
 import path from "node:path";
 import { SELFPLAY_DIR, runSelfplay, writeSelfplay } from "../src/selfplay.js";
 
@@ -33,6 +35,9 @@ if (!["rules", "suspicion", "random"].includes(town)) { console.error(`--town mu
 const chatAudit = flag("--chat-audit", "enforce");
 // --audit-tight on: chatAudit also checks the held-out phrasings (fake vote/count shapes, faction admits, 'x plays r', 'x showed r'); off by default
 const auditTight = flag("--audit-tight", "off");
+// --chat-pass on (Night 6, off by default): config.chatPassthrough, the loosened speech rules (docs/chat-passthrough.md)
+const chatPass = flag("--chat-pass", "off");
+if (!["on", "off"].includes(chatPass)) { console.error(`--chat-pass must be on or off, got ${chatPass}`); process.exit(2); }
 if (!["on", "off"].includes(auditTight)) { console.error(`--audit-tight must be on or off, got ${auditTight}`); process.exit(2); }
 if (!["enforce", "measure"].includes(chatAudit)) { console.error(`--chat-audit must be enforce or measure, got ${chatAudit}`); process.exit(2); }
 // --stale-votes clear (default: every vote on the dead is cleared, as on dev since Pranay's fix 2026-10-18) | server
@@ -61,12 +66,31 @@ if (!["server", "clear"].includes(staleVotes)) { console.error(`--stale-votes mu
 if (!["adaptive", "script"].includes(mafia)) { console.error(`--mafia must be adaptive or script, got ${mafia}`); process.exit(2); }
 if (!["vinman", "wait"].includes(copRule)) { console.error(`--cop-rule must be vinman or wait, got ${copRule}`); process.exit(2); }
 if (!["loyal", "plain"].includes(lawyer)) { console.error(`--lawyer must be loyal or plain, got ${lawyer}`); process.exit(2); }
+// Night 5 solo flags (all off by default): --vote-hold on | --solo-cc on | --grounded-speech on | --kick-guard on | --solo-flags all
+const soloAll = flag("--solo-flags", "") === "all";
+const soloFlags = Object.fromEntries([["voteHold", "--vote-hold"], ["soloCounterclaim", "--solo-cc"], ["groundedSpeech", "--grounded-speech"], ["voteKickGuard", "--kick-guard"]].map(([k, f]) => [k, soloAll ? "on" : flag(f, "off")]));
+// --gun-once on: the Night 5 gun fix (off by default; not part of --solo-flags all)
+soloFlags.gunOnce = flag("--gun-once", "off");
+soloFlags.sheriffLateGrace = flag("--late-grace", "off");
+soloFlags.teamClaimGuard = flag("--team-claim-guard", "off");
+soloFlags.wideClaimParse = flag("--wide-claims", "off");
+for (const [k, v] of Object.entries(soloFlags)) if (!["on", "off"].includes(v)) { console.error(`${k}: must be on or off, got ${v}`); process.exit(2); }
+// --preset recommended [--preset-solo] (Night 6 part 6): turn on a preset's flags (src/presets.js); explicit flags add to it.
+const presetName = flag("--preset", "");
+const preset = presetName ? presetFlags(presetName, { solo: args.includes("--preset-solo") }) : {};
+const soloOn = { ...Object.fromEntries(Object.entries(preset).filter(([k, v]) => v === "on" && k !== "chatPassthrough")), ...Object.fromEntries(Object.entries(soloFlags).filter(([, v]) => v === "on")) };
+// --count-gun: also write <out>/gun.jsonl, the Sheriff's gun sends per game (Night 5 gun-fix measurement; changes nothing else)
+const countGun = args.includes("--count-gun");
+const gunRows = [];
 const started = Date.now();
 const run = await runSelfplay({
-  games, seed, maxDays, copRule, sheriffRule, lawyer, mafia, town, chatAudit, plantAudit, staleVotes, hammer, hammerGate, quietTable, ...(claimPressure ? { claimPressure } : {}), ...(simLatency ? { simLatency } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}),
-  onGame: (r) => { if (!quiet) console.error(`game ${r.game}: ${r.winner}${r.error ? ` (${r.error})` : ""} after ${r.days} day(s)`); },
+  games, seed, maxDays, copRule, sheriffRule, lawyer, mafia, town, chatAudit, plantAudit, staleVotes, hammer, hammerGate, quietTable, ...(claimPressure ? { claimPressure } : {}), ...(simLatency ? { simLatency } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}), ...soloOn, ...(chatPass === "on" || preset.chatPassthrough ? { chatPassthrough: true } : {}),
+  ...(countGun ? { keepServer: true } : {}),
+  onGame: (r) => {
+    if (countGun) { const g = r.server?.table?.gunSends || []; const by = {}; for (const x of g) by[x.id] = (by[x.id] || 0) + 1; gunRows.push({ seed, game: r.game, sends: g.length, seats: Object.keys(by).length, revotes: Object.values(by).reduce((a, n) => a + Math.max(0, n - 1), 0), sources: g.map((x) => x.source) }); if (r.server) r.server.table = null; } if (!quiet) console.error(`game ${r.game}: ${r.winner}${r.error ? ` (${r.error})` : ""} after ${r.days} day(s)`); },
 });
 const files = await writeSelfplay(run, { outDir });
+if (countGun) fs.writeFileSync(path.join(outDir, "gun.jsonl"), gunRows.map((r) => JSON.stringify(r)).join("\n") + "\n");
 const c = run.scorecard;
 const pct = (x) => (x == null ? "n/a" : `${(100 * x).toFixed(1)}%`);
 console.log(`self-play: ${games} games, seed ${seed}, cop rule ${copRule}, sheriff rule ${sheriffRule}, lawyer ${lawyer}, mafia ${mafia}, town ${town}, ${((Date.now() - started) / 1000).toFixed(1)}s`);

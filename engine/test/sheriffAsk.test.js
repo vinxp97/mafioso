@@ -65,9 +65,11 @@ test("rule 1: the Sheriff asks his target first; a non-power answer (or none) le
   assert.match(validateAction(v, shoot("p4")).reason, /too early/);
   v = at(reduce(v, say("p1", r.ask.line, 130_000)), 131_000);
   assert.match(sheriffShotReady(v).reason, /waiting on Cat \(pending-reply\)/);
-  // A plain answer: shoot.
+  // A plain answer: held for more claims and reads (Night 5), then shot.
   const plain = at(reduce(v, say("p4", "alice why me, im vt", 131_000)), 132_000);
-  assert.deepEqual([sheriffShotReady(plain).ok, sheriffShotReady(plain).target], [true, "p4"]);
+  assert.match(sheriffShotReady(plain).reason, /pending-vt/);
+  const later = at(plain, 131_000 + SHERIFF_ASK.vtHoldMaxMs);
+  assert.deepEqual([sheriffShotReady(later).ok, sheriffShotReady(later).target], [true, "p4"]);
   // No answer within the window: shoot.
   const silent = at(v, 130_000 + SHERIFF_ASK.replyMs + 1);
   assert.deepEqual([sheriffShotReady(silent).ok, sheriffShotReady(silent).target], [true, "p4"]);
@@ -92,7 +94,9 @@ test("rule 1: a power-role answer waits for a counterclaim; none in time means p
   // Counterclaimed: the claim is contested and the shot goes ahead.
   const cc = at(reduce(v, say("p6", "cat is lying, im the journalist", 133_000)), 134_000);
   assert.equal(shotStatus(cc, "p4").status, "contested");
-  const shot = sheriffShotReady(cc);
+  // 10/20 2:02pm: a weak pair (asked answer vs unprompted counter) waits, then shoots one at the deadline.
+  assert.match(sheriffShotReady(cc).reason, /waiting on the Journalist claims/);
+  const shot = sheriffShotReady(at(cc, 520_000));
   assert.equal(shot.ok, true);
   assert.ok(["p4", "p6"].includes(shot.target));
 });

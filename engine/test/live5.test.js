@@ -48,8 +48,18 @@ test("L5 #2: once voting starts, the Sheriff asks a beat after his claim, before
   // A Villager reply opens the target; after the discussion gate he shoots it.
   const asked = reduce(reduce(v, say("s1", r.ask.line, 13_000)), say(r.ask.target, "im vt", 16_000));
   const more = ["s2", "s3", "s4", "s5", "s6", "s7"].reduce((x, p, i) => reduce(x, say(p, "hmm idk", 17_000 + i * 500)), asked);
-  // L6: the answer settles it; he shoots the asked Villager claimer at once (no wait for reads).
-  const shot = sheriffShotReady(asked, { now: 16_500 });
+  // Night 5 (Vinman 10/20): a Villager answer is held for more claims and reads (it used to be shot at once, L6).
+  const held = sheriffShotReady(asked, { now: 16_500 });
+  assert.equal(held.ok, false, "no shot right after the Villager answer");
+  // Six more lines and 12s+ later, nothing against anyone: (Vinman 10/20, 12:29pm) he no longer shoots the first
+  // asked Villager claimer just because he asked him first; he re-ranks everyone and asks the next player.
+  const next = sheriffShotReady(more, { now: 28_500 });
+  assert.equal(next.ok, false, JSON.stringify(next));
+  assert.ok(next.ask?.target && next.ask.target !== r.ask.target, JSON.stringify(next));
+  // ...unless the asked one is still clearly the most suspicious: two players call him sus, he is shot.
+  const [a1, a2] = ["s3", "s4", "s5"].filter((p) => p !== r.ask.target);
+  const sus = [say(a1, `${players[r.ask.target].name} is sus`, 20_000), say(a2, `vote ${players[r.ask.target].name}`, 20_500)].reduce(reduce, more);
+  const shot = sheriffShotReady(sus, { now: 28_500 });
   assert.equal(shot.ok, true, shot.reason);
   assert.equal(shot.target, r.ask.target);
 });

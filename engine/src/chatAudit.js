@@ -8,7 +8,7 @@
 //                  differs from the one received, a reply to an accusation nobody made.
 //   SCUM_MISTAKE   a scum fake claim or fake result that public facts already disprove (a role that flipped
 //                  elsewhere, a guilty on a revealed townie). Fakes that fit the public facts pass: deception.
-import { claimedRoleIn, earlyClaimBlock, roleClaimLine } from "./chatStyle.js";
+import { claimedRoleIn, claimOpts, earlyClaimBlock, roleClaimLine } from "./chatStyle.js";
 import { repairSpentGunThreat, sheriffGunSpent, SPENT_GUN_THREAT } from "./sheriffGate.js";
 import { alignmentOf, allies } from "./faction.js";
 import { machineLeak, publicLeak, revealedSheriff } from "./legal.js";
@@ -126,7 +126,7 @@ export function chatAudit(view, content) {
   const flipped = (id) => (mates.has(id) && alive(view, id) ? null : roleOf(view.reveals?.[id]));
   const claimOf = (id) => {
     const c = view.claims?.[id];
-    const said = (view.messages || []).filter((m) => m?.senderId === id && m.public !== false).map((m) => ROLES[claimedRoleIn(m.content)]).filter(Boolean);
+    const said = (view.messages || []).filter((m) => m?.senderId === id && m.public !== false).map((m) => ROLES[claimedRoleIn(m.content, claimOpts(view))]).filter(Boolean);
     return new Set([recOf().claims[id], c && c.kind !== "retract" ? ROLES[String(c.role || "").toLowerCase()] : null, ...said].filter(Boolean));
   };
   const votes = voteFacts(view);
@@ -408,7 +408,7 @@ export function chatAudit(view, content) {
   // L6 (10/18): town calling for the Sheriff's lynch ("believe the cop, vote that sheriff out"), the revealed
   // Sheriff or the living sole Sheriff claimer: never-lynch-the-Sheriff, in chat too.
   const shClaimer = shooter || (() => {
-    const ids = [...new Set((view.messages || []).filter((m) => m.public !== false && m.senderId && alive(view, m.senderId) && claimedRoleIn(m.content) === "sheriff").map((m) => m.senderId))];
+    const ids = [...new Set((view.messages || []).filter((m) => m.public !== false && m.senderId && alive(view, m.senderId) && claimedRoleIn(m.content, claimOpts(view)) === "sheriff").map((m) => m.senderId))];
     return ids.length === 1 ? ids[0] : null;
   })();
   // A Sheriff claimer with a guilty on him (public, or my own check) is fair game.
@@ -431,6 +431,9 @@ export function chatAudit(view, content) {
   if (deadIds.length) for (const seg of text.split(/[.;!?,]+|\bbut\b|\band\b/)) {
     const sus = DEAD_SUS.exec(seg);
     if (!sus || /\b(was|were|flipped|flip|died|dead|turned out)\b/.test(seg)) continue;
+    // chatPassthrough: a past action of the dead ("player09 pushed ash hard, sus") or the dead named by their
+    // reveal ("the janitor player09 sus") is about the flip, not a read on a living player.
+    if (passDeadOk(view, seg, deadIds, byName)) continue;
     const named = (chunk) => {
       const hits = [];
       for (const [name, id] of Object.entries(byName)) {
@@ -511,6 +514,10 @@ export function chatAudit(view, content) {
     const voted = votes.standing[by] === view.selfId || votes.today.some((v) => v.voterId === by && v.target === view.selfId);
     if (by && by !== view.selfId && !named && !voted) flag("CONTRADICTION", "reply", `answers ${nm(by)}, who neither voted nor named this seat today`);
   }
+  // chatPassthrough (Night 6 positive control): with the loosened rules on, also block the unsafe shapes the
+  // default checks let through (false town claims, unseen reports, a scum kill admission, reasoning tags, names
+  // that are not an exact player name).
+  if (view.config?.chatPassthrough) for (const f of passGuard(view, raw, text, lex, scum)) flag(...f);
   return flags;
 }
 
@@ -568,4 +575,78 @@ export function chatAuditBlock(view, content) {
   if (view?.config?.chatAudit === "measure") return null;
   const [f] = chatAudit(view, content);
   return f ? `chat-audit: ${f.kind} ${f.rule} (${f.detail})` : null;
+}
+
+// chatPassthrough (Night 6, off by default): dead-player segments that talk about the past or the reveal.
+const PAST_ACT = /\b(voted|pushed|defended|claimed|said|did|had|accused|hammered|bussed|tried|called|kept|sided|backed|protected|buddied|wagoned)\b/;
+function passDeadOk(view, seg, deadIds, byName) {
+  if (!view?.config?.chatPassthrough) return false;
+  const hits = [];
+  for (const [name, id] of Object.entries(byName || {})) {
+    const m = new RegExp(`(?<![a-z0-9_])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9_])`).exec(seg);
+    if (m) hits.push({ id, at: m.index });
+  }
+  hits.sort((a, b) => a.at - b.at);
+  const named = hits.map((h) => h.id);
+  if (!named.some((id) => deadIds.includes(id))) return false;
+  if (PAST_ACT.test(seg)) return true;
+  // "ash voting with player09 is sus": the read is on the living player named first.
+  if (hits.length > 1 && !deadIds.includes(hits[0].id) && hits[0].id !== view.selfId) return true;
+  // Named by the role they actually flipped ("the mafioso dan is sus"); a different role word is not a reveal.
+  return named.some((id) => {
+    const role = deadIds.includes(id) ? String(roleOf(view.reveals?.[id]) || "").toLowerCase() : "";
+    return !!role && new RegExp(`\\b${role}\\b`).test(seg);
+  });
+}
+
+// Words that may follow "vote" or precede "is sus" without being a player name.
+const NOT_A_NAME = new Set(("no one noone nobody none nothing everyone everybody someone somebody anyone anybody everything something anything "
+  + "him her them they he she it its that this these those me you i we us my your our his hers their mine yours ours theirs myself yourself "
+  + "who whoever what which whose either both all each other others another "
+  + "now early late later today tonight already again too so very kinda lowkey honestly really also just not but and or if then out for on with in "
+  + "the a an to of at by from up down off over is was be been being am are were "
+  + "skip abstain self guilty inno innocent red blue town mafia scum maf wagon vote votes voting push pushes read reads claim claims "
+  + "cop journalist sheriff villager janitor lawyer mafioso godfather role roles report reports flip flips lynch hammer "
+  + "lol lmao lmaooo bro ok okay yeah yes nah nope hmm idk tbh ngl fr kind sort pretty super way far quite still even only literally "
+  + "quiet silence silent lurker lurking slot slots seat seats player players guy guys whole entire more most less least "
+  + "first second last next new old fake real same different pls plz please asap together here there till until when where why how "
+  + "feels felt looks looked seems seemed was wrong right mutual "
+  + "should would could will can cant wont dont isnt maybe probably definitely def prob rn imo tho though instead first").split(/\s+/).filter(Boolean));
+const CANDIDATE_RES = [
+  /(?:^|[^a-z0-9_])@([a-z0-9_]+)/g,
+  /(?<![-\w])(?:vote|voting|lynch|lynching|hang|hanging|hammer|hammering|hammered)\s+(?:for\s+|on\s+|out\s+)?([a-z][a-z0-9_]*)/g,
+  /\b([a-z][a-z0-9_]*)(?:'s|\u2019s)\s+(?:push|vote|claim|read|defense|wagon|report|play|silence|flip)\b/g,
+  /(?:^|[.,!?;:]\s*|\b(?:think|imo|tbh|ngl|honestly|and|but|so|like|cuz|because)\s+)([a-z][a-z0-9_]*)\s+(?:(?:is|looks|seems|feels)\s+(?:sus|suspicious|lying|scum|scummy|mafia|sketchy|shady|guilty)|sus|scummy|sketchy)\b/g,
+];
+const REPORT_RE = /\b([a-z][a-z0-9_]*)\s+got\s+(?:no|a|the|one)\s+(?:cop\s+)?reports?\b/;
+const SELF_CLAIM_RE = /\b(?:i'?m|i am|im|i claim)\s+(?:(?:the|a|also|real|actual|actually|just)\s+)*(cop|journalist|sheriff|janitor|lawyer|mafioso|villager)\b/;
+const SCUM_KILL_RE = /\b(?:we|us)\s+(?:killed|kill|nk'?d|nked|hit|shot|got)\b|\bour\s+(?:kill|nk|night\s*kill)\b/;
+
+/** chatPassthrough guard flags: [kind, rule, detail][]. */
+function passGuard(view, raw, text, lex, scum) {
+  const out = [];
+  if (/<\/?\s*(?:think|thinking|reasoning)\b/i.test(raw)) out.push(["LEAK", "reasoning-tag", "model reasoning markup"]);
+  // A town seat claims only its own role (a Villager says villager; a power role may hide as villager).
+  const claimed = (text.match(SELF_CLAIM_RE) || [])[1];
+  const mine = String(view.role || "").toLowerCase();
+  if (claimed && !scum && claimed !== "villager" && claimed !== mine) out.push(["CONTRADICTION", "false-town-claim", `claims ${claimed}, is ${mine || "?"}`]);
+  // A report is Journalist information: another town seat may only relay one said in public (a scum seat's fake
+  // Journalist counterclaim is its own play, as with any mafia fake claim).
+  const rep = REPORT_RE.exec(text);
+  if (rep && !scum && !/journalist/i.test(mine)) {
+    const relayed = (view.messages || []).some((m) => m?.senderId && m.senderId !== view.selfId && new RegExp(`\\b${rep[1]}\\s+got\\s+`, "i").test(String(m.content || "")));
+    if (!relayed) out.push(["LEAK", "unseen-report", `report on ${rep[1]}: no Journalist said it`]);
+  }
+  if (scum && SCUM_KILL_RE.test(text)) out.push(["LEAK", "admits-kill", "a scum seat speaks of the faction's kill"]);
+  // Names: a name-like token after a vote or accusation word must be an exact player name (or known nickname).
+  const known = lex?.byName || {};
+  for (const re of CANDIDATE_RES) {
+    for (const m of text.matchAll(re)) {
+      const tok = m[1];
+      if (!tok || known[tok] || NOT_A_NAME.has(tok) || /^\d+$/.test(tok)) continue;
+      out.push(["LEAK", "unknown-name", `"${tok}" is not a player name`]);
+      return out;
+    }
+  }
+  return out;
 }

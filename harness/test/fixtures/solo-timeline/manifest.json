@@ -1,0 +1,179 @@
+{
+  "note": "Live games L5-L10 rebuilt with --alert-roles --vote-order=log --nick-variants --timeline=log for the Night 5 single-bot eval (harness/src/soloEval.js, scripts/solo-eval.mjs). Same games, seats, chat text and scrubbing as fixtures/live-1018 and live-1019 (the chat is identical line for line); only frame times and the order inside a phase differ: frames carry the log t= times (shifted to the fixture epoch) and a phase starts 2 s before its first timed line. L2-L4 logs have no t= stamps and are not here. Ids, names and game ids are fake.",
+  "fixtures": [
+    {
+      "fixture": "l05.jsonl",
+      "sourceLog": "qwen-susp-20261018-1430.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2",
+        "Day 2"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 5,
+      "deathsConfirmedByDeadLines": 4,
+      "cleaned": 1,
+      "alerts": 4,
+      "entries": 1110,
+      "liveGame": "L5",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    },
+    {
+      "fixture": "l06.jsonl",
+      "sourceLog": "qwen-susp-20261018-1616.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 3,
+      "deathsConfirmedByDeadLines": 3,
+      "cleaned": 1,
+      "alerts": 2,
+      "entries": 871,
+      "liveGame": "L6",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    },
+    {
+      "fixture": "l07.jsonl",
+      "sourceLog": "qwen-susp-20261018-1648.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2",
+        "Day 2",
+        "Night 3"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 5,
+      "deathsConfirmedByDeadLines": 5,
+      "cleaned": 1,
+      "alerts": 4,
+      "entries": 1022,
+      "liveGame": "L7",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    },
+    {
+      "fixture": "l08.jsonl",
+      "sourceLog": "qwen-susp-20261018-2222.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2",
+        "Day 2",
+        "Night 3",
+        "Day 3"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 7,
+      "deathsConfirmedByDeadLines": 6,
+      "cleaned": 1,
+      "alerts": 5,
+      "entries": 1076,
+      "liveGame": "L8",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    },
+    {
+      "fixture": "l09.jsonl",
+      "sourceLog": "openrouter-free-mac-1302.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2",
+        "Day 2",
+        "Night 3",
+        "Day 3"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 6,
+      "deathsConfirmedByDeadLines": 5,
+      "cleaned": 1,
+      "alerts": 4,
+      "entries": 1217,
+      "liveGame": "L9",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    },
+    {
+      "fixture": "l10.jsonl",
+      "sourceLog": "openrouter-reasoning-mac-1331.log.err",
+      "phases": [
+        "Night 1",
+        "Day 1",
+        "Night 2",
+        "Day 2",
+        "Night 3",
+        "Day 3"
+      ],
+      "seats": 9,
+      "seatBinding": "seatmap",
+      "ambiguousSeats": [],
+      "roles": "meetings",
+      "phaseTags": "logged",
+      "unexplainedDeath": false,
+      "deaths": 7,
+      "deathsConfirmedByDeadLines": 6,
+      "cleaned": 1,
+      "alerts": 5,
+      "entries": 1042,
+      "liveGame": "L10",
+      "buildOptions": [
+        "--alert-roles",
+        "--vote-order=log",
+        "--nick-variants",
+        "--timeline=log"
+      ]
+    }
+  ]
+}
