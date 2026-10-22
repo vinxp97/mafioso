@@ -4,17 +4,17 @@ import { reduceAll, decide, validateAction, parsePlanLine, formatPlanSpeech, mac
 
 // Mafia coordinate in plain words only. No PLAN line, no key=value, no ids, in ANY chat.
 const players = {
-  p1: { id: "p1", name: "Me" }, p2: { id: "p2", name: "DeweyHoffarth21" },
-  p3: { id: "p3", name: "RikScoville91" }, p4: { id: "p4", name: "LyHollie69" },
+  p1: { id: "p1", name: "Me" }, p2: { id: "p2", name: "DeltonHarrow21" },
+  p3: { id: "p3", name: "RowanSkeel91" }, p4: { id: "p4", name: "LyHollie69" },
 };
 const view = { selfId: "p1", players };
 
 test("parses several casual phrasings into ids", () => {
   const cases = [
-    ["kill rik tonight, ill fake cop tmrw, lawyer go on dewey", { killTarget: "p3", claimRole: "Cop", lawyerTarget: "p2" }],
+    ["kill rowan tonight, ill fake cop tmrw, lawyer go on delton", { killTarget: "p3", claimRole: "Cop", lawyerTarget: "p2" }],
     ["lets kill LyHollie69", { killTarget: "p4" }],
-    ["rik tonight? i fakeclaim journ, push ly", { killTarget: "p3", claimRole: "Journalist", lynchTarget: "p4" }],
-    ["nk @rikscoville91 and wagon ly tmrw", { killTarget: "p3", lynchTarget: "p4" }],
+    ["rowan tonight? i fakeclaim journ, push ly", { killTarget: "p3", claimRole: "Journalist", lynchTarget: "p4" }],
+    ["nk @rowanskeel91 and wagon ly tmrw", { killTarget: "p3", lynchTarget: "p4" }],
     ["ok lyhollie it is", { killTarget: "p4" }],
     ["kill ly, lawyer me", { killTarget: "p4", lawyerTarget: "p2" }],
   ];
@@ -29,7 +29,7 @@ test("parses several casual phrasings into ids", () => {
 test("the old PLAN form is still read (old logs) but never written", () => {
   assert.equal(parsePlanLine("PLAN kill=p4 lynch=p3 claim=Cop lawyer=p2 speaker=p1").killTarget, "p4");
   const line = formatPlanSpeech({ killTarget: "p3", lynchTarget: "p4", claimRole: "Cop", lawyerTarget: "p2", speakerId: "p1" }, view);
-  assert.equal(line, "kill rikscoville91 tonight, ill fake cop tmrw and push lyhollie69, lawyer go on deweyhoffarth21");
+  assert.equal(line, "kill rowanskeel91 tonight, ill fake cop tmrw and push lyhollie69, lawyer go on deltonharrow21");
   assert.equal(machineLeak(view, line), null);
   assert.equal(formatPlanSpeech({ killTarget: "zzUnknownId" }, view), null, "no name, no line (never an id)");
 });
@@ -66,9 +66,9 @@ test("unparseable chat falls back to rules plus copying the first teammate kill 
 test("PLAN / key=value / raw ids are hard-banned on every meeting, including Mafia chat", () => {
   const v = seat("p1");
   const bad = ["PLAN kill=ET3zxwFN4Y condemn=09lUYMo6Qw claim=Cop Lawyer=fGDlOzRC1th speaker=K_MMHFmcWR", "plan PLAN later", "kill=p3"];
-  assert.match(machineLeak({ players: { ET3zxwFN4Y: { id: "ET3zxwFN4Y", name: "Rik" } } }, "kill ET3zxwFN4Y tonight"), /player id/);
+  assert.match(machineLeak({ players: { ET3zxwFN4Y: { id: "ET3zxwFN4Y", name: "Rowan" } } }, "kill ET3zxwFN4Y tonight"), /player id/);
   for (const meetingId of ["mMaf", "mVil"]) for (const content of bad) assert.equal(validateAction(v, { event: "speak", data: { meetingId, content } }).ok, false, `${meetingId}: ${content}`);
-  assert.equal(validateAction(v, { event: "speak", data: { meetingId: "mMaf", content: "kill rik tonight, ill fake cop" } }).ok, true);
+  assert.equal(validateAction(v, { event: "speak", data: { meetingId: "mMaf", content: "kill rowan tonight, ill fake cop" } }).ok, true);
   const leader = decide(v).filter((a) => a.event === "speak");
   assert.equal(leader.length, 1);
   assert.match(leader[0].data.content, /^kill \S+ tonight/);

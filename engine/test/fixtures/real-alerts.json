@@ -15,7 +15,7 @@
  "otherSources": {
   "box /workspace/winlogs": 0,
   "box /workspace/restartq/logs": 0,
-  "PC C:/Users/vince/mafioso/logs": 0,
+  "PC C:/Users/<user>/mafioso/logs": 0,
   "harness/test/fixtures/replays": 0
  },
  "fixtures": [

@@ -4,7 +4,7 @@
 import { beliefAlign } from "./beliefs.js";
 import { decide } from "./decide.js";
 import { allies } from "./faction.js";
-import { validateAction } from "./legal.js";
+import { revealedSheriff, validateAction } from "./legal.js";
 import { memoryOf } from "./notes.js";
 import { nightAbilityMeetings } from "./nightAct.js";
 import { isAlive, splitAppearance } from "./reducer.js";
@@ -13,7 +13,8 @@ import { decideSpeech, isPublicSpeak, publicMessages, publicSpeechMeeting, speec
 import { createSeededRng } from "./selector.js";
 import { agreedPlan, formatPlanSpeech, parsePlanLine, scumFaction } from "./scumPlan.js";
 import { NO_ONE } from "./types.js";
-import { noLynchLoses, townSeat } from "./lynchMath.js";
+import { dayOneLynchOwed, meteorOn, noLynchLoses, townSeat } from "./lynchMath.js";
+import { townVote } from "./townVote.js";
 
 const KILL_PRIORITY = ["Cop", "Sheriff", "Journalist"];
 const POWER_CLAIM = new Set(["Cop", "Sheriff", "Journalist", "Doctor"]);
@@ -186,13 +187,16 @@ function preferredVotes(view, rng, board) {
   const village = findMeeting(view, /^village$/i);
   if (village && view.phase?.phase === "Day") {
     const plan = agreedPlan(view);
-    if (plan?.lynchTarget && (village.targets || []).includes(plan.lynchTarget) && !allies(view).has(plan.lynchTarget)) {
+    // Vinman 10/18: nobody votes the revealed Sheriff.
+    const sheriff = revealedSheriff(view);
+    const targets = (village.targets || []).filter((t) => t !== sheriff);
+    if (plan?.lynchTarget && targets.includes(plan.lynchTarget) && !allies(view).has(plan.lynchTarget)) {
       picks.set(village.id, plan.lynchTarget);
     } else {
-      const suspect = mostSuspected(view, village.targets, rng, board);
+      const suspect = mostSuspected(view, targets, rng, board);
       const hold = sheriffDead(view) && Number(view.phase.day) === 1 && (!suspect || suspicionScore(view, suspect, board) < 4);
-      const noLynch = (village.targets || []).includes(NO_ONE) && !(townSeat(view) && noLynchLoses(view));
-      const pick = hold || !suspect ? (noLynch ? NO_ONE : suspect) : suspect;
+      const noLynch = (village.targets || []).includes(NO_ONE) && !(townSeat(view) && (noLynchLoses(view) || dayOneLynchOwed(view))) && meteorOn(view) !== "Day";
+      const pick = hold || !suspect ? (noLynch ? NO_ONE : suspect || townVote(view, village)?.target) : suspect;
       if (pick) picks.set(village.id, pick);
     }
   }

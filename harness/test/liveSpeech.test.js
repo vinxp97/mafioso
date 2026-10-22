@@ -13,6 +13,9 @@ test("reasoningModel: Muse and other thinking models by name, MAFIOSO_REASONING 
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "deepseek-v4.1-flash" }), false);
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "deepseek-v4.1-flash", MAFIOSO_REASONING: "1" }), true);
   assert.equal(reasoningModel({ MAFIOSO_LLM: "experiential", EXPLABS_MODEL: "meta/muse-glimmer", MAFIOSO_REASONING: "0" }), false);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter" }), true);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "plain-chat" }), false);
+  assert.equal(reasoningModel({ MAFIOSO_LLM: "openrouter", OPENROUTER_MODEL: "meta/muse-glimmer" }), true);
   const table = createBotTable([{ accountId: "A" }], { reasoning: true });
   assert.equal(table.config.reasoning, true);
   assert.equal("reasoning" in createBotTable([{ accountId: "A" }]).config, false);
@@ -42,5 +45,26 @@ test("live table: a named seat with an empty-speech model logs the rejection rea
   await drainUpgrades(table);
   assert.ok(logged.some((l) => l.who === "A" && l.reasons.some((r) => /^empty line/.test(r))), JSON.stringify(logged));
   const said = table.proposed.filter((p) => p.event === "speak" && p.data.meetingId === "vil");
-  assert.ok(said.some((p) => /^alice /.test(p.data.content)), JSON.stringify(said));
+  assert.ok(said.some((p) => /^Alice /.test(p.data.content)), JSON.stringify(said));
+});
+
+test("live table: a model-written line is logged source=llm (not the vote's rules label) and stays within 12 words", async () => {
+  const t0 = 1_700_000_000_000;
+  const table = createBotTable([{ accountId: "A" }], { clock: createVirtualClock(t0), rng: createSeededRng(2) });
+  const players = { p1: { id: "p1", name: "Me" }, p2: { id: "p2", name: "Alice" }, p3: { id: "p3", name: "Bob" }, p4: { id: "p4", name: "Cal" } };
+  let seq = 0;
+  const complete = async () => "you pushed me with no reason at all and bob agreed way too fast";
+  const feed = (event, data, t = t0 + seq * 1000) => onGameEntry(table, { accountId: "A", seq: ++seq, t, event, data }, { complete, dryRun: true, fast: true, limiter: createLlmLimiter(1), now: t });
+  await feed("self", "p1"); await feed("players", players); await feed("roleReveal", { playerId: "p1", role: "Villager" });
+  await feed("state", { id: 3, name: "Day 1" });
+  await feed("meeting", { id: "vil", name: "Village", speech: true, voting: true, canVote: true, amMember: true, targets: ["p2", "p3", "p4", "*"], votes: {} });
+  await feed("message", { meetingId: "vil", senderId: "p2", content: "Me is scum, vote Me", t: t0 + 6000 });
+  await feed("time", { time: 30000 }, t0 + 30000);
+  await drainUpgrades(table);
+  const said = table.proposed.filter((p) => p.event === "speak" && p.data.meetingId === "vil");
+  assert.ok(said.length, "the seat spoke");
+  for (const p of said) {
+    assert.equal(p.source, "llm", JSON.stringify(p));
+    assert.ok(p.data.content.split(" ").length <= 12, p.data.content);
+  }
 });

@@ -274,13 +274,13 @@ test("openers vary: a room full of 'tbh <name>' does not get another one", () =>
 });
 
 import { claimedRoleIn, humanizePlayerIds } from "../src/index.js";
-test("PbOaZSJzx: 'Sheriff here.' is a claim (one claim per seat); 'sheriff, shoot bob' is not", () => {
+test("GAME04: 'Sheriff here.' is a claim (one claim per seat); 'sheriff, shoot bob' is not", () => {
   assert.equal(claimedRoleIn("Sheriff here."), "sheriff");
   assert.equal(claimedRoleIn("cop btw"), "cop");
   assert.equal(claimedRoleIn("sheriff, shoot bob"), null);
   assert.equal(claimedRoleIn("cop is dead"), null);
 });
-test("PbOaZSJzx: meeting members given as an object do not crash name humanizing", () => {
+test("GAME04: meeting members given as an object do not crash name humanizing", () => {
   const v = { players: { abcdefgh12: { name: "Ann" } }, meetings: { x: { targets: {}, members: { q: { id: "abcdefgh12" } } } } };
   assert.equal(humanizePlayerIds(v, "abcdefgh12 hi"), "Ann hi");
 });

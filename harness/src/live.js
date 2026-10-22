@@ -2,12 +2,13 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, townDayPick, townReads, townCounterLine, TOWN_READS, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
 import { createExperientialComplete } from "./experiential.js";
 import { createOpenCodeGoComplete } from "./opencodeGo.js";
+import { createOpenRouterComplete, OPENROUTER_DEFAULT_MODEL } from "./openrouter.js";
 import { createArenaScorer } from "./arena.js";
 import { realClock } from "./clock.js";
 import { ensurePromptStore, finishGame, outcomeForView, replayDigest, savePromptStore, selectPrompts } from "./prompts.js";
@@ -87,7 +88,17 @@ export function liveConfigFromEnv(env = process.env) {
     arenaSeed,
     arenaMargin,
     lobbyName: nonempty(env.LOBBY_NAME) || "mafioso-bots",
+    // Town day vote arm for this process only (TOWN_ARMS); unset keeps the default "rules".
+    town: townArmFromEnv(env.MAFIOSO_TOWN),
+    // Vinman 10/18 (11:05): the Sheriff's hammer ask; MAFIOSO_HAMMER=off turns it off for this process.
+    hammer: /^(0|off|false|no)$/i.test(nonempty(env.MAFIOSO_HAMMER) || "") ? "off" : "on",
   };
+}
+
+function townArmFromEnv(raw) {
+  const arm = (nonempty(raw) || "rules").toLowerCase();
+  if (!TOWN_ARMS.includes(arm)) throw new Error(`MAFIOSO_TOWN must be one of ${TOWN_ARMS.join("|")}`);
+  return arm;
 }
 
 export function streamUrl(baseUrl, pathname = "/api/dev/stream") {
@@ -96,14 +107,15 @@ export function streamUrl(baseUrl, pathname = "/api/dev/stream") {
   return origin + pathname;
 }
 
-/** MAFIOSO_LLM=lmstudio|experiential|opencode. fetch is only for the model, not the game API. */
+/** MAFIOSO_LLM=lmstudio|experiential|opencode|openrouter. fetch is only for the model, not the game API. */
 export function createBackendComplete(env = process.env, { fetch } = {}) {
   const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
   const opts = { env, ...(fetch ? { fetch } : {}) };
   if (which === "lmstudio" || which === "lm-studio") return createLmStudioComplete(opts);
   if (which === "experiential" || which === "explabs") return createExperientialComplete(opts);
   if (which === "opencode" || which === "opencode-go") return createOpenCodeGoComplete(opts);
-  throw new Error(`Unknown MAFIOSO_LLM: ${which}. Use lmstudio, experiential, or opencode.`);
+  if (which === "openrouter") return createOpenRouterComplete(opts);
+  throw new Error(`Unknown MAFIOSO_LLM: ${which}. Use lmstudio, experiential, opencode, or openrouter.`);
 }
 
 export function withCfAccess(fetchImpl, { clientId = "", clientSecret = "" } = {}) {
@@ -172,22 +184,25 @@ export function zipAccounts(accounts, prompts) {
  */
 // mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
 // reasoning: the model thinks before it answers (see reasoningModel); speech gets a larger token budget.
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", mafia = "adaptive", townVoteDelayMs = null, reasoning = false } = {}) {
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", sheriffRule = "vinman", lawyer = "loyal", mafia = "adaptive", town = "rules", chatAudit: auditMode = "enforce", townVoteDelayMs = null, reasoning = false, hammer = "on", hammerGate = null, pace = "on", quietTable = null, claimPressure = null, staleFix = null, auditTight = null } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule, mafia, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}) },
+    clock, rng, config: { copRule, sheriffRule, lawyer, mafia, town, hammer, pace, ...(hammerGate ? { hammerGate } : {}), chatAudit: auditMode, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}), ...(quietTable ? { quietTable } : {}), ...(claimPressure ? { claimPressure } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}) },
   };
 }
 
 // Models that spend hidden tokens thinking even when asked not to (Muse ignores reasoning_effort "none").
-const REASONING_MODEL_RE = /muse|glimmer|qwen3|deepseek-r|\br1\b|reason|think|gpt-oss|gpt-5|magistral/i;
+const REASONING_MODEL_RE = /muse|glimmer|qwen3|deepseek-r|\br1\b|reason|think|gpt-oss|gpt-5|magistral|minimax/i;
 /** MAFIOSO_REASONING=1/0 forces it; otherwise the configured model name of the chosen backend decides. */
 export function reasoningModel(env = process.env) {
   const forced = nonempty(env.MAFIOSO_REASONING);
   if (forced) return /^(1|true|yes|on)$/i.test(forced);
   const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
-  const model = which.startsWith("exp") ? env.EXPLABS_MODEL : which.startsWith("opencode") ? env.OPENCODE_MODEL : env.LM_STUDIO_MODEL;
+  const model = which.startsWith("exp") ? env.EXPLABS_MODEL
+    : which.startsWith("opencode") ? env.OPENCODE_MODEL
+    : which === "openrouter" ? (nonempty(env.OPENROUTER_MODEL) || OPENROUTER_DEFAULT_MODEL)
+    : env.LM_STUDIO_MODEL;
   return REASONING_MODEL_RE.test(String(model || ""));
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
@@ -254,10 +269,12 @@ export const WINNERS_GRACE_MS = 10_000;
 export function gameFinished(table, accountIds, { now = Date.now, graceMs = 0 } = {}) {
   if (!accountIds.length) return false;
   if (accountIds.every((id) => table.views[id]?.finished || table.views[id]?.leftGame)) return true;
-  if (!accountIds.some((id) => table.views[id]?.winners)) return false;
-  // Give the other seats a moment to receive their own winners frame (scoring needs it), then stop anyway.
-  table.winnersAt ??= now();
-  return now() - table.winnersAt >= graceMs;
+  const hasWinners = accountIds.some((id) => table.views[id]?.winners);
+  if (hasWinners) table.winnersAt ??= now();
+  // seenWinnersAt starts the grace even when a winners frame has not landed on a view yet.
+  const anchor = table.winnersAt ?? table.seenWinnersAt ?? null;
+  if (anchor == null) return false;
+  return now() - anchor >= graceMs;
 }
 
 export function resultsFromTable(table) {
@@ -303,10 +320,44 @@ function withTimeout(p, ms) {
 export const CHAT_LIMITS = { cooldownMs: 3500, perMinute: 6, fillerGapMs: 20000, fillerChance: 0.4 };
 
 function localSpeechOk(table, id, clock) {
+  return speechWaitMs(table, id, clock) === 0;
+}
+
+/** How long until this seat may speak again under our own chat limits (0 = now). */
+function speechWaitMs(table, id, clock) {
   const t = clock ?? nowOf(table);
-  const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000);
-  if (mine.length >= CHAT_LIMITS.perMinute) return false;
-  return !mine.length || t - Math.max(...mine) >= CHAT_LIMITS.cooldownMs;
+  const mine = (table.spokeAt?.[id] || []).filter((x) => t - x < 60_000).sort((a, b) => a - b);
+  if (!mine.length) return 0;
+  const cool = mine[mine.length - 1] + CHAT_LIMITS.cooldownMs - t;
+  const minute = mine.length >= CHAT_LIMITS.perMinute ? mine[mine.length - CHAT_LIMITS.perMinute] + 60_000 - t : 0;
+  return Math.max(0, cool, minute);
+}
+
+/**
+ * Vinman 10/18 (11:05): reactive lines (counterclaims, answers to the Sheriff's ask or to a claim, counter-stories,
+ * accused replies, canned reactions) wait a human beat after the line they answer: REACT.minMs..maxMs, seeded per
+ * seat and line, never the same second. The hold is fixed when the line first becomes due, so ongoing chatter
+ * cannot push it back forever.
+ */
+export const REACT = { minMs: 3000, maxMs: 8000 };
+/** Does this claim line counter another living player's claim of the same role? */
+export function counterclaimLine(view, line) {
+  const role = claimedRoleIn(line);
+  if (!role || role === "villager") return false;
+  return (view?.messages || []).some((m) => m?.senderId && m.senderId !== view.selfId && m.senderId !== "server" && m.public !== false
+    && isAlive(view, m.senderId) && claimedRoleIn(m.content) === role);
+}
+export function reactWaitMs(table, id, view, line, clock = nowOf(table), { urgent = false } = {}) {
+  const pm = publicSpeechMeeting(view);
+  if (!pm || !line) return 0;
+  const k = `${id}|${view.stateId}|${line}`;
+  const due = (table.reactDue ||= {});
+  if (due[k] == null) {
+    const last = (view.messages || []).filter((m) => m.meetingId === pm.id && m.senderId && m.senderId !== "server" && m.senderId !== view.selfId && Number.isFinite(Number(m.t))).slice(-1)[0];
+    const hold = urgent ? REACT.minMs : REACT.minMs + (seedOf(`${id}|${last?.senderId}|${last?.t}|${line}`) % (REACT.maxMs - REACT.minMs + 1));
+    due[k] = last ? Math.max(Number(clock), Number(last.t) + hold) : Number(clock);
+  }
+  return Math.max(0, due[k] - Number(clock));
 }
 
 /** Send (or propose) validated actions for one seat; dedups per state, allows a changed vote. */
@@ -376,7 +427,7 @@ function claimedTown(view, mem, id) {
 }
 
 /**
- * The wagon to join, or null. Game 1fo007iEq: following any 2+ wagon let a town seat hammer a mafia
+ * The wagon to join, or null. Game GAME05: following any 2+ wagon let a town seat hammer a mafia
  * wagon on town 4-3. Now a wagon is skipped when its target is a claimed or cleared town player, or
  * when most of its voters are players this seat suspects. Among the rest, the wagon this seat's own
  * notes agree with wins; a tie with no notes preference is not followed.
@@ -446,6 +497,18 @@ function scumVoteNow(view, meetingId, now, sinceGateMs) {
   return Object.values(view.meetings || {}).some((x) => /vote\s*kick/i.test(String(x?.name || "")));
 }
 
+/** Town day-vote arms for self-play: "rules" (the live path below), "suspicion" (townVote), "random". */
+export const TOWN_ARMS = Object.freeze(["rules", "suspicion", "random"]);
+
+/** Random-town baseline: one uniform pick among the legal (allowed) options per seat per day, kept while legal. */
+function randomLegalVote(table, key, view, meeting) {
+  const e = meeting && meetingActions(view, meeting);
+  if (!e || e.closed || !e.allowed.length) return null;
+  const memo = (table.randomVote ||= {});
+  if (!e.allowed.includes(memo[key])) memo[key] = e.allowed[Math.floor(rngOf(table)() * e.allowed.length)];
+  return memo[key];
+}
+
 /** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
 function shapeDayVotes(table, id, view, actions, now, { source }) {
   const out = [];
@@ -454,6 +517,10 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
     if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
     const gk = `${id}|${view.stateId}`;
     (table.gateAt ||= {})[gk] ??= now;
+    // Vinman 10/18 (11:05): the Sheriff's hammer ask decides every seat's ballot (self-vote / his deciding vote).
+    const hv = table.config?.hammer === "off" ? null : hammerVote(view, { now });
+    if (hv?.hold) continue;
+    if (hv?.target && validateAction(view, { ...a, data: { ...a.data, selection: hv.target } }).ok) { out.push({ ...a, data: { ...a.data, selection: hv.target } }); continue; }
     const scum = !!scumFaction(view);
     if (scum && mafiaModeOf(view) === "adaptive" && !scumVoteNow(view, a.data.meetingId, now, now - table.gateAt[gk])) continue;
     if (scum && allies(view).has(String(a.data.selection))) {
@@ -465,6 +532,15 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
         const note = { event: "speak", data: { meetingId: fc.id, content: busNote(view, a.data.selection, rngOf(table)) } };
         if (validateAction(view, note).ok && !machineLeak(view, note.data.content)) out.push(note);
       }
+    }
+    const arm = !scum && table.config?.town;
+    if (arm === "random" || arm === "suspicion") {
+      // Self-play arms (TOWN_ARMS): both pick from legalActions for this meeting.
+      const tv = arm === "random" ? null : townVote(view, view.meetings[a.data.meetingId], { follow: true });
+      const pick = arm === "random" ? randomLegalVote(table, gk, view, view.meetings[a.data.meetingId]) : tv?.target;
+      if (tv && table.onTownVote) table.onTownVote(id, tv, townReads(view).score);
+      if (pick != null) out.push({ ...a, data: { ...a.data, selection: pick } });
+      continue;
     }
     if (!scum) {
       // Evidence first (townReads): a strong read is the vote; contested Cop claims mean no lynch.
@@ -484,7 +560,19 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       const own = (meeting?.targets || []).filter((t) => t !== "*" && t !== view.selfId && !view.dead?.[t] && !trusted(t))
         .map((t) => [t, reads.score[t] || 0]).sort((x, y) => y[1] - x[1])[0];
       let follow = townFollow(view, meeting);
+      // Vinman 10/18 (11:05): with no read of its own worth the name, a villager follows confirmed town.
+      const lead = confirmedLead(view, meeting, reads);
+      const split = ballotStuck(view, meeting);
+      if (lead && ((!own || own[1] < TOWN_VOTE.deferBelow) || (split && (!own || own[1] < TOWN_READS.strong))) && validateAction(view, { ...a, data: { ...a.data, selection: lead.target } }).ok && !trusted(lead.target)) follow = lead.target;
       if (own && own[1] >= TOWN_READS.ownRead && (!follow || (reads.score[follow] || 0) <= own[1] - TOWN_READS.ownReadMargin)) follow = own[0];
+      // L3 (10/18): a costly wrong lynch (loses now, or parity with tonight's kill), or Day 1 with the Sheriff
+      // alive: a wagon on an unread player is not followed; the reads decide (townVote's costly rule).
+      if (follow && (reads.score[follow] || 0) <= 0 && (wrongLynchCostly(view) || dayOneLynchOwed(view))) {
+        const tv = townVote(view, meeting, { follow: true });
+        if (table.onTownVote && tv) table.onTownVote(id, tv, reads.score);
+        follow = tv?.target ?? null;
+        if (follow === "*") { out.push({ ...a, data: { ...a.data, selection: "*" } }); continue; }
+      }
       if (follow && !trusted(follow)) { out.push({ ...a, data: { ...a.data, selection: follow } }); continue; }
       if (source === "rules") {
         const pick = beliefDayPick(view, meeting, rngOf(table), trusted);
@@ -498,6 +586,24 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
     }
     out.push(a);
   }
+  // A hard rule refused no-one for a town seat (Day 1 with the Sheriff alive, an autoloss, a day meteor):
+  // vote the top suspicion instead of leaving the seat unvoted.
+  for (const [i, a] of out.entries()) {
+    if (a.event !== "vote" || a.data.selection !== "*" || scumFaction(view) || !isDayVillageVote(view, a.data.meetingId) || validateAction(view, a).ok) continue;
+    const pick = townVote(view, view.meetings[a.data.meetingId])?.target;
+    if (pick && pick !== "*") out[i] = { ...a, data: { ...a.data, selection: pick } };
+  }
+  // Vinman 10/18: no seat votes the revealed Sheriff (a hard rule): re-aim such a vote instead of dropping it.
+  for (const [i, a] of out.entries()) {
+    if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) continue;
+    const v = validateAction(view, a);
+    if (v.ok || v.reason !== NEVER_LYNCH_SHERIFF) continue;
+    const meeting = view.meetings[a.data.meetingId];
+    const pick = scumFaction(view) ? adaptiveVote(view, meeting, seenPlan(view)) : townVote(view, meeting)?.target;
+    if (pick && validateAction(view, { ...a, data: { ...a.data, selection: pick } }).ok) out[i] = { ...a, data: { ...a.data, selection: pick } };
+  }
+  // The seat's latest day pick per meeting: a delayed ballot sends this one if it changed (deferVote).
+  for (const a of out) if (a.event === "vote" && isDayVillageVote(view, a.data.meetingId)) ((table.latestPick ||= {})[`${id}|${view.stateId}|${a.data.meetingId}`] = a.data.selection);
   // Vote timing: the first village vote this seat lets through today, measured from its own vote gate.
   for (const a of out) {
     if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) continue;
@@ -604,6 +710,17 @@ function deferVote(table, id, action, wait, { source, entry, send, onError }) {
     settled();
     const view = table.views[id];
     if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return;
+    // Live L2-1018: ballots queued as "*" went out after the seat's pick had moved to a wagon. Send the
+    // latest pick when it changed and is legal now; otherwise the queued ballot, checked as before.
+    const latest = table.latestPick?.[pk];
+    if (latest != null && JSON.stringify(latest) !== JSON.stringify(action.data.selection)) {
+      const next = { ...action, data: { ...action.data, selection: latest } };
+      if (validateAction(view, next).ok) {
+        table.onBallotUpdate?.(id, action.data.selection, latest);
+        action = next;
+        (table.lastVote ||= {})[pk] = JSON.stringify(latest);
+      }
+    }
     if (!validateAction(view, action).ok) return;
     if (staleKillVote(view, action)) return;
     if (thirdScumVote(view, action)) {
@@ -653,22 +770,54 @@ export function noteSeatRole(table, id, view) {
   return out;
 }
 
-async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock }) {
+async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock, claim = false }) {
   const view = table.views[id];
   const stamp = speechStamp(view);
   const added = [];
   for (let action of actions || []) {
+    // A scum fake claim in the first seconds of the day waits, then is re-checked against the newer view
+    // (the Sheriff's opening "im sheriff" may still be on its way; a fake guilty on him is blocked then).
+    const settle = isPublicSpeak(view, action) && claimedRoleIn(action.data.content) ? scumClaimSettleMs(view, clock ?? nowOf(table)) : 0;
+    if (settle > 0) {
+      const stateId = view.stateId, held = action, key = `${id}|${stateId}|${action.data.content}`;
+      if ((table.settleHeld ||= new Set()).has(key)) continue;
+      table.settleHeld.add(key);
+      const p = waitOn(table, settle).then(async () => {
+        table.settleHeld.delete(key);
+        if (table.views[id]?.stateId !== stateId) return;
+        const later = await emitActions(table, id, [held], { source, entry, dryRun, send, onError, clock: nowOf(table), claim });
+        if (later.length && claim) ((table.claimSent ||= {})[id] ||= new Set()).add(held.data.content);
+      });
+      (table.upgrades ||= new Set()).add(p);
+      p.finally(() => table.upgrades.delete(p));
+      continue;
+    }
     // Public lines are cut to chat size (and ids turned into names) before validation.
     if (isPublicSpeak(view, action)) {
       action = humanizeSpeak(view, action);
       action = { ...action, data: { ...action.data, content: varyOpener(view, chatShorten(action.data.content), rngOf(table), action.data.meetingId) } };
+      // A model line stays within 3-12 words even after the opener swap.
+      if (source === "llm") action.data.content = capSpeechWords(action.data.content);
     }
-    const verdict = validateAction(view, action);
+    let verdict = validateAction(view, action);
+    // chat-audit: a public line that states a wrong fact or leaks is dropped (logged) and replaced, when the
+    // town's reads have one, by a grounded line (groundedLine), which goes through the same checks.
+    if (!verdict.ok && /^chat-audit/.test(String(verdict.reason)) && isPublicSpeak(view, action)) {
+      table.onChatAudit?.(id, String(verdict.reason), action.data.content, source);
+      const alt = groundedLine(view);
+      const next = alt && alt !== action.data.content ? { ...action, data: { ...action.data, content: alt } } : null;
+      if (next && validateAction(view, next).ok) { action = next; verdict = { ok: true }; table.onChatAudit?.(id, "chat-audit: regenerated", alt, source); }
+    }
     if (!verdict.ok) {
       if (isPublicSpeak(view, action)) {
         const r = String(verdict.reason || "?").replace(/\(.*$/, "").trim();
         (table.speechRejects ||= {})[r] = ((table.speechRejects || {})[r] || 0) + 1;
         table.onSpeechReject?.(id, [String(verdict.reason || "?")], source, action.data.content);
+        if (source !== "floor-rule") {
+          noteSpeechBlock(table, id, view);
+          const fl = applySpeechFloor(table, id, view);
+          if (fl) await emitActions(table, id, [fl], { source: "floor-rule", entry, dryRun, send, onError, clock, claim: false });
+        }
       }
       continue;
     }
@@ -680,9 +829,14 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       : action.event === "vote"
         ? `${id}|${view.stateId}|vote|${action.data.meetingId}|${JSON.stringify(action.data.selection)}`
         : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}|${action.data.content ?? ""}`;
-    if (pub && table.speechStamp[id] === stamp) continue;
-    if (pub && !localSpeechOk(table, id, clock)) continue;
-    if (table.seen.has(key)) continue;
+    // One line per new event, except a role claim: it is news by itself (one claim per game is still enforced below).
+    if (pub && !claim && source !== "day-speech" && table.speechStamp[id] === stamp) continue;
+    // L6 (10/18): a seat the Sheriff asked answers him first; its model chatter waits until the reply is out.
+    if (pub && !claim && askReplyLine(view)) { table.onSpeechReject?.(id, ["owes the Sheriff an answer first"], source, action.data.content); continue; }
+    const ckey = `${id}|${view.stateId}|${action.data?.content}`;
+    if (pub && claim && table.claimPending?.has(ckey)) continue;
+    if (pub && !claim && source !== "day-speech" && !localSpeechOk(table, id, clock)) continue;
+    if (table.seen.has(key) && !(pub && claim)) continue;
     if (action.event === "vote") {
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
       if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
@@ -691,8 +845,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       // target died, or a deferred vote was dropped at send time), or someone died since this seat last
       // voted (new evidence). Then the count starts over, so a seat is never left without a vote.
       if (voteMayRestart(table, id, view, action.data.meetingId, vk)) table.voteCount[vk] = 0;
+      // L6 (10/18): the Sheriff's gun is one instant shot; an earlier unsent gun pick must never block it.
+      if (/shoot|gun/i.test(String(view.meetings?.[action.data.meetingId]?.name || ""))) table.voteCount[vk] = 0;
       const n = (table.voteCount ||= {})[vk] || 0;
-      if (n >= 2 || (n === 1 && source === "rules")) continue;
+      // A ballot switch may move the vote a few times in one day. Other sources stay at one change.
+      if (source === "ballot-switch" ? n >= 4 : (n >= 2 || (n === 1 && source === "rules"))) continue;
       // Copy/teammate votes and the server's vote rate limit: send later, re-checked at send time.
       const wait = voteDelay(table, id, view, action);
       (table.voteEpoch ||= {})[vk] = deadCount(view);
@@ -709,13 +866,40 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       // One role claim per seat per game: no duplicate "I'm Sheriff." lines.
       const claimed = claimedRoleIn(action.data.content);
       if (claimed && table.claimedRole?.[id]) continue;
+      // L5 (10/18): pacing at send time (paceSpeech): the reply beat from the line answered, own and table
+      // spacing, stale replies dropped. A held line goes out later through deferSpeech.
+      const now = clock ?? nowOf(table);
+      const pace = paceSpeech(table, id, view, action, now, { entry, claim: claim || !!claimed, source });
+      if (pace.drop) {
+        table.onSpeechReject?.(id, [pace.drop], source, action.data.content);
+        const revived = /^stale reply/.test(pace.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
+        if (revived && source !== "day-speech") {
+          forgetSpoken(table, id, action.data.meetingId, action.data.content);
+          await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
+        } else if (source !== "floor-rule" && source !== "day-speech") {
+          noteSpeechBlock(table, id, view);
+          const fl = applySpeechFloor(table, id, view);
+          if (fl) await emitActions(table, id, [fl], { source: "floor-rule", entry, dryRun, send, onError, clock, claim: false });
+        }
+        continue;
+      }
+      // A claim under our own chat cooldown is held for it, never dropped.
+      const coolWait = claim || claimed ? speechWaitMs(table, id, now) : 0;
+      if (coolWait > pace.wait) Object.assign(pace, { wait: coolWait, due: now + coolWait });
+      if (pace.wait > 0) {
+        if (claim || claimed || (quietTableOpts(table.config).keyFirst && isKeyLine(action.data.content, source))) (table.claimPending ||= new Set()).add(ckey);
+        deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onError, claim: claim || !!claimed }); continue;
+      }
       if (claimed) (table.claimedRole ||= {})[id] = claimed;
       table.speechStamp[id] = stamp;
-      ((table.spokeAt ||= {})[id] ||= []).push(clock ?? nowOf(table));
+      ((table.spokeAt ||= {})[id] ||= []).push(now);
+      notePublicSend(table, id, now);
+      if (!claim && !claimed) table.lastTableLineAt = Math.max(table.lastTableLineAt ?? -Infinity, now);
+      noteSpeechSent(table, id, view);
     }
     const proposal = {
       accountId: id, afterSeq: entry?.seq, source, phase: view.phase?.name || "",
-      promptId: table.byId.get(id)?.promptId, ...action,
+      promptId: table.byId.get(id)?.promptId, ...finalSpeak(view, action), t: clock ?? nowOf(table),
     };
     table.proposed.push(proposal);
     added.push(proposal);
@@ -725,6 +909,172 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     }
   }
   return added;
+}
+
+/**
+ * L5 (10/18) speech pacing, applied at the moment a public line would go out (after the queue / model call):
+ *  - a reply beat: REACT.minMs..maxMs after the line being answered (the latest other public line when the
+ *    triggering frame arrived), seeded per seat and line;
+ *  - a seat's own lines at least ownGapMs apart, and our seats' lines at least tableGapMs apart (no bursts);
+ *  - a reply whose answered line is older than staleMs at send time is dropped (claims and rule lines exempt).
+ * Live L5 (10/18): LLM lines went out 0.01-0.3s after the line they answered, in bursts.
+ */
+// L6 (10/18): tableGapMs 1.5s -> 2.5s between any two bot lines (8 of 16 live gaps were under 3s). Claims and
+// counterclaims (news, and the answer to the Sheriff's ask) keep a 1s gap and skip the seat's own 6s gap.
+export const SPEECH_PACE = Object.freeze({ ownGapMs: 6_000, tableGapMs: 2_500, claimGapMs: 1_000, staleMs: 30_000 });
+export const SPEECH_FLOOR = Object.freeze({ minLines: 3, blockStreak: 3, lines: ["watching the votes", "not sure yet", "need more here", "still looking"] });
+export const DAY_SPEECH = Object.freeze({ openWithinMs: 20_000, silenceMs: 45_000 });
+const RULE_SOURCES = /^(claim-rule|hammer-rule|rules|counter-rule|ask-rule|floor-rule|day-speech)/;
+
+function floorKey(id, view) {
+  return `${id}|${view?.phase?.name || ""}`;
+}
+
+/** After repeated blocks, a short line that passes the audit, until this seat has said a few lines today. */
+export function applySpeechFloor(table, id, view) {
+  if (!view || !publicSpeechMeeting(view)) return null;
+  const k = floorKey(id, view);
+  const said = table.daySaid?.[k] || 0;
+  const blocks = (table.speechBlocks ||= {})[k] || 0;
+  if (said >= SPEECH_FLOOR.minLines || blocks < SPEECH_FLOOR.blockStreak) return null;
+  const pm = publicSpeechMeeting(view);
+  const start = (table.floorPick ||= {})[k] || 0;
+  for (let n = 0; n < SPEECH_FLOOR.lines.length; n++) {
+    const content = SPEECH_FLOOR.lines[(start + n) % SPEECH_FLOOR.lines.length];
+    const action = { event: "speak", data: { meetingId: pm.id, content } };
+    if (validateAction(view, action).ok && !publicLeak(view, action.data.content) && !machineLeak(view, action.data.content)) {
+      table.floorPick[k] = start + n + 1;
+      return action;
+    }
+  }
+  return null;
+}
+
+function noteSpeechBlock(table, id, view) {
+  const k = floorKey(id, view);
+  (table.speechBlocks ||= {})[k] = ((table.speechBlocks || {})[k] || 0) + 1;
+}
+
+function noteSpeechSent(table, id, view) {
+  const k = floorKey(id, view);
+  (table.daySaid ||= {})[k] = ((table.daySaid || {})[k] || 0) + 1;
+  if (table.speechBlocks) table.speechBlocks[k] = 0;
+}
+
+function answeredLine(view, at) {
+  const pm = publicSpeechMeeting(view);
+  if (!pm) return null;
+  return (view.messages || []).filter((m) => m.meetingId === pm.id && m.senderId && m.senderId !== "server" && m.senderId !== view.selfId
+    && Number.isFinite(Number(m.t)) && (at == null || Number(m.t) <= at)).slice(-1)[0] || null;
+}
+
+export function paceSpeech(table, id, view, action, now, { entry, claim = false, source = "", anchor } = {}) {
+  if (table.config?.pace === "off") return { wait: 0 };
+  // quietTable.keyFirst: claims, results and counterclaims are news: claim pacing, on the 1s claim gap only.
+  const keyFirst = quietTableOpts(table.config).keyFirst;
+  if (keyFirst && !claim && isKeyLine(action.data?.content, source)) claim = true;
+  const trigger = Number.isFinite(Number(entry?.t)) ? Number(entry.t) : now;
+  const a = anchor !== undefined ? anchor : answeredLine(view, trigger);
+  const at = a ? Number(a.t) : null;
+  const exempt = claim || RULE_SOURCES.test(String(source || ""));
+  const saidKey = floorKey(id, view);
+  const underFloor = (table.daySaid?.[saidKey] || 0) < SPEECH_FLOOR.minLines && (table.speechBlocks?.[saidKey] || 0) > 0;
+  // Only a line that was a fresh reply when it was triggered can go stale.
+  // A seat blocked into silence keeps a valid line until it has said a few today.
+  let late = !exempt && !underFloor && at != null && trigger - at <= SPEECH_PACE.staleMs && now - at > SPEECH_PACE.staleMs;
+  // staleFix.recheck (stale-latency 10/19, off by default): a late reply still valid in the latest state goes out
+  // as a plain line (no reply beat) instead of being dropped.
+  if (late && staleFixOf(table.config).recheck && validateAction(view, action).ok && !publicLeak(view, action.data?.content) && !machineLeak(view, action.data?.content)) {
+    late = false; table.onStaleRecheck?.(id, Math.round((now - at) / 1000));
+    const own = (table.spokeAt?.[id] || []).reduce((x, y) => Math.max(x, y), -Infinity) + SPEECH_PACE.ownGapMs;
+    const due = Math.max(own, (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs, now);
+    return { wait: due - now, anchor: null, due };
+  }
+  if (late) return { drop: `stale reply (${Math.round((now - at) / 1000)}s after the line it answers)`, anchor: a };
+  // Claims are news: the shortest beat (the claim path already held its own REACT wait).
+  const hold = claim ? REACT.minMs : REACT.minMs + (seedOf(`${id}|${a?.senderId}|${a?.t}|${action.data?.content}`) % (REACT.maxMs - REACT.minMs + 1));
+  const reply = at != null && trigger - at <= SPEECH_PACE.staleMs ? at + hold : -Infinity;
+  const own = (table.spokeAt?.[id] || []).reduce((x, y) => Math.max(x, y), -Infinity) + (claim ? SPEECH_PACE.claimGapMs : SPEECH_PACE.ownGapMs);
+  // Other seats' reserved slots: a claim does not queue behind them (its own 1s gap from the last real send).
+  // A claim may follow another claim after claimGapMs. It still keeps the table gap behind a normal line.
+  const any = claim
+    ? keyFirst ? (table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs
+      : Math.max((table.lastSentAt ?? -Infinity) + SPEECH_PACE.claimGapMs, (table.lastTableLineAt ?? -Infinity) + SPEECH_PACE.tableGapMs)
+    : (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs;
+  const due = Math.max(reply, own, any, now);
+  return { wait: due - now, anchor: a, due };
+}
+
+function notePublicSend(table, id, now) {
+  table.lastPublicAt = Math.max(table.lastPublicAt ?? -Infinity, now);
+  table.lastSentAt = Math.max(table.lastSentAt ?? -Infinity, now);
+}
+
+/** A dropped line must not block the fresh one that replaces it. */
+function forgetSpoken(table, id, meetingId, content) {
+  if (!table.seen || !content) return;
+  const tail = `|speak|${meetingId}|${content}`;
+  for (const k of [...table.seen]) if (typeof k === "string" && k.startsWith(`${id}|`) && k.endsWith(tail)) table.seen.delete(k);
+}
+
+function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onError, claim }, tries = 0) {
+  const stateId = table.views[id]?.stateId;
+  // Reserve the table slot so other seats queue behind this line.
+  table.lastPublicAt = Math.max(table.lastPublicAt ?? -Infinity, pace.due);
+  const p = waitOn(table, pace.wait).then(async () => {
+    const view = table.views[id];
+    const done = () => table.claimPending?.delete(`${id}|${stateId}|${action.data.content}`);
+    if (!view || view.stateId !== stateId || !selfAlive(view) || table.stopped?.[id]) return done();
+    // L6 (10/18): a held line dropped at send time is logged (live, an ask reply vanished without a trace).
+    const why = !validateAction(view, action).ok ? `held line invalid at send: ${validateAction(view, action).reason}` : publicLeak(view, action.data.content) ? "held line leaks" : machineLeak(view, action.data.content) ? "held line machine text" : null;
+    if (why) {
+      table.onSpeechReject?.(id, [why], source, action.data.content);
+      const revived = reviveHeld(table, view, action.data.content, { stale: false, source });
+      const revivedOk = revived && validateAction(view, revived).ok && !publicLeak(view, revived.data.content) && !machineLeak(view, revived.data.content);
+      if (revivedOk && source !== "day-speech") {
+        forgetSpoken(table, id, action.data.meetingId, action.data.content);
+        await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: nowOf(table), claim: false });
+      } else if (source !== "floor-rule" && source !== "day-speech" && isPublicSpeak(view, action)) {
+        noteSpeechBlock(table, id, view);
+        const fl = applySpeechFloor(table, id, view);
+        if (fl) await emitActions(table, id, [fl], { source: "floor-rule", entry, dryRun, send, onError, clock: nowOf(table), claim: false });
+      }
+      return done();
+    }
+    const claimed = claimedRoleIn(action.data.content);
+    if (claimed && table.claimedRole?.[id]) { table.onSpeechReject?.(id, ["held claim: already claimed"], source, action.data.content); return done(); }
+    const now = nowOf(table);
+    // Re-check at the real send time (other lines may have gone out meanwhile); this line's own slot is free.
+    if (table.lastPublicAt === pace.due) table.lastPublicAt = -Infinity;
+    const again = paceSpeech(table, id, view, action, now, { entry, claim, source, anchor: pace.anchor });
+    if (again.drop) {
+      table.onSpeechReject?.(id, [again.drop], source, action.data.content);
+      const revived = /^stale reply/.test(again.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
+      if (revived && source !== "day-speech") {
+        forgetSpoken(table, id, action.data.meetingId, action.data.content);
+        await emitActions(table, id, [revived], { source: "day-speech", entry, dryRun, send, onError, clock: now, claim: false });
+      }
+      return done();
+    }
+    if (again.wait > 50 && tries < 4) { deferSpeech(table, id, action, again, { source, entry, dryRun, send, onError, claim }, tries + 1); return; }
+    if (claimed) (table.claimedRole ||= {})[id] = claimed;
+    table.speechStamp[id] = speechStamp(view);
+    ((table.spokeAt ||= {})[id] ||= []).push(now);
+    notePublicSend(table, id, now);
+    if (!claim) table.lastTableLineAt = Math.max(table.lastTableLineAt ?? -Infinity, now);
+    noteSpeechSent(table, id, view);
+    done();
+    if (claim) ((table.claimSent ||= {})[id] ||= new Set()).add(action.data.content);
+    const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+paced`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...finalSpeak(view, action), t: now };
+    table.proposed.push(proposal);
+    table.onDeferred?.(proposal);
+    if (!dryRun && send) {
+      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      catch (err) { if (onError) onError(err, id); }
+    }
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
 }
 
 /** Night actions first, then votes, then speech. Lower runs first. */
@@ -748,7 +1098,8 @@ export function createLlmLimiter(concurrency = Infinity) {
     while (active < concurrency && queue.length) {
       queue.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
       const job = queue.shift();
-      if (job.isStale && job.isStale()) { stats.dropped++; job.reject(new Error("stale")); continue; }
+      const st = job.isStale ? job.isStale() : false;
+      if (st) { stats.dropped++; job.reject(new Error(typeof st === "string" ? st : "stale")); continue; }
       active++; stats.started++;
       Promise.resolve().then(job.fn).then(job.resolve, job.reject).finally(() => { active--; pump(); });
     }
@@ -766,8 +1117,274 @@ export function createLlmLimiter(concurrency = Infinity) {
 /** Wrap a seat's model with the limiter; every call is tied to the state it was asked in. */
 function limitedComplete(table, id, base, limiter, stateId, priority) {
   if (!limiter) return base;
-  const isStale = () => table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id];
-  return (input) => limiter.run(() => base(input), { priority, isStale });
+  const fix = staleFixOf(table.config);
+  return (input) => {
+    // staleFix (stale-latency 10/19, off by default): judged when the call leaves the queue.
+    const t0 = nowOf(table);
+    const v0 = table.views[id];
+    const day = v0?.phase?.phase === "Day";
+    const anchorT = day ? Number(answeredLine(v0, t0)?.t) : NaN;
+    const freshAtAsk = Number.isFinite(anchorT) && t0 - anchorT <= SPEECH_PACE.staleMs;
+    const isStale = () => {
+      if (table.views[id]?.stateId !== stateId || !selfAlive(table.views[id]) || !!table.stopped?.[id]) return true;
+      const now = nowOf(table);
+      // cancel: the line this call would answer went stale while it waited (it would be dropped at send anyway).
+      if (fix.cancel && freshAtAsk && now - anchorT > SPEECH_PACE.staleMs) return "cancelled";
+      // fallbackMs: a day call that waited this long gives way to a template line now.
+      if (fix.fallbackMs && day && now - t0 > fix.fallbackMs) return "fallback";
+      return false;
+    };
+    return limiter.run(() => base(input), { priority, isStale });
+  };
+}
+
+/** config.staleFix: { recheck, cancel, fallbackMs } (stale-latency 10/19); all off by default. */
+export function staleFixOf(config) {
+  const f = config?.staleFix || {};
+  return { recheck: !!f.recheck, cancel: !!f.cancel, fallbackMs: Number(f.fallbackMs) > 0 ? Number(f.fallbackMs) : 0 };
+}
+
+/**
+ * The rule line due for this seat now: an answer to the Sheriff's "claim?" (askReplyLine), the Cop / Journalist /
+ * Sheriff claim, the Sheriff's own ask before he shoots (sheriffAskLine), or adaptive scum's pressure claim.
+ */
+export function claimLineFor(view) {
+  if (view?.phase?.phase !== "Day") return null;
+  return askReplyLine(view) || roleClaimLine(view) || sheriffAskLine(view, { now: view.clock })?.line
+    || hammerAskLine(view, { now: view.clock })
+    || planClaimLine(view)?.line
+    || (scumFaction(view) && mafiaModeOf(view) === "adaptive" ? adaptivePressureLine(view)?.line : null);
+}
+
+/**
+ * The faction's planned fake claim (adaptiveClaimLine), sent by the rules path rather than left to the model:
+ * live game L2-1018 had two planned fake-Cop claims that never went out because only the LLM could say
+ * them. It goes out once the Sheriff's out-window has passed (PLAN_CLAIM_AFTER_MS into the day).
+ */
+export const PLAN_CLAIM_AFTER_MS = 15_000;
+export function planClaimLine(view) {
+  if (view?.phase?.phase !== "Day" || !scumFaction(view) || mafiaModeOf(view) !== "adaptive") return null;
+  const start = Number(view.phaseStartedAt), now = Number(view.clock);
+  if (Number.isFinite(start) && Number.isFinite(now) && now - start < PLAN_CLAIM_AFTER_MS) return null;
+  const mine = (view.messages || []).filter((m) => m?.senderId === view.selfId && m.public !== false);
+  if (mine.some((m) => claimedRoleIn(m.content))) return null;
+  const plan = agreedPlan(view);
+  return plan ? adaptiveClaimLine(view, plan) : null;
+}
+
+/** Once per seat per day: log why a planned fake claim is adapted or dropped (table.onPlanClaim). */
+function notePlanClaim(table, id, view) {
+  if (!table.onPlanClaim || view?.phase?.phase !== "Day" || !scumFaction(view) || mafiaModeOf(view) !== "adaptive") return;
+  const seen = (table.planNoted ||= {});
+  // L3 (10/18): why this seat answers the Sheriff's ask the way it does (villager vs a fake claim).
+  const ar = askReplyChoice(view);
+  const ak = `${id}|${view.stateId}|ask`;
+  if (ar && !seen[ak]) { seen[ak] = true; table.onPlanClaim(id, `ask-reply: ${ar.why} -> "${ar.line}"`); }
+  const c = planClaimLine(view);
+  const drop = c ? null : planClaimDropReason(view);
+  const what = c?.adapt ? `adapt: ${c.adapt}` : drop ? `drop: ${drop}` : null;
+  const k = `${id}|${view.stateId}|${what}`;
+  if (!what || seen[k]) return;
+  seen[k] = true;
+  table.onPlanClaim(id, what);
+}
+
+/**
+ * A scum seat's unprompted fake claim waits the first few seconds of the day, so the Sheriff's opening
+ * "im sheriff" is in view (and chatAudit can stop a fake guilty on him) before the claim goes out.
+ * Answering the Sheriff's ask is not held.
+ */
+export const SCUM_CLAIM_SETTLE_MS = 6_000;
+function scumClaimSettleMs(view, clock) {
+  if (!scumFaction(view) || view?.phase?.phase !== "Day" || askReplyLine(view)) return 0;
+  const start = Number(view.phaseStartedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(Number(clock))) return 0;
+  return Math.max(0, start + SCUM_CLAIM_SETTLE_MS - Number(clock));
+}
+
+/** A claim line is due and not already sent (the server echo may still be on its way). */
+function claimDue(table, id, view) {
+  const line = claimLineFor(view);
+  return !!line && !(claimedRoleIn(line) && table.claimedRole?.[id]) && !table.claimSent?.[id]?.has(line) && !!publicSpeechMeeting(view);
+}
+
+/**
+ * Send the due claim now. Claims are re-checked on every entry and are never dropped: if our chat cooldown
+ * blocks it, it is queued for the moment the cooldown ends (and re-checked then).
+ */
+async function sendClaim(table, id, ctx, clock = ctx.clockOf?.() ?? nowOf(table)) {
+  const view = table.views[id];
+  if (view && selfAlive(view)) notePlanClaim(table, id, view);
+  if (!view || !selfAlive(view) || table.stopped?.[id] || !claimDue(table, id, view)) return [];
+  const line = claimLineFor(view);
+  // L5 (10/18): a counterclaim takes the shortest human beat (REACT.minMs). Live D2, the fake Journalist
+  // claimed 6.6s before the lynch ended the game; the real one's 3-8s hold lost the race.
+  const urgent = counterclaimLine(view, line);
+  const wait = Math.max(speechWaitMs(table, id, clock), reactWaitMs(table, id, view, line, clock, { urgent }));
+  if (wait > 0) { queueClaim(table, id, ctx, wait); return []; }
+  const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: publicSpeechMeeting(view).id, content: line } }], { ...ctx, source: "claim-rule", clock, claim: true });
+  if (added.length) ((table.claimSent ||= {})[id] ||= new Set()).add(line);
+  return added;
+}
+
+/**
+ * Hammer ask (engine hammer.js), outside the day-vote gate: a seat the revealed Sheriff asked self-votes after
+ * its human beat (REACT); the Sheriff casts his deciding vote once all have, or bandwagons a refuser; his
+ * re-ask and refusal deadlines get a timer. Logged through table.onHammer.
+ */
+async function hammerStep(table, id, ctx) {
+  const view = table.views[id];
+  if (!view || table.config?.hammer === "off" || view.phase?.phase !== "Day" || !selfAlive(view)) return [];
+  const now = ctx.clockOf?.() ?? nowOf(table);
+  const next = hammerNextMs(view, { now });
+  if (next != null) queueRecheck(table, id, ctx, next + 50);
+  const hv = hammerVote(view, { now });
+  const m = Object.values(view.meetings || {}).find((x) => x?.name === "Village" && x.voting);
+  if (!hv?.target || !m) return [];
+  const mine = m.votes?.[view.selfId];
+  if ((Array.isArray(mine) ? mine[0] : mine) === hv.target) return [];
+  const hold = hv.target === view.selfId ? reactWaitMs(table, id, view, `hammer-self|${hv.target}`, now) : 0;
+  if (hold > 0) { queueRecheck(table, id, ctx, hold); return []; }
+  const k = `${id}|${view.stateId}|${hv.target}`;
+  if ((table.hammerSent ||= new Set()).has(k)) return [];
+  const vote = { event: "vote", data: { meetingId: m.id, selection: hv.target } };
+  if (!validateAction(view, vote).ok) return [];
+  table.hammerSent.add(k);
+  ((table.latestPick ||= {})[`${id}|${view.stateId}|${m.id}`] = hv.target);
+  table.onHammer?.(id, hv);
+  return emitActions(table, id, [vote], { ...ctx, source: "hammer-rule", clock: now });
+}
+
+/** Move a standing day vote when the ballot says a switch lynches, or a dangerous tie must break. */
+async function ballotSwitchStep(table, id, ctx) {
+  const view = table.views[id];
+  const now = ctx.clockOf?.() ?? nowOf(table);
+  if (!view) return [];
+  const sw = ballotSwitch({ ...view, clock: now }, { now });
+  if (!sw?.target) return [];
+  const m = Object.values(view.meetings || {}).find((x) => x?.name === "Village" && x.voting);
+  if (!m) return [];
+  const vote = { event: "vote", data: { meetingId: m.id, selection: sw.target } };
+  if (!validateAction({ ...view, clock: now }, vote).ok) return [];
+  table.onBallotSwitch?.(id, sw);
+  return emitActions(table, id, [vote], { ...ctx, source: "ballot-switch", clock: now });
+}
+
+/**
+ * L4 (10/18) safety net: a living seat with no Village vote standing (and none queued) casts its current legal
+ * pick before the server's vote-kick check. Server: Game.createNextStateTimer -> checkVeg at the main timer's
+ * end opens the Vote Kick (VegKickMeeting) and a vegKickCountdown; a seat is kickable unless alive and
+ * hasVotedInAllMeetings(). So the net fires late in the day (fraction or remaining time) and at once on the
+ * vote-kick warning or a Vote Kick meeting. It overrides every hold (Sheriff, hammer, adaptive scum).
+ */
+export const BALLOT_NET = Object.freeze({ fraction: 0.9, remainingMs: 20_000, retryMs: 8_000, sheriffFraction: 0.96, sheriffRemainingMs: 12_000 });
+
+function ballotDeadline(view, now) {
+  if (view.voteKickWarning) return "vote-kick warning";
+  if (Object.values(view.meetings || {}).some((m) => /^vote ?kick$/i.test(String(m?.name || "")))) return "vote kick open";
+  // A Sheriff whose gun is still owed (Vinman: his Village vote waits for the shot) gets the last seconds.
+  const owed = sheriffGunOwed(view);
+  const frac = owed ? BALLOT_NET.sheriffFraction : BALLOT_NET.fraction;
+  const rem = owed ? BALLOT_NET.sheriffRemainingMs : BALLOT_NET.remainingMs;
+  const f = dayFraction(view, { now });
+  if (f != null && f >= frac) return `fraction ${f.toFixed(2)}`;
+  const tm = view.timer?.stateId === view.stateId ? view.timer : null;
+  if (tm?.last != null && tm.first != null && tm.last < tm.first && tm.last <= rem) return `remaining ${tm.last}`;
+  return null;
+}
+
+export async function ballotNet(table, id, view, now, { send, dryRun, onError, entry } = {}) {
+  if (!view?.selfId || view.phase?.phase !== "Day" || !selfAlive(view) || view.finished) return [];
+  const gunFirst = await gunNet(table, id, view, now, { send, dryRun, onError, entry });
+  if (gunFirst.length) return gunFirst;
+  const m = Object.values(view.meetings || {}).find((x) => x?.name === "Village" && x.voting && x.amMember !== false && x.canVote !== false && !x.used);
+  if (!m) return [];
+  const mine = m.votes?.[view.selfId];
+  if (mine != null && !(Array.isArray(mine) && !mine.length)) return [];
+  const pk = `${id}|${view.stateId}|${m.id}`;
+  if ((table.pendingVotes?.[pk] || 0) > 0 && !view.voteKickWarning) return [];
+  const why = ballotDeadline(view, now);
+  if (!why) return [];
+  const last = table.netSentAt?.[pk];
+  if (last != null && now - last < BALLOT_NET.retryMs) return [];
+  const e = meetingActions(view, m);
+  if (!e || e.closed) return [];
+  const ok = (t) => t != null && validateAction(view, { event: "vote", data: { meetingId: m.id, selection: t } }).ok;
+  const real = (t) => t !== view.selfId && t !== "*";
+  const pref = [table.latestPick?.[pk], ...(e.picks || []).filter(real), ...e.allowed.filter(real), ...(e.picks || []), ...e.allowed];
+  const pick = pref.find(ok);
+  if (pick == null) return [];
+  (table.netSentAt ||= {})[pk] = now;
+  const action = { event: "vote", data: { meetingId: m.id, selection: pick } };
+  (table.lastVote ||= {})[pk] = JSON.stringify(pick);
+  (table.lastVoteAt ||= {})[id] = now;
+  (table.lastVoteAction ||= {})[id] = action;
+  table.onBallotNet?.(id, pick, why, now);
+  const proposal = { accountId: id, afterSeq: entry?.seq, source: "ballot-net", phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
+  table.proposed.push(proposal);
+  if (send && !dryRun) {
+    try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+    catch (err) { if (onError) onError(err, id); }
+  }
+  return [proposal];
+}
+
+/**
+ * L6 (10/18): the Sheriff never shot on Day 1. His Village vote (ballot net, vote kick open) went in while the
+ * gun was still loaded, and with all votes in the day closed at once. At the ballot deadline the owed gun
+ * fires first, at the rule's late target (sheriffShotReady: an unanswered ask is shootable, last call shoots
+ * unasked). The Village vote follows on the next pass.
+ */
+async function gunNet(table, id, view, now, { send, dryRun, onError, entry } = {}) {
+  if (!sheriffGunOwed(view) || !ballotDeadline(view, now)) return [];
+  const gun = Object.values(view.meetings || {}).find((m) => /shoot|gun/i.test(String(m?.name || "")) && m.voting && m.amMember !== false && m.canVote !== false && !m.used);
+  if (!gun) return [];
+  const r = sheriffShotReady({ ...view, clock: now }, { now });
+  if (!r.ok || !(gun.targets || []).includes(r.target)) return [];
+  const k = `${id}|${view.stateId}|gun`;
+  if ((table.gunNetAt ||= {})[k] != null && now - table.gunNetAt[k] < BALLOT_NET.retryMs) return [];
+  table.gunNetAt[k] = now;
+  const action = { event: "vote", data: { meetingId: gun.id, selection: r.target } };
+  if (!validateAction({ ...view, clock: now }, action).ok) return [];
+  table.onBallotNet?.(id, r.target, `gun first: ${r.why || "owed"}`, now);
+  const proposal = { accountId: id, afterSeq: entry?.seq, source: "gun-net", phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
+  table.proposed.push(proposal);
+  if (send && !dryRun) {
+    try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+    catch (err) { if (onError) onError(err, id); }
+  }
+  return [proposal];
+}
+
+/** Re-run this seat's upgrade pass after a reactive hold (one pending re-check per seat). */
+function queueRecheck(table, id, ctx, wait) {
+  const k = `${id}|${table.views[id]?.stateId}`;
+  if ((table.recheckQueued ||= new Set()).has(k)) return;
+  table.recheckQueued.add(k);
+  const p = waitOn(table, wait).then(async () => {
+    table.recheckQueued.delete(k);
+    if (ctx.complete && ctx.clockOf) return startUpgrade(table, id, ctx);
+    // Rules-only (fast, no model): the due claim and the hammer step, at the new time.
+    const added = [...await sendClaim(table, id, ctx, nowOf(table)), ...await hammerStep(table, id, { ...ctx, clockOf: () => nowOf(table) }), ...await ballotSwitchStep(table, id, { ...ctx, clockOf: () => nowOf(table) })];
+    if (ctx.onAdded) ctx.onAdded(added);
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+function queueClaim(table, id, ctx, wait) {
+  const stateId = table.views[id]?.stateId;
+  const k = `${id}|${stateId}`;
+  if ((table.claimQueued ||= new Set()).has(k)) return;
+  table.claimQueued.add(k);
+  const p = waitOn(table, wait).then(async () => {
+    table.claimQueued.delete(k);
+    if (table.views[id]?.stateId !== stateId) return;
+    const added = await sendClaim(table, id, ctx, nowOf(table));
+    if (ctx.onAdded) ctx.onAdded(added);
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
 }
 
 /** Model pass for one seat on its latest view; results only land if the state has not moved on. */
@@ -790,19 +1407,21 @@ function startUpgrade(table, id, ctx) {
       // Cop / Journalist / Sheriff claims come from rules (report-driven), ahead of any model line. After
       // the claim, the same rule only adds new results (no second claim).
       if (!night) {
-        // Adaptive scum under pressure claim like a townie would (Villager, or an open Journalist).
-        const claim = roleClaimLine(view) || (scumFaction(view) && mafiaModeOf(view) === "adaptive" ? adaptivePressureLine(view)?.line : null);
+        const added = await sendClaim(table, id, ctx);
+        if (ctx.onAdded) ctx.onAdded(added);
+        if (added.length) continue;
+        const hammered = await hammerStep(table, id, ctx);
+        if (ctx.onAdded) ctx.onAdded(hammered);
+        const switched = await ballotSwitchStep(table, id, ctx);
+        if (ctx.onAdded) ctx.onAdded(switched);
         const pm = publicSpeechMeeting(view);
-        if (claim && pm) {
-          const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: claim } }], { ...ctx, source: "claim-rule", clock: ctx.clockOf() });
-          if (ctx.onAdded) ctx.onAdded(added);
-          if (added.length) continue;
-        }
         // Town counter-story from the public evidence (townCounterLine), at most once per seat per day.
         const ck = `${id}|${view.stateId}`;
         if (pm && !(table.counterSaid ||= new Set()).has(ck)) {
           const counter = townCounterLine(view);
-          if (counter) {
+          const hold = counter ? reactWaitMs(table, id, view, counter, ctx.clockOf()) : 0;
+          if (hold > 0) queueRecheck(table, id, ctx, hold);
+          else if (counter) {
             table.counterSaid.add(ck);
             const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: counter } }], { ...ctx, source: "counter-rule", clock: ctx.clockOf() });
             if (ctx.onAdded) ctx.onAdded(added);
@@ -818,7 +1437,9 @@ function startUpgrade(table, id, ctx) {
         const lively = (view.messages || []).filter((m) => m.meetingId === pm?.id && m.senderId && m.senderId !== view.selfId && Number(m.t) >= t - 30000).length >= 2;
         if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && rngOf(table)() < CHAT_LIMITS.fillerChance) {
           const line = cannedReaction(view, rngOf(table));
-          if (line) {
+          const hold = line ? reactWaitMs(table, id, view, line, t) : 0;
+          if (hold > 0) queueRecheck(table, id, ctx, hold);
+          else if (line) {
             const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content: line } }], { ...ctx, source: "canned", clock: t });
             if (ctx.onAdded) ctx.onAdded(added);
             if (added.length) continue;
@@ -833,20 +1454,58 @@ function startUpgrade(table, id, ctx) {
           llmFallback: false, speechFirst: true, memory: false, maxRetries: 0, scheduleComplete: null,
         });
       } catch (err) {
-        if (String(err?.message) !== "stale" && ctx.onError) ctx.onError(err, id);
+        if (String(err?.message) === "stale") {
+          table.onSpeechReject?.(id, ["model stale"], "llm");
+          await speakFresh(table, id, table.views[id], ctx);
+        } else if (String(err?.message) === "cancelled") {
+          table.onSpeechReject?.(id, ["model cancelled (trigger stale)"], "llm");
+        } else if (String(err?.message) === "fallback") {
+          table.onSpeechReject?.(id, [`model fallback (queued over ${staleFixOf(table.config).fallbackMs / 1000}s)`], "llm");
+          await speakFresh(table, id, table.views[id], ctx);
+        } else if (ctx.onError) ctx.onError(err, id);
         continue;
       }
       if (plan.speechRejections?.length) table.onSpeechReject?.(id, plan.speechRejections, "llm");
+      // staleFix.fallbackMs: the speech call gave way after its queue wait; a template line goes out now instead.
+      if (plan.speechRejections?.some((r) => /^model error: fallback/.test(String(r)))) {
+        await speakFresh(table, id, table.views[id], ctx);
+        continue;
+      }
       const now = table.views[id];
-      if (!now || now.stateId !== stateId || !selfAlive(now)) { ctx.onStale?.(id); continue; }
+      if (!now || now.stateId !== stateId || !selfAlive(now)) {
+        ctx.onStale?.(id);
+        const staleLine = plan.actions?.find((a) => isPublicSpeak(view, a))?.data?.content;
+        table.onSpeechReject?.(id, ["model stale"], "llm", staleLine);
+        if (now && selfAlive(now)) await speakFresh(table, id, now, ctx, staleLine);
+        continue;
+      }
       const sch = plan.schedule;
       if (ctx.onSchedule && sch && sch.meetingId && !night) {
         const key = `${sch.speak ? "speak" : "skip"}|${sch.path}|${sch.reason}`;
         if (table.lastSchedule?.[id] !== key) { (table.lastSchedule ||= {})[id] = key; ctx.onSchedule(id, sch); }
       }
       // Scum votes stay on the seen PLAN: the model may not move a faction kill, clean, or litigate.
-      const keep = shapeDayVotes(table, id, now, plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a))), ctx.clockOf(), { source: plan.source });
-      const added = await emitActions(table, id, keep, { ...ctx, source: plan.source, clock: ctx.clockOf() });
+      // A claim that became due while the model was thinking (e.g. the Sheriff just outed) beats the stale line.
+      const claimFirst = claimDue(table, id, now);
+      const keep = shapeDayVotes(table, id, now, plan.actions.filter((a) => !(a.event === "vote" && scumLocked(now, a)) && !(claimFirst && isPublicSpeak(now, a))), ctx.clockOf(), { source: plan.source });
+      // The public line carries its own author (llm / rules / accused-rule), not the vote's label.
+      const speech = keep.filter((a) => isPublicSpeak(now, a));
+      const added = await emitActions(table, id, keep.filter((a) => !speech.includes(a)), { ...ctx, source: plan.source, clock: ctx.clockOf() });
+      if (speech.length) {
+        // Reactive hold (REACT): a line answering a fresh message waits its human beat, then goes if still current.
+        const hold = Math.max(...speech.map((a) => reactWaitMs(table, id, now, String(a.data?.content || ""), ctx.clockOf())));
+        const src = plan.speechSource || plan.source;
+        if (hold > 0) {
+          const p = waitOn(table, hold).then(async () => {
+            const v2 = table.views[id];
+            if (!v2 || v2.stateId !== stateId || !selfAlive(v2) || table.stopped?.[id]) return;
+            const late = await emitActions(table, id, speech, { ...ctx, source: src, clock: ctx.clockOf() });
+            if (ctx.onAdded) ctx.onAdded(late);
+          });
+          (table.upgrades ||= new Set()).add(p);
+          p.finally(() => table.upgrades.delete(p));
+        } else added.push(...await emitActions(table, id, speech, { ...ctx, source: src, clock: ctx.clockOf() }));
+      }
       if (ctx.onAdded) ctx.onAdded(added);
     } while (table.dirty?.[id]);
   };
@@ -962,6 +1621,104 @@ export function publicChatLogLine(table, accountId, entry) {
   return `chat [${view.phase?.name || ""}] ${m.name} ${name}: ${sanitizeChat(text, SPEECH_LOG_MAX)}`;
 }
 
+/** A held line's replacement: reviveSpeech, or with quietTable.repair "intent" the intent-keeping repair (or null). */
+function reviveHeld(table, view, content, opts) {
+  return quietTableOpts(table.config).repair === "intent" ? reviveKeepingIntent(view, content, opts) : reviveSpeech(view, content);
+}
+
+/** quietTable.filler "facts": openers and fillers restate public facts only. */
+function quietLines(table, view) {
+  return quietTableOpts(table.config).filler === "facts" ? publicFactLines(view) : [dayOpener(view)];
+}
+
+/** quietTable.keyFirst: a claim, result or counterclaim is waiting to go out, so quiet-table lines hold. */
+function keyLinePending(table) {
+  return quietTableOpts(table.config).keyFirst && (table.claimPending?.size || 0) > 0;
+}
+
+/** One fresh public line for a seat whose model line went stale or no longer validates. */
+async function speakFresh(table, id, view, ctx, content) {
+  if (!view || view.phase?.phase !== "Day" || !selfAlive(view) || table.stopped?.[id]) return [];
+  const pm = publicSpeechMeeting(view);
+  if (!pm) return [];
+  // quietTable.repair "intent": a model line that went stale keeps its intent or is dropped (no generic opener).
+  const intent = quietTableOpts(table.config).repair === "intent";
+  const line = intent
+    ? (content ? reviveKeepingIntent(view, content, { stale: true, source: "llm" }) : null)
+    : (content ? reviveSpeech(view, content) : null) || (dayOpener(view) ? { event: "speak", data: { meetingId: pm.id, content: dayOpener(view) } } : null);
+  if (!line) return [];
+  const added = await emitActions(table, id, [line], { ...ctx, source: "day-speech", clock: ctx.clockOf?.() ?? nowOf(table), claim: false });
+  if (ctx.onAdded) ctx.onAdded(added);
+  return added;
+}
+
+/**
+ * Each living seat says one short line near the start of the day. Seats are spaced by the table gap
+ * and the last of them is due at DAY_SPEECH.openWithinMs, so a one-seat day does not talk over a claim
+ * that lands in the first seconds. A claim already due, or a line already said, is that seat's opener.
+ * Checked on each entry (no long timer): the virtual clock must not jump ahead to fire it.
+ */
+function clocksAgree(table, now) {
+  return Number.isFinite(now) && Math.abs(nowOf(table) - now) <= 1_000;
+}
+
+function queueDayOpener(table, id, view, ctx, now) {
+  if (view?.phase?.phase !== "Day" || !selfAlive(view) || !clocksAgree(table, now)) return;
+  if (!publicSpeechMeeting(view)) return;
+  const key = `${id}|${view.stateId}|day-open`;
+  if ((table.dayOpenQueued ||= new Set()).has(key)) return;
+  if ((table.daySaid?.[floorKey(id, view)] || 0) > 0 || table.pending?.[id]) return;
+  if (claimDue(table, id, view)) return;
+  // The Sheriff's Day 1 speech is the ask and the shot. An opener beside that ask breaks his own gap.
+  if (sheriffGunOwed(view)) return;
+  const rank = Math.max(0, [...table.byId.keys()].indexOf(id));
+  const n = Math.max(1, table.byId.size);
+  const start = Number(view.phaseStartedAt);
+  const base = Number.isFinite(start) ? start : now;
+  const dueAt = base + Math.max(0, DAY_SPEECH.openWithinMs - (n - 1 - rank) * SPEECH_PACE.tableGapMs);
+  if (now < dueAt) return;
+  if (keyLinePending(table)) return;
+  table.dayOpenQueued.add(key);
+  const content = quietLines(table, view)[0];
+  const meeting = publicSpeechMeeting(view);
+  if (!content || !meeting) { table.dayOpenQueued.delete(key); return; }
+  const p = emitActions(table, id, [{ event: "speak", data: { meetingId: meeting.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false }).then((added) => {
+    if (ctx.onAdded) ctx.onAdded(added);
+    return added;
+  });
+  (table.upgrades ||= new Set()).add(p);
+  p.finally(() => table.upgrades.delete(p));
+}
+
+/** The lowest living account speaks when the day has been quiet for DAY_SPEECH.silenceMs and 2+ are alive. */
+async function silenceStep(table, id, view, ctx, now) {
+  if (view?.phase?.phase !== "Day" || !selfAlive(view) || !clocksAgree(table, now)) return [];
+  const livingPids = Object.keys(view.players || {}).filter((pid) => view.players[pid] && !view.players[pid].left && !view.dead?.[pid]);
+  if (livingPids.length < 2) return [];
+  const pm = publicSpeechMeeting(view);
+  if (!pm) return [];
+  const livingAcc = [...table.byId.keys()].filter((aid) => selfAlive(table.views[aid]));
+  if (livingAcc[0] !== id) return [];
+  const lastMsg = (view.messages || []).reduce((x, m) => (m?.meetingId === pm.id && m.senderId && m.senderId !== "server" && Number.isFinite(Number(m.t)) ? Math.max(x, Number(m.t)) : x), -Infinity);
+  const start = Number(view.phaseStartedAt);
+  const last = Math.max(table.lastPublicAt ?? -Infinity, lastMsg, Number.isFinite(start) ? start : -Infinity);
+  if (!(now - last >= DAY_SPEECH.silenceMs)) return [];
+  const stretch = `${view.stateId}|${Math.floor(last / 1000)}`;
+  if ((table.silenceKey ||= {})[id] === stretch) return [];
+  const said = new Set((table.proposed || []).filter((p) => p.accountId === id && p.event === "speak").map((p) => p.data?.content));
+  if (keyLinePending(table)) return [];
+  const candidates = [...new Set([...quietLines(table, view), ...SPEECH_FLOOR.lines].filter(Boolean))];
+  const content = candidates.find((line) => {
+    const spoken = humanizeSpeak(view, { event: "speak", data: { meetingId: pm.id, content: line } }).data?.content;
+    return spoken && !said.has(spoken) && validateAction(view, { event: "speak", data: { meetingId: pm.id, content: line } }).ok;
+  });
+  if (!content) return [];
+  table.silenceKey[id] = stretch;
+  const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false });
+  if (!added.length) delete table.silenceKey[id];
+  return added;
+}
+
 export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
@@ -971,6 +1728,10 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   table.views[id] = engineReduce(table.views[id] ?? seatView(table), entry);
   if (onChat) { const line = publicChatLogLine(table, id, entry); if (line) onChat(line); }
   if (entry?.event === "message" && table.onAlert) { const r = alertResult(table.views[id], entry.data); if (r) table.onAlert(id, r); }
+  if ((entry?.event === "players" || entry?.event === "self") && table.onSeatMap && !table.seatMapLogged) {
+    const line = seatMapLine(table);
+    if (line) { table.seatMapLogged = true; table.onSeatMap(line); }
+  }
   if (entry?.event === "roleReveal" || entry?.event === "players" || entry?.event === "self") {
     for (const inj of noteSeatRole(table, id, table.views[id])) {
       if (table.views[inj.accountId]) table.views[inj.accountId] = engineReduce(table.views[inj.accountId], { event: "teammates", data: inj.data });
@@ -984,6 +1745,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
   }
   const view = table.views[id];
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
+  if (entry?.event === "winners" || entry?.event === "finished" || view?.winners || view?.finished) return [];
   // A dead, lynched, or kicked seat stops: no scheduler, no generator, no sends.
   if (view.selfId && !selfAlive(view)) {
     if (!table.stopped?.[id]) { (table.stopped ||= {})[id] = true; if (onSchedule) onSchedule(id, { speak: false, urgency: 0, threshold: 0, path: "dead", reason: "seat is dead; queue stopped", meetingId: "-" }); }
@@ -996,6 +1758,8 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     (table.lastTick ||= {})[id] = clock;
   }
   const ctx = { dryRun, send, onError, entry };
+  const netted = await ballotNet(table, id, view, clock ?? nowOf(table), ctx);
+  if (netted.length && onAdded) onAdded(netted);
   if (fast && isNightOneInvestigator(view)) {
     return emitActions(table, id, nightOneRandomPicks(view, id), { ...ctx, source: "n1-random", clock });
   }
@@ -1006,12 +1770,18 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     const instant = shapeDayVotes(table, id, view, rules.actions.filter((a) => a.event === "vote" || (a.event === "speak" && !isPublicSpeak(view, a))), clock ?? nowOf(table), { source: "rules" });
     const added = await emitActions(table, id, instant, { ...ctx, source: "rules", clock });
     scheduleScumChatter(table, id, view, { ...ctx, onAdded });
+    // A due claim goes out on the entry that made it due (e.g. "im sheriff"), not behind a model call.
+    added.push(...await sendClaim(table, id, { ...ctx, onAdded }, clock ?? nowOf(table)));
+    if (!complete) added.push(...await hammerStep(table, id, { ...ctx, onAdded, clockOf: () => clock ?? nowOf(table) }));
+    added.push(...await ballotSwitchStep(table, id, { ...ctx, onAdded, clockOf: () => clock ?? nowOf(table) }));
     if (complete) {
       startUpgrade(table, id, {
         ...ctx, complete, rng, limiter, onSchedule, onAdded,
         clockOf: () => (now != null ? now : nowOf(table)),
       });
     }
+    queueDayOpener(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table));
+    added.push(...await silenceStep(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table)));
     return added;
   }
   const promptText = table.byId.get(id)?.promptText;
@@ -1034,7 +1804,29 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
       onSchedule(id, sch);
     }
   }
-  return emitActions(table, id, plan.actions, { ...ctx, source: plan.source, clock });
+  const speech = plan.actions.filter((a) => isPublicSpeak(view, a));
+  const added = await emitActions(table, id, plan.actions.filter((a) => !speech.includes(a)), { ...ctx, source: plan.source, clock });
+  if (speech.length) added.push(...await emitActions(table, id, speech, { ...ctx, source: plan.speechSource || plan.source, clock }));
+  added.push(...await ballotSwitchStep(table, id, { ...ctx, clockOf: () => clock ?? nowOf(table) }));
+  queueDayOpener(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table));
+  added.push(...await silenceStep(table, id, table.views[id], { ...ctx, onAdded }, clock ?? nowOf(table)));
+  return added;
+}
+
+/**
+ * One line mapping each bot seat to its player slot, from the server's own self/players frames:
+ * `seatmap s1=<playerId>:"<handle>" s2=...` in account order (the order of the `game ... accounts=` line).
+ * Seat labels and in-game handles only: no account ids, emails or tokens. Null until every seat is known.
+ */
+export function seatMapLine(table) {
+  const ids = [...table.byId.keys()];
+  const parts = ids.map((id, i) => {
+    const v = table.views[id];
+    const pid = v?.selfId;
+    const name = pid && v.players?.[pid]?.name;
+    return pid && name ? `s${i + 1}=${pid}:${JSON.stringify(String(name))}` : null;
+  });
+  return parts.every(Boolean) ? `seatmap ${parts.join(" ")}` : null;
 }
 
 /** Wait for queued model upgrades (tests, end of game). */
@@ -1145,7 +1937,7 @@ export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => f
         if (onInfo) onInfo(`restart: reconnected (game ${st}); resuming from buffered events`);
         inOutage = false; // failures/outage clock reset only once the live stream delivers a frame
       }
-      // The stream has no replay. Game qAl36MVss filled and started while the bots were being seated,
+      // The stream has no replay. Game GAME03 filled and started while the bots were being seated,
       // so self/roleReveal/state went out before we subscribed; every seat idled into Vote Kick.
       // The stream is already subscribed here, so pull each seat's buffered events first; the
       // per-seat seq guard drops the duplicates the stream then repeats.
@@ -1154,7 +1946,24 @@ export async function runStreamLoop({ fetchStream, onFrame, shouldStop = () => f
           if (await onFrame({ type: "game", entry })) return finished;
         }
       }
-      for await (const frame of iterateSse(body)) {
+      const iter = iterateSse(body)[Symbol.asyncIterator]();
+      let pending = null;
+      const idleMs = 250;
+      while (!shouldStop()) {
+        pending ??= iter.next();
+        const quick = await Promise.race([
+          pending.then((v) => ({ kind: "next", v })),
+          new Promise((resolve) => setTimeout(() => resolve({ kind: "wait" }), 20)),
+        ]);
+        if (quick.kind === "wait") {
+          if (sleep !== defaultSleep) await sleep(idleMs);
+          else await new Promise((resolve) => setTimeout(resolve, idleMs - 20));
+          if (shouldStop()) break;
+          continue;
+        }
+        pending = null;
+        if (quick.v.done) break;
+        const frame = quick.v.value;
         if (frame.type === "accounts_dropped") {
           const raw = JSON.stringify(frame.entry ?? {});
           if (!ourIds || ourIds.some((a) => raw.includes(a))) {
@@ -1218,7 +2027,7 @@ export async function pollOnce(client, accounts, sinceById) {
 
 export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = console.error, sleep, now = Date.now, rng = Math.random, clock = realClock, signals = null, exit = (c) => process.exit(c) } = {}) {
   const cfg = liveConfigFromEnv(env);
-  const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
+  const secrets = [env.DEV_API_CLIENT_SECRET, env.DEV_API_CLIENT_ID, env.LM_API_KEY, env.EXPLABS_API_KEY, env.OPENCODE_API_KEY, env.OPENROUTER_API_KEY, env.CF_ACCESS_CLIENT_ID, env.CF_ACCESS_CLIENT_SECRET, env.OPENCODE_SESSION];
   const say = (m) => log(redact(m, secrets));
   if (!cfg.live) {
     say("dry-run: MAFIOSO_LIVE is not 1, not connecting and not sending");
@@ -1238,9 +2047,19 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   const opened = await openTestingGame(client, { gameId: cfg.gameId, setupId: cfg.setupId, botCount: cfg.botCount, lobbyName: cfg.lobbyName });
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
-  const table = createBotTable(accounts, { clock, rng, reasoning: reasoningModel(env) });
+  const table = createBotTable(accounts, { clock, rng, reasoning: reasoningModel(env), town: cfg.town, hammer: cfg.hammer });
+  say(`town vote arm=${table.config.town}`);
+  // Suspicion arm: one line per town day pick with the seat's top reads, to compare ballots with reads.
+  table.onTownVote = (who, tv, score) => say(`town-vote ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} target=${tv.target} why=${JSON.stringify(String(tv.why).slice(0, 120))} reads=${JSON.stringify(Object.entries(score).filter(([, s]) => s).sort((x, y) => y[1] - x[1]).slice(0, 4))}`);
   say(`llm reasoning=${!!table.config.reasoning}`);
   // One line per parsed Cop / Journalist / Janitor result, so live alert parsing can be checked against the game.
+  // Seat label -> player slot and handle, once every seat knows itself (lets build-replays bind seats exactly).
+  table.onSeatMap = (line) => say(line);
+  table.onBallotUpdate = (who, from, to) => say(`ballot-update ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} queued=${from} sent=${to}`);
+  // L4 (10/18): the late-day ballot safety net (ballotNet).
+  table.onBallotNet = (who, pick, why, t) => say(`ballot-net ${who} [${table.views[who]?.phase?.name || ""}] t=${t} pick=${pick} why=${JSON.stringify(why)}`);
+  table.onPlanClaim = (who, what) => say(`plan-claim ${who} [${table.views[who]?.phase?.name || ""}] ${what}`);
+  table.onHammer = (who, hv) => say(`hammer ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} target=${hv.target} why=${JSON.stringify(hv.why)}`);
   table.onAlert = (who, r) => say(`alert ${who} [${table.views[who]?.phase?.name || ""}] kind=${r.kind} target=${JSON.stringify(String(r.target).slice(0, 30))} result=${JSON.stringify(String(r.result).slice(0, 160))}`);
   table.onSpeechReject = (who, reasons, source, content) => say(`speech-reject ${who} [${table.views[who]?.phase?.name || ""}] source=${source} reasons=${JSON.stringify(reasons.map((r) => String(r).slice(0, 120)))}${content ? ` line=${JSON.stringify(String(content).slice(0, SPEECH_LOG_MAX))}` : ""}`);
   // A manual Ctrl+C / kill leaves one structured line, so the scorecard can tell "stopped by hand" from a hang.
@@ -1256,6 +2075,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   // The server sends "self" once, on join, before our stream connects, and the event buffer is capped,
   // so seed each seat's playerId from GET /dev/accounts. Without selfId every seat decides nothing.
   await seedSelfIds(client, table, accounts.map((a) => a.accountId), { sleep, log: say });
+  if (!table.seatMapLogged) { const line = seatMapLine(table); if (line) { table.seatMapLogged = true; say(line); } }
   const refresh = async () => {
     issuedAt = await maybeRefreshToken({
       issuedAt, now: now(), ttl: TOKEN_REFRESH_MS,
@@ -1266,7 +2086,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   // Local backends serve one request at a time: queue them globally with night actions first.
   const concurrency = Number(env.MAFIOSO_LLM_CONCURRENCY) > 0 ? Number(env.MAFIOSO_LLM_CONCURRENCY) : (cfg.llm === "lmstudio" ? 1 : 4);
   const limiter = createLlmLimiter(concurrency);
-  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, SPEECH_LOG_MAX)) : "")} source=${p.source} prompt=${p.promptId}`); };
+  const logSends = (added) => { for (const p of added) say(`send ${p.accountId} [${p.phase}] t=${clock.now()} ${p.event} ${p.data?.meetingId || ""} ${p.data?.selection || (p.data?.content ? JSON.stringify(String(p.data.content).slice(0, SPEECH_LOG_MAX)) : "")} source=${p.source} prompt=${p.promptId}`); };
   let winnersLogged = false;
   table.onDeferred = (p) => logSends([p]);
   table.onMeeting = (who, m) => say(`meeting ${who} [${table.views[who]?.phase?.name || ""}] ${m.id} name=${JSON.stringify(m.rawName || m.name)} role=${m.factionRole || "-"} vote=${!!m.voting} canVote=${m.canVote !== false} targets=${(m.targets || []).length}`);
@@ -1278,7 +2098,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       winnersLogged = true; say(`winners game=${opened.gameId} ${JSON.stringify(entry.data).slice(0, 400)}`);
     }
     const added = await onGameEntry(table, entry, {
-      onChat: (line) => say(line),
+      onChat: (line) => say(`${line} t=${clock.now()}`),
       complete, rng, dryRun: false, fast: true, limiter, onAdded: logSends,
       send: (p) => client.send(p),
       onError: (err, who) => say(`seat-error ${who} ${err?.stack || err?.message || err}`),
@@ -1294,8 +2114,11 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     frameCounts[ft] = (frameCounts[ft] || 0) + 1;
     if (clock.now() - lastTrace > 20000) { lastTrace = clock.now(); say(`frames ${JSON.stringify(frameCounts)}`); }
     if (frame.type !== "game" || !frame.entry) return false;
+    if (frame.entry.event === "winners" || frame.entry.event === "finished") table.seenWinnersAt ??= now();
     const done = seats.push(frame.entry);
-    if (frame.entry.event === "winners" || frame.entry.event === "finished") await done;
+    if (frame.entry.event === "winners" || frame.entry.event === "finished") {
+      await Promise.race([done, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+    }
     return gameFinished(table, accounts.map((a) => a.accountId), endOpts);
   };
   let outcome = { status: "finished" };
@@ -1349,8 +2172,11 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     say(`game_end status=aborted reason=${outcome.reason} game=${opened.gameId}`);
     return 0;
   }
-  await seats.drain();
-  await drainUpgrades(table);
+  await Promise.race([
+    (async () => { await seats.drain(); await drainUpgrades(table); })(),
+    new Promise((resolve) => setTimeout(resolve, 3_000)),
+  ]);
+  for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
   const winView = accounts.map((a) => table.views[a.accountId]).find((v) => v?.winners);
   say(`game_end status=finished game=${opened.gameId}${winView ? ` winner=${(winView.winners.groups || []).join("/") || "?"}` : ""}`);
   const results = resultsFromTable(table);
@@ -1377,3 +2203,4 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   }
   return 0;
 }
+

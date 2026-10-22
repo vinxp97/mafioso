@@ -41,16 +41,16 @@ async function playNight1(makeComplete, { ticks = 3 } = {}) {
 // A model that answers after 20ms (virtual) with an error.
 const failing = (clock) => () => new Promise((_, rej) => clock.setTimer(() => rej(new Error("model down")), 20));
 
-test("SmU_gzL7q night 1: kill is a non-teammate, every mafia seat votes it, one PLAN in faction chat, no kicks, no churn", async () => {
+test("GAME06 night 1: kill is a non-teammate, every mafia seat votes it, one PLAN in faction chat, no kicks, no churn", async () => {
   const table = await playNight1(failing);
   const P = table.proposed;
   const pid = Object.fromEntries(seats.map((s) => [s.acc, s]));
   const mafiaIds = new Set(seats.filter((s) => MAFIA.has(s.role)).map((s) => s.pid));
   // Teammates come from the harness roster, not meetings.
-  const hap = table.views["9yy7vCpjSn"];
+  const hap = table.views["iuxCERYkJU"];
   assert.deepEqual(Object.keys(hap.teammates).sort(), ["kCMt06jKvBp", "otU9CsNlbw"]);
   const kills = P.filter((p) => p.data.meetingId === "zbABCg9YSTU");
-  assert.deepEqual([...new Set(kills.map((k) => k.accountId))].sort(), ["9yy7vCpjSn", "X73-QPPVKT", "fDR8JD4HVj"], "all three mafia seats vote the kill");
+  assert.deepEqual([...new Set(kills.map((k) => k.accountId))].sort(), ["UqLogAKcXV", "f6afPipwwT", "iuxCERYkJU"], "all three mafia seats vote the kill");
   const target = kills[0].data.selection;
   assert.ok(!mafiaIds.has(target), `kill ${target} is not a teammate`);
   for (const k of kills) assert.equal(k.data.selection, target, "kill votes match");
@@ -91,25 +91,25 @@ test("a public line can never carry PLAN syntax, prompt text or a raw id", async
   }
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "I suspect Fin, quiet all day." } }).ok, true);
   // End to end: a model that tries to leak never gets a public line out.
-  const { table } = newTable([{ accountId: "ZVJMoeEWY-" }]);
-  table.views["ZVJMoeEWY-"] = v;
+  const { table } = newTable([{ accountId: "BdfxxtT8aV" }]);
+  table.views["BdfxxtT8aV"] = v;
   const leaky = async () => JSON.stringify({ action: "speak", meeting: "vil", content: "PLAN kill=BXHO_QetVp speaker=me" });
-  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "ZVJMoeEWY-", seq: 10 + i, t: T0 + i * 6000, event: "time", data: { ms: 1 } }, { complete: leaky, dryRun: true, fast: true, limiter: createLlmLimiter(1) });
+  for (let i = 0; i < 4; i++) await onGameEntry(table, { accountId: "BdfxxtT8aV", seq: 10 + i, t: T0 + i * 6000, event: "time", data: { ms: 1 } }, { complete: leaky, dryRun: true, fast: true, limiter: createLlmLimiter(1) });
   await drainUpgrades(table);
   for (const p of table.proposed) if (p.event === "speak") { assert.doesNotMatch(p.data.content, /PLAN|kill=|speaker=/); assert.ok(!publicLeak(v, p.data.content)); }
 });
 
 test("the PLAN never goes to a public meeting even if the engine proposed it there", async () => {
-  const { table } = newTable([{ accountId: "fDR8JD4HVj" }]);
+  const { table } = newTable([{ accountId: "UqLogAKcXV" }]);
   let v = reduce(emptyView(), { event: "self", data: "otU9CsNlbw" });
   v = reduce(v, { event: "players", data: players });
   v = reduce(v, { event: "state", data: { id: 3, name: "Day 1" } });
   v = reduce(v, { event: "meeting", data: { id: "vil", name: "Village", speech: true, amMember: true } });
-  table.views["fDR8JD4HVj"] = v;
+  table.views["UqLogAKcXV"] = v;
   assert.equal(validateAction(v, { event: "speak", data: { meetingId: "vil", content: "PLAN kill=a lynch=b claim=Cop lawyer=c speaker=d" } }).ok, false);
 });
 
-test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", async () => {
+test("GAME07 night 2: the Night 1 PLAN is stale; the leader drafts a new kill and every mafia seat votes it", async () => {
   const { decide } = await import("mafioso-engine");
   const { clock, table } = newTable(seats.map((s) => ({ accountId: s.acc })));
   const seq = {};
@@ -125,7 +125,7 @@ test("XnhwEBhxY night 2: the Night 1 PLAN is stale; the leader drafts a new kill
     await feed(s, "state", { id: 4, name: "Night 2" });
     for (const m of meetingsFor(s)) await feed(s, "meeting", { ...m, targets: (m.targets || []).filter((t) => t !== "a0BHWAcOIlw") });
   }
-  const leader = table.views["9yy7vCpjSn"];
+  const leader = table.views["iuxCERYkJU"];
   const acts = decide(leader);
   const kill = acts.find((a) => a.event === "vote" && a.data.meetingId === "zbABCg9YSTU");
   assert.ok(kill, "leader votes a kill on Night 2");
