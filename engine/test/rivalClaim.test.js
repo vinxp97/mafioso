@@ -15,13 +15,13 @@ const day = (n) => [{ event: "state", data: { id: n * 2 + 1, name: `Day ${n}` } 
 test("a rival Journalist claim today: the Journalist counterclaims at once", () => {
   const v = seat("Journalist", [...day(1), say("p2", "im journalist, trust me")]);
   assert.equal(claimAllowed(v), true);
-  assert.match(roleClaimLine(v), /^bea is lying, im journalist/);
+  assert.match(roleClaimLine(v), /^Bea is lying, im journalist/);
 });
 
 test("a rival Cop claim from yesterday still triggers the Cop's counterclaim today", () => {
   const v = seat("Cop", [...day(1), say("p3", "im cop, dot inno"), { event: "state", data: { id: 4, name: "Night 1" } }, ...day(2)]);
   assert.equal(claimAllowed(v), true);
-  assert.match(roleClaimLine(v), /^cal is lying, im the real cop/);
+  assert.match(roleClaimLine(v), /^Cal is lying, im the real cop/);
 });
 
 test("a dead rival, or a rival claim of another role, is no trigger", () => {
