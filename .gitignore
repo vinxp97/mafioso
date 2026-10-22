@@ -4,9 +4,12 @@ package-lock.json
 .env.*
 !.env.example
 *.log
+*.log.err
 .DS_Store
 coverage/
 dist/
 harness/data/prompts/runtime/
-logs/replays/*.jsonl
-logs/selfplay/*.jsonl
+logs/replays/*
+!logs/replays/.gitkeep
+logs/selfplay/*
+!logs/selfplay/.gitkeep
