@@ -42,11 +42,17 @@ struct SettingsView: View {
                 notice
             }
             Section {
-                labeled("API base URL", text: profileString(\.apiBaseURL), prompt: "https://")
-                labeled("Socket URL", text: profileString(\.socketURL), prompt: "wss://")
-                labeled("OAuth client id", text: profileString(\.oauthClientID), prompt: "")
-                secretField("Client secret", text: clientSecret, reveal: $revealClient)
-                labeled("Setup id", text: profileString(\.setupID), prompt: "")
+                labeled("API base URL", text: profileString(\.apiBaseURL), prompt: "Required")
+                labeled("Socket URL", text: profileString(\.socketURL), prompt: "Optional")
+                labeled("OAuth client id", text: profileString(\.oauthClientID), prompt: "Required")
+                labeledSecret("Client secret", text: clientSecret, revealed: revealClient, prompt: "Paste key")
+                namedButton(
+                    revealClient ? "Hide" : "Show",
+                    accessibility: "\(revealClient ? "Hide" : "Show") client secret"
+                ) {
+                    revealClient.toggle()
+                }
+                labeled("Setup id", text: profileString(\.setupID), prompt: "Required")
                 LabeledContent("Bot count") {
                     Stepper(value: botCount, in: 1 ... 50) {
                         Text("\(config.selectedProfile.botCount)")
@@ -59,28 +65,28 @@ struct SettingsView: View {
             }
             if config.selectedProfile.id.showsTunnel {
                 Section {
-                    labeled("SSH host alias", text: tunnelString(\.sshHostAlias), prompt: "")
-                    labeledInteger("API port", value: tunnelInt(\.apiPort))
-                    labeledInteger("Bridge port", value: tunnelInt(\.bridgePort))
-                    labeledInteger("Socket port", value: tunnelInt(\.socketPort))
+                    labeled("SSH host alias", text: tunnelString(\.sshHostAlias), prompt: "Optional")
+                    labeledInteger("API port", value: tunnelInt(\.apiPort), prompt: "3000")
+                    labeledInteger("Bridge port", value: tunnelInt(\.bridgePort), prompt: "2999")
+                    labeledInteger("Socket port", value: tunnelInt(\.socketPort), prompt: "3010")
                     labeled("Container gateway", text: tunnelString(\.containerGateway), prompt: "192.168.64.1")
                 } footer: {
                     help("Stored only. The app does not open the tunnel.")
                 }
             }
             Section {
-                HStack {
-                    Button(apiProbing ? "Testing…" : "Test connection") {
-                        probeAPI()
-                    }
-                    .disabled(apiProbing)
-                    .accessibilityLabel("Test \(config.selectedProfile.id.displayName) connection")
-                    Text(apiProbe)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                namedButton(
+                    apiProbing ? "Testing…" : "Test connection",
+                    accessibility: "Test \(config.selectedProfile.id.displayName) connection",
+                    disabled: apiProbing
+                ) {
+                    probeAPI()
                 }
+                Text(apiProbe)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let keychainError = config.keychainError {
                     Text(keychainError)
                         .foregroundStyle(.red)
@@ -122,11 +128,9 @@ struct SettingsView: View {
                 help(providerHelp)
             }
             Section {
-                labeled("Base URL", text: baseURL, prompt: "https://")
+                labeled("Base URL", text: baseURL, prompt: "Required")
                 LabeledContent("Model id") {
-                    TextField("Model id", text: modelID, prompt: Text(modelPlaceholder))
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
+                    borderedField(modelPlaceholder, text: modelID)
                 }
             } footer: {
                 help("The list comes from /models. Type an id if that request fails.")
@@ -137,9 +141,7 @@ struct SettingsView: View {
             if showsModelSearch {
                 Section {
                     LabeledContent("Search models") {
-                        TextField("Search models", text: $modelQuery, prompt: Text("Name or id"))
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
+                        borderedField("Name or id", text: $modelQuery)
                     }
                     modelList
                 }
@@ -162,19 +164,25 @@ struct SettingsView: View {
                 help("Automatic omits MAFIOSO_REASONING. On sends 1. Off sends 0. Concurrency 0 omits MAFIOSO_LLM_CONCURRENCY, and the harness then uses 1 for LM Studio and 4 for the others. Trace reasoning on sets MAFIOSO_TRACE_REASONING=1.")
             }
             Section {
-                secretField("API key", text: apiKey, reveal: $revealKey)
-                HStack {
-                    Button(modelProbing ? "Testing…" : "Test connection") {
-                        probeModels()
-                    }
-                    .disabled(modelProbing)
-                    .accessibilityLabel("Test \(config.config.inference.provider.displayName) connection")
-                    Text(modelProbe)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                labeledSecret("API key", text: apiKey, revealed: revealKey, prompt: apiKeyPrompt)
+                namedButton(
+                    revealKey ? "Hide" : "Show",
+                    accessibility: "\(revealKey ? "Hide" : "Show") API key"
+                ) {
+                    revealKey.toggle()
                 }
+                namedButton(
+                    modelProbing ? "Testing…" : "Test connection",
+                    accessibility: "Test \(config.config.inference.provider.displayName) connection",
+                    disabled: modelProbing
+                ) {
+                    probeModels()
+                }
+                Text(modelProbe)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             } footer: {
                 help(keyHelp)
             }
@@ -282,17 +290,70 @@ struct SettingsView: View {
 
     private func labeled(_ title: String, text: Binding<String>, prompt: String) -> some View {
         LabeledContent(title) {
-            TextField(title, text: text, prompt: prompt.isEmpty ? nil : Text(prompt))
+            TextField(prompt, text: text, prompt: Text(prompt))
+                .textFieldStyle(.roundedBorder)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
         }
     }
 
-    private func labeledInteger(_ title: String, value: Binding<Int>) -> some View {
+    private func labeledInteger(_ title: String, value: Binding<Int>, prompt: String) -> some View {
         LabeledContent(title) {
-            TextField(title, value: value, format: IntegerFormatStyle<Int>.number.grouping(.never))
+            TextField(prompt, value: value, format: IntegerFormatStyle<Int>.number.grouping(.never), prompt: Text(prompt))
+                .textFieldStyle(.roundedBorder)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func borderedField(_ prompt: String, text: Binding<String>) -> some View {
+        TextField(prompt, text: text, prompt: Text(prompt))
+            .textFieldStyle(.roundedBorder)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+    }
+
+    /// The field stays inside `LabeledContent`. The button is its own row so the
+    /// row name does not replace this label.
+    private func labeledSecret(_ title: String, text: Binding<String>, revealed: Bool, prompt: String) -> some View {
+        LabeledContent(title) {
+            Group {
+                if revealed {
+                    TextField(prompt, text: text, prompt: Text(prompt))
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    SecureField(prompt, text: text, prompt: Text(prompt))
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var apiKeyPrompt: String {
+        config.config.inference.provider == .lmStudio ? "Optional" : "Paste key"
+    }
+
+    /// Visible title, then a single accessibility element. Grouped form rows
+    /// otherwise keep the `LabeledContent` name and drop this label.
+    private func namedButton(
+        _ title: String,
+        accessibility: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: "circle.fill")
+                .labelStyle(.titleOnly)
+        }
+        .buttonStyle(.bordered)
+        .disabled(disabled)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibility)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default) {
+            if !disabled { action() }
         }
     }
 
@@ -305,24 +366,6 @@ struct SettingsView: View {
             Picker(title, selection: selection, content: content)
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func secretField(_ title: String, text: Binding<String>, reveal: Binding<Bool>) -> some View {
-        LabeledContent(title) {
-            HStack {
-                if reveal.wrappedValue {
-                    TextField(title, text: text)
-                        .labelsHidden()
-                } else {
-                    SecureField(title, text: text)
-                        .labelsHidden()
-                }
-                Button(reveal.wrappedValue ? "Hide" : "Show") {
-                    reveal.wrappedValue.toggle()
-                }
-                .accessibilityLabel("\(reveal.wrappedValue ? "Hide" : "Show") \(title)")
-            }
         }
     }
 

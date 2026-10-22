@@ -10,28 +10,25 @@ struct ContentView: View {
     @FocusState private var focusedRow: TraceEvent.ID?
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } content: {
-            seatColumn
-        } detail: {
-            detail
-        }
-        .toolbarBackground(.visible, for: .windowToolbar)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                runBar
-                Divider()
-            }
-            .background(Color(nsColor: .windowBackgroundColor))
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showLog {
-                VStack(spacing: 0) {
-                    Divider()
-                    logPane
-                }
+        // The run bar is a sibling above the split view. A safeAreaInset on
+        // NavigationSplitView is painted over the columns, and the sidebar and
+        // seat Lists do not inset their rows for it.
+        VStack(spacing: 0) {
+            runBar
                 .background(Color(nsColor: .windowBackgroundColor))
+            Divider()
+            NavigationSplitView {
+                sidebar
+            } content: {
+                seatColumn
+            } detail: {
+                detail
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if showLog {
+                Divider()
+                logPane
+                    .background(Color(nsColor: .windowBackgroundColor))
             }
         }
         .onAppear {
