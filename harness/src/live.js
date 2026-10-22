@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, passEchoRewrite, CHAT_PASS, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine, copSecondLine, vtLeft, mafiaCounterclaim, soloFlagsOf, voteHoldPick, voteHoldBlind, groundedSpeechLines, kickAimedAtMe } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, passEchoRewrite, CHAT_PASS, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, chatLineReject, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine, copSecondLine, vtLeft, mafiaCounterclaim, soloFlagsOf, voteHoldPick, voteHoldBlind, groundedSpeechLines, kickAimedAtMe } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -826,6 +826,15 @@ export function noteSeatRole(table, id, view) {
   return out;
 }
 
+/** A model line that failed the chat-safety check: the rules line for this seat, else a canned reaction. */
+function llmChatFallback(table, view, now) {
+  const line = rulesSeatActions(view, { rng: rngOf(table), now }).actions.find((a) => isPublicSpeak(view, a));
+  if (line) return line;
+  const pm = publicSpeechMeeting(view);
+  const content = pm && cannedReaction(view, rngOf(table));
+  return content ? { event: "speak", data: { meetingId: pm.id, content } } : null;
+}
+
 async function emitActions(table, id, actions, { source, entry, dryRun, send, onError, clock, claim = false }) {
   const view = table.views[id];
   const stamp = speechStamp(view);
@@ -854,6 +863,17 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       action = { ...action, data: { ...action.data, content: varyOpener(view, chatShorten(action.data.content), rngOf(table), action.data.meetingId) } };
       // A model line stays within 3-12 words even after the opener swap.
       if (source === "llm") action.data.content = capSpeechWords(action.data.content);
+      // Reasoning that survived into the line (or a stub still long enough to match). Drop it and
+      // send the rules or canned line instead.
+      if (source === "llm") {
+        const why = chatLineReject(action.data.content);
+        if (why) {
+          table.onSpeechReject?.(id, [why], source, action.data.content);
+          const alt = llmChatFallback(table, view, clock ?? nowOf(table));
+          if (alt) await emitActions(table, id, [alt], { source: "rules", entry, dryRun, send, onError, clock, claim: false });
+          continue;
+        }
+      }
     }
     let verdict = validateAction(view, action);
     // chat-audit: a public line that states a wrong fact or leaks is dropped (logged) and replaced, when the

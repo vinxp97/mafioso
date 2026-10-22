@@ -38,6 +38,81 @@ export function stripReasoning(text) {
   return String(text || "").replace(/<(think|thinking|reasoning)>[\s\S]*?(?:<\/\1>|$)/gi, " ").replace(/^[\s\S]*?<\/(?:think|thinking|reasoning)>/i, " ");
 }
 
+// Model reasoning that landed in message.content (nemotron and similar). A real chat line does not
+// narrate the prompt. "I should" is also ordinary chat ("i should be lynched? lol no"): only a line
+// that opens with it and runs past the 12-word chat cap is reasoning.
+const META_ROLE = "cop|journalist|sheriff|doctor|medic|villager|vanilla|townie|mafioso|lawyer|janitor|godfather";
+const META_PATTERNS = [
+  [/\bthe user\b/i, "the user"],
+  [/\bthe situation\s*:/i, "the situation"],
+  [/\blet me\b/i, "let me"],
+  [/\bi need to\b/i, "i need to"],
+  [/\bokay,\s*so\b/i, "okay, so"],
+  [/\bwe need to\b/i, "we need to"],
+  [/\bmy role is\b/i, "my role is"],
+  [new RegExp(`\\bas the (?:${META_ROLE})\\b`, "i"), "as the role"],
+  [/\bthe prompt\b/i, "the prompt"],
+  [/\bthe instructions?\b/i, "the instructions"],
+  [/\bthe system\b/i, "the system"],
+  [/\bin this game i\b/i, "in this game i"],
+  [/\blooking at the\b/i, "looking at the"],
+  [/\bbased on the\b/i, "based on the"],
+  [/\bhas\s+\d+\s+votes?\s+and\s+would\s+be\s+lynched\b/i, "vote dump"],
+];
+const REASONING_TAG_RE = /<\/?(?:think|thinking|reasoning)\b|<\|\s*(?:think|thinking|reasoning)\b|\[(?:think|thinking|reasoning)\]/i;
+// A long line that stops on one of these, or on a hyphen, was cut off mid-clause. A finished thought
+// ("who is next", "x x x") is capped to 12 words instead.
+const DANGLING = new Set(("and or but because cuz so to the a an of for with that its it's it would should could "
+  + "can will if when than about into from while who which your our their just this then be been being "
+  + "have has had need needs is are was were").split(/\s+/));
+
+function visibleReply(raw) {
+  let text = String(raw || "");
+  try {
+    const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "null");
+    if (j && typeof j === "object") text = String(j.content ?? j.text ?? j.say ?? "");
+  } catch { /* plain text */ }
+  text = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
+  text = text.replace(/^\s*[A-Za-z0-9_]+:\s+/, "");
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function replyWords(text) {
+  return String(text || "").trim().split(/\s+/).filter(Boolean);
+}
+
+/** Mid-clause or mid-word: longer than the chat cap, no terminal punctuation, ends on a dangling word or a hyphen stub. */
+function truncatedLine(text) {
+  const t = String(text || "").trim();
+  if (!t || /[.!?]['")\]]*$/.test(t)) return false;
+  const words = replyWords(t);
+  if (words.length <= SPEECH_WORDS) return false;
+  if (/[-–—:;,]$/.test(t)) return true;
+  const last = words[words.length - 1];
+  if (/[-–—]$/.test(last) || /-[a-z]{1,2}$/i.test(last)) return true;
+  const bare = last.toLowerCase().replace(/[^a-z0-9']+$/g, "");
+  return DANGLING.has(bare);
+}
+
+/**
+ * Reason to drop a model chat line before it is sent, or null.
+ * finishReason "length" is the provider cutoff. Meta patterns catch reasoning written into content.
+ * A line that is only a <think> block is left for the empty-line path (stripReasoning already ate it).
+ * @param {string} text
+ * @param {{finishReason?:string}} [opts]
+ * @returns {string|null}
+ */
+export function chatLineReject(text, { finishReason } = {}) {
+  if (finishReason === "length") return "truncated (finish_reason length)";
+  const visible = visibleReply(text);
+  if (!visible) return null;
+  if (REASONING_TAG_RE.test(visible)) return "reasoning tag";
+  if (/^\s*i should\b/i.test(visible) && replyWords(visible).length > SPEECH_WORDS) return "meta reasoning (i should)";
+  for (const [re, label] of META_PATTERNS) if (re.test(visible)) return `meta reasoning (${label})`;
+  if (truncatedLine(visible)) return "truncated line";
+  return null;
+}
+
 /** First line, no list markup; a line over the cap keeps its first sentence, then is cut at a word boundary. */
 export function chatShorten(text, max = PUBLIC_MAX) {
   let s = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
