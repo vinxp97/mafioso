@@ -34,6 +34,9 @@ test("live bot chat in g01-g16: g05's two prompt-word leaks and g14's three self
   assert.deepEqual(flags, ["g05.jsonl LEAK public-leak", "g05.jsonl LEAK public-leak",
     // L6: the Cop's "vote player08" at the sole Sheriff claimer, no guilty on him.
     "g14.jsonl CONTRADICTION self-third-person", "g14.jsonl CONTRADICTION lynch-sheriff",
+    // Night 5 rebuild: the Sheriff's Day 1 shot now lands where the log has it (early), so the Cop's later
+    // "player08, why are you targeting me, you're sus." meets a gun-revealed Sheriff (the old fixture fired at day end).
+    "g14.jsonl CONTRADICTION attacks-sheriff",
     "g14.jsonl CONTRADICTION self-third-person", "g14.jsonl CONTRADICTION self-third-person"]);
 });
 

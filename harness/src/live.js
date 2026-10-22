@@ -2,7 +2,7 @@
 // Dry-run (MAFIOSO_LIVE !== "1") never connects and never sends.
 // Game hosts are allowlisted. Prod is rejected. Secrets are not logged.
 import { fileURLToPath } from "node:url";
-import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine } from "mafioso-engine";
+import { emptyView, reduce as engineReduce, validateAction, isPublicSpeak, proposeSeatActions, rulesSeatActions, speechStamp, humanizeSpeak, selfAlive, agreedPlan, isAlive, createSeededRng, ALIGNMENT, factionKillMeeting, factionLeader, draftPlan, claimedRoleIn, passEchoRewrite, CHAT_PASS, roleClaimLine, publicLeak, machineLeak, chatShorten, cannedReaction, addressedBy, publicSpeechMeeting, isPublicSpeechMeeting, sanitizeChat, varyOpener, dayFraction, rulesBeliefBoard, beliefAlign, allies, memoryOf, scumFaction, agreedPlan as seenPlan, busNote, alertResult, capSpeechWords, townDayPick, townReads, townCounterLine, TOWN_READS, townVote, meetingActions, groundedLine, mafiaModeOf, scumVoteHoldMs, adaptivePressureLine, adaptiveVote, askReplyLine, askReplyChoice, sheriffAskLine, NEVER_LYNCH_SHERIFF, adaptiveClaimLine, planClaimDropReason, wrongLynchCostly, dayOneLynchOwed, hammerVote, hammerAskLine, hammerNextMs, confirmedLead, TOWN_VOTE, sheriffGunOwed, finalSpeak, sheriffShotReady, ballotSwitch, ballotStuck, dayOpener, reviveSpeech, quietTableOpts, publicFactLines, reviveKeepingIntent, isKeyLine, copSecondLine, vtLeft, mafiaCounterclaim, soloFlagsOf, voteHoldPick, voteHoldBlind, groundedSpeechLines, kickAimedAtMe } from "mafioso-engine";
 import { assertAllowedBase, DevApiClient, liveCredentials } from "./client.js";
 import { parseStreamFrame } from "./stream.js";
 import { createLmStudioComplete } from "./lmstudio.js";
@@ -184,11 +184,23 @@ export function zipAccounts(accounts, prompts) {
  */
 // mafia: "adaptive" (default for live and self-play) or "script" (the old fixed fake-Cop + bloc plan).
 // reasoning: the model thinks before it answers (see reasoningModel); speech gets a larger token budget.
-export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", sheriffRule = "vinman", lawyer = "loyal", mafia = "adaptive", town = "rules", chatAudit: auditMode = "enforce", townVoteDelayMs = null, reasoning = false, hammer = "on", hammerGate = null, pace = "on", quietTable = null, claimPressure = null, staleFix = null, auditTight = null } = {}) {
+export function createBotTable(accounts, { clock = realClock, rng = Math.random, copRule = "vinman", sheriffRule = "vinman", lawyer = "loyal", mafia = "adaptive", town = "rules", chatAudit: auditMode = "enforce", townVoteDelayMs = null, reasoning = false, hammer = "on", hammerGate = null, pace = "on", quietTable = null, claimPressure = null, staleFix = null, auditTight = null, chatPassthrough = false, sheriffDelayRng = null, voteHold = null, soloCounterclaim = null, groundedSpeech = null, voteKickGuard = null, gunOnce = null, sheriffLateGrace = null, teamClaimGuard = null, wideClaimParse = null } = {}) {
   return {
     views: {}, seen: new Set(), proposed: [], lastSeq: {}, speechStamp: {},
     byId: new Map(accounts.map((a) => [a.accountId, a])),
-    clock, rng, config: { copRule, sheriffRule, lawyer, mafia, town, hammer, pace, ...(hammerGate ? { hammerGate } : {}), chatAudit: auditMode, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}), ...(quietTable ? { quietTable } : {}), ...(claimPressure ? { claimPressure } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}) },
+    // Night 5: the Sheriff's day-start claim delay has its own rng (live: Math.random, re-rolled every game;
+    // seeded tables get a seeded one so the jitter stream of everything else is unchanged).
+    clock, rng, sheriffDelayRng: sheriffDelayRng || (rng === Math.random ? Math.random : createSeededRng(0x5e1f)), config: { copRule, sheriffRule, lawyer, mafia, town, hammer, pace, ...(hammerGate ? { hammerGate } : {}), chatAudit: auditMode, ...(townVoteDelayMs ? { townVoteDelayMs } : {}), ...(reasoning ? { reasoning: true } : {}), ...(quietTable ? { quietTable } : {}), ...(claimPressure ? { claimPressure } : {}), ...(staleFix ? { staleFix } : {}), ...(auditTight === "on" ? { auditTight } : {}),
+      // Night 5 solo flags (engine soloFlags.js), all off by default: absent unless "on".
+      ...(voteHold === "on" ? { voteHold } : {}), ...(soloCounterclaim === "on" ? { soloCounterclaim } : {}), ...(groundedSpeech === "on" ? { groundedSpeech } : {}), ...(voteKickGuard === "on" ? { voteKickGuard } : {}),
+      // Night 5 gun fix (off by default): the gun is marked used the moment our shot goes out.
+      ...(gunOnce === "on" ? { gunOnce } : {}),
+      // Night 6 part 4 (off by default): the Sheriff's late-answer grace, and the mafia no-double-claim guard.
+      ...(sheriffLateGrace === "on" ? { sheriffLateGrace } : {}), ...(teamClaimGuard === "on" ? { teamClaimGuard } : {}),
+      // Night 6 part 5 (off by default): the wide claim parse (engine chatStyle.js claimOpts).
+      ...(wideClaimParse === "on" ? { wideClaimParse } : {}),
+      // Night 6 chat pass-through (off by default).
+      ...(chatPassthrough ? { chatPassthrough: true } : {}) },
   };
 }
 
@@ -509,12 +521,28 @@ function randomLegalVote(table, key, view, meeting) {
   return memo[key];
 }
 
+/**
+ * voteHold (Night 5 solo flag, off by default): for a town seat on the rules arm, null when the flag is off (the
+ * usual gate), false to keep holding, or the hold's pick { target, why } (target null: the usual rules pick).
+ * The hammer ask is decided before this; the never-the-Sheriff, no-one and validateAction passes run after it.
+ */
+function voteHoldStep(table, view, action, now) {
+  if (!soloFlagsOf(table.config).voteHold || scumFaction(view) || (table.config?.town && table.config.town !== "rules")) return null;
+  if (voteHoldBlind(view, now)) return null;
+  if (table.config?.hammer !== "off" && hammerVote(view, { now })) return null;
+  const pick = voteHoldPick(view, view.meetings?.[action.data.meetingId], { now });
+  return pick || false;
+}
+
 /** Rewrite a seat's day village vote: gated, BeliefBoard spread for town, PLAN for scum. */
 function shapeDayVotes(table, id, view, actions, now, { source }) {
   const out = [];
   for (const a of actions) {
     if (a.event !== "vote" || !isDayVillageVote(view, a.data.meetingId)) { out.push(a); continue; }
-    if (!dayVoteReady(table, view, a.data.meetingId, now)) continue;
+    // voteHold (Night 5 solo flag): a town seat's ballot waits for a confident read or 60% of the day (voteHoldStep).
+    const held = voteHoldStep(table, view, a, now);
+    if (held === false) continue;
+    if (held == null && !dayVoteReady(table, view, a.data.meetingId, now)) continue;
     const gk = `${id}|${view.stateId}`;
     (table.gateAt ||= {})[gk] ??= now;
     // Vinman 10/18 (11:05): the Sheriff's hammer ask decides every seat's ballot (self-vote / his deciding vote).
@@ -540,6 +568,11 @@ function shapeDayVotes(table, id, view, actions, now, { source }) {
       const pick = arm === "random" ? randomLegalVote(table, gk, view, view.meetings[a.data.meetingId]) : tv?.target;
       if (tv && table.onTownVote) table.onTownVote(id, tv, townReads(view).score);
       if (pick != null) out.push({ ...a, data: { ...a.data, selection: pick } });
+      continue;
+    }
+    if (!scum && held?.target != null && validateAction(view, { ...a, data: { ...a.data, selection: held.target } }).ok) {
+      table.onVoteHold?.(id, held, now);
+      out.push({ ...a, data: { ...a.data, selection: held.target } });
       continue;
     }
     if (!scum) {
@@ -699,6 +732,27 @@ function thirdScumVote(view, action) {
   return Object.entries(votes).filter(([v, t]) => mates.has(v) && String(t) === String(action.data.selection)).length >= 2;
 }
 
+/**
+ * Night 5 gun fix. The Sheriff's gun is one instant shot, but emitActions resets the gun's vote count on every
+ * gun action (so an earlier unsent pick never blocks the shot), and the gun net sends outside emitActions. A
+ * second gun vote can then go out before the server's echo closes the meeting (L6 with the Vote Kick: the gun
+ * net and the rules path both shot within 0.2s; the server refuses the second, "instant meeting already used").
+ * Every gun send is noted in table.gunSends (bookkeeping only). config.gunOnce "on" (off by default): once
+ * this seat's shot has gone out, no further gun vote is sent.
+ */
+export function isGunVote(view, action) {
+  return action?.event === "vote" && /shoot|gun/i.test(String(view?.meetings?.[action.data?.meetingId]?.name || ""));
+}
+function gunSpent(table, id, view, action) {
+  return table.config?.gunOnce === "on" && isGunVote(view, action) && !!table.gunFired?.[id];
+}
+function noteGunSend(table, id, view, action, source) {
+  if (!isGunVote(view, action)) return;
+  (table.gunSends ||= []).push({ id, stateId: view.stateId, meetingId: action.data.meetingId, selection: action.data.selection, source, t: nowOf(table), after: (table.gunFired ||= {})[id] ? "fired" : null });
+  table.gunFired[id] = true;
+  if (table.gunSends.filter((g) => g.id === id).length > 1) table.onGunRevote?.(id, action, source);
+}
+
 function deferVote(table, id, action, wait, { source, entry, send, onError }) {
   const stateId = table.views[id]?.stateId;
   const pk = `${id}|${stateId}|${action.data?.meetingId}`;
@@ -731,6 +785,8 @@ function deferVote(table, id, action, wait, { source, entry, send, onError }) {
     }
     const back = table.voteBackoff?.[id];
     if (back != null && back > nowOf(table)) { deferVote(table, id, action, back - nowOf(table), { source, entry, send, onError }); return; }
+    if (gunSpent(table, id, view, action)) return;
+    noteGunSend(table, id, view, action, `${source}+delay`);
     table.lastVoteAt[id] = nowOf(table);
     (table.lastVoteAction ||= {})[id] = action;
     const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+delay`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
@@ -822,6 +878,11 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       continue;
     }
     const pub = isPublicSpeak(view, action);
+    // Night 5: one Cop line per seat per day, counting our own lines the server has not echoed yet.
+    if (pub) {
+      const split = copSecondLine(view, action.data.content, { sent: ownSentToday(table, id, view) });
+      if (split) { table.onSpeechReject?.(id, [split], source, action.data.content); continue; }
+    }
     // Machine coordination text never goes to ANY chat (validateAction also bans it; belt and braces).
     if (action.event === "speak" && machineLeak(view, action.data?.content)) continue;
     const key = pub
@@ -838,6 +899,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     if (pub && !claim && source !== "day-speech" && !localSpeechOk(table, id, clock)) continue;
     if (table.seen.has(key) && !(pub && claim)) continue;
     if (action.event === "vote") {
+      if (gunSpent(table, id, view, action)) continue;
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
       if ((table.lastVote ||= {})[vk] === JSON.stringify(action.data.selection)) continue;
       // One initial vote, then at most one model upgrade to a different valid target. No churn.
@@ -846,7 +908,9 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       // voted (new evidence). Then the count starts over, so a seat is never left without a vote.
       if (voteMayRestart(table, id, view, action.data.meetingId, vk)) table.voteCount[vk] = 0;
       // L6 (10/18): the Sheriff's gun is one instant shot; an earlier unsent gun pick must never block it.
-      if (/shoot|gun/i.test(String(view.meetings?.[action.data.meetingId]?.name || ""))) table.voteCount[vk] = 0;
+      // Night 5 solo eval: a table whose first vote ever is the gun (one bot seat, the Sheriff, shooting before
+      // any ballot) has no voteCount yet; the old `table.voteCount[vk] = 0` threw and the shot was lost.
+      if (/shoot|gun/i.test(String(view.meetings?.[action.data.meetingId]?.name || ""))) (table.voteCount ||= {})[vk] = 0;
       const n = (table.voteCount ||= {})[vk] || 0;
       // A ballot switch may move the vote a few times in one day. Other sources stay at one change.
       if (source === "ballot-switch" ? n >= 4 : (n >= 2 || (n === 1 && source === "rules"))) continue;
@@ -901,10 +965,16 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       accountId: id, afterSeq: entry?.seq, source, phase: view.phase?.name || "",
       promptId: table.byId.get(id)?.promptId, ...finalSpeak(view, action), t: clock ?? nowOf(table),
     };
+    // Night 5 send-time guard: the text that goes out is the final one, and it never says vt.
+    if (pub && sendGuardBlock(table, id, view, proposal, source)) continue;
+    if (!pub && action.event === "vote" && table.views[id]) {
+      if (gunSpent(table, id, view, action)) continue;
+      noteGunSend(table, id, view, action, source);
+    }
     table.proposed.push(proposal);
     added.push(proposal);
     if (!dryRun && send) {
-      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      try { await send({ accountId: id, event: action.event, data: pub ? proposal.data : action.data, view }); }
       catch (err) { if (onError) onError(err, id); }
     }
   }
@@ -939,8 +1009,10 @@ export function applySpeechFloor(table, id, view) {
   if (said >= SPEECH_FLOOR.minLines || blocks < SPEECH_FLOOR.blockStreak) return null;
   const pm = publicSpeechMeeting(view);
   const start = (table.floorPick ||= {})[k] || 0;
-  for (let n = 0; n < SPEECH_FLOOR.lines.length; n++) {
-    const content = SPEECH_FLOOR.lines[(start + n) % SPEECH_FLOOR.lines.length];
+  // groundedSpeech (Night 5 solo flag): the floor says a grounded line, never a canned one.
+  const pool = soloFlagsOf(table.config).groundedSpeech ? groundedSpeechLines(view) : SPEECH_FLOOR.lines;
+  for (let n = 0; n < pool.length; n++) {
+    const content = pool[(start + n) % pool.length];
     const action = { event: "speak", data: { meetingId: pm.id, content } };
     if (validateAction(view, action).ok && !publicLeak(view, action.data.content) && !machineLeak(view, action.data.content)) {
       table.floorPick[k] = start + n + 1;
@@ -984,7 +1056,10 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
   let late = !exempt && !underFloor && at != null && trigger - at <= SPEECH_PACE.staleMs && now - at > SPEECH_PACE.staleMs;
   // staleFix.recheck (stale-latency 10/19, off by default): a late reply still valid in the latest state goes out
   // as a plain line (no reply beat) instead of being dropped.
-  if (late && staleFixOf(table.config).recheck && validateAction(view, action).ok && !publicLeak(view, action.data?.content) && !machineLeak(view, action.data?.content)) {
+  // config.chatPassthrough (Night 6, off by default): the same recheck, for replies up to CHAT_PASS.staleMaxMs old
+  // (live model calls took 30-115s, so the 30s window dropped nearly every model reply in the Night 5 games).
+  const passLate = !!table.config?.chatPassthrough && now - at <= CHAT_PASS.staleMaxMs;
+  if (late && (staleFixOf(table.config).recheck || passLate) && validateAction(view, action).ok && !publicLeak(view, action.data?.content) && !machineLeak(view, action.data?.content)) {
     late = false; table.onStaleRecheck?.(id, Math.round((now - at) / 1000));
     const own = (table.spokeAt?.[id] || []).reduce((x, y) => Math.max(x, y), -Infinity) + SPEECH_PACE.ownGapMs;
     const due = Math.max(own, (table.lastPublicAt ?? -Infinity) + SPEECH_PACE.tableGapMs, now);
@@ -1008,6 +1083,26 @@ export function paceSpeech(table, id, view, action, now, { entry, claim = false,
 function notePublicSend(table, id, now) {
   table.lastPublicAt = Math.max(table.lastPublicAt ?? -Infinity, now);
   table.lastSentAt = Math.max(table.lastSentAt ?? -Infinity, now);
+}
+
+/** Our own public lines this phase that went out (or are on their way) for this seat. */
+function ownSentToday(table, id, view) {
+  const phase = view?.phase?.name || "";
+  return (table.proposed || []).filter((p) => p.accountId === id && p.event === "speak" && p.phase === phase && isPublicSpeak(view, p)).map((p) => String(p.data?.content || ""));
+}
+
+/**
+ * Night 5 (Vinman 10/20), the last check before a public line is sent: one line, never vt, and a Cop
+ * claim is one line with its report. Logged through onSpeechReject so the eval can count it.
+ */
+export function sendGuardBlock(table, id, view, proposal, source) {
+  const text = String(proposal?.data?.content || "");
+  const why = /[\r\n]/.test(text) ? "send guard: line break in a chat line"
+    : vtLeft(view, text) ? `send guard: says "${vtLeft(view, text)}" (villager or blue only)`
+      : copSecondLine(view, text, { sent: ownSentToday(table, id, view) });
+  if (!why) return false;
+  table.onSpeechReject?.(id, [why], source, text);
+  return true;
 }
 
 /** A dropped line must not block the fresh one that replaces it. */
@@ -1066,10 +1161,11 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     done();
     if (claim) ((table.claimSent ||= {})[id] ||= new Set()).add(action.data.content);
     const proposal = { accountId: id, afterSeq: entry?.seq, source: `${source}+paced`, phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...finalSpeak(view, action), t: now };
+    if (sendGuardBlock(table, id, view, proposal, source)) return;
     table.proposed.push(proposal);
     table.onDeferred?.(proposal);
     if (!dryRun && send) {
-      try { await send({ accountId: id, event: action.event, data: action.data, view }); }
+      try { await send({ accountId: id, event: action.event, data: proposal.data, view }); }
       catch (err) { if (onError) onError(err, id); }
     }
   });
@@ -1152,6 +1248,7 @@ export function claimLineFor(view) {
   if (view?.phase?.phase !== "Day") return null;
   return askReplyLine(view) || roleClaimLine(view) || sheriffAskLine(view, { now: view.clock })?.line
     || hammerAskLine(view, { now: view.clock })
+    || mafiaCounterclaim(view, { now: view.clock })?.line
     || planClaimLine(view)?.line
     || (scumFaction(view) && mafiaModeOf(view) === "adaptive" ? adaptivePressureLine(view)?.line : null);
 }
@@ -1202,6 +1299,44 @@ function scumClaimSettleMs(view, clock) {
   return Math.max(0, start + SCUM_CLAIM_SETTLE_MS - Number(clock));
 }
 
+/**
+ * Night 5 (Vinman 10/20): the Sheriff's day-start claim waits a random 1-10s (uniform, ms), drawn once per
+ * table, so once per game; live, every game re-rolls it. It counts from the start of the day.
+ */
+export const SHERIFF_CLAIM_DELAY = Object.freeze({ minMs: 1_000, maxMs: 10_000 });
+export function sheriffClaimDelayMs(table) {
+  if (table.sheriffClaimDelayMs == null) {
+    const r = (table.sheriffDelayRng || rngOf(table))();
+    table.sheriffClaimDelayMs = SHERIFF_CLAIM_DELAY.minMs + Math.floor(Math.min(0.999999, Math.max(0, r)) * (SHERIFF_CLAIM_DELAY.maxMs - SHERIFF_CLAIM_DELAY.minMs + 1));
+  }
+  return table.sheriffClaimDelayMs;
+}
+function sheriffClaimHoldMs(table, id, view, line, clock) {
+  if (!/^sheriff$/i.test(String(view?.role || "")) || claimedRoleIn(line) !== "sheriff" || table.claimedRole?.[id]) return 0;
+  const k = `${id}|${view.stateId}`;
+  const start = Number.isFinite(Number(view.phaseStartedAt)) ? Number(view.phaseStartedAt) : ((table.phaseSeenAt ||= {})[k] ??= Number(clock));
+  const ms = sheriffClaimDelayMs(table);
+  if (!(table.sheriffDelayLogged ||= new Set()).has(k)) { table.sheriffDelayLogged.add(k); table.onSheriffClaimDelay?.(id, ms, start + ms); }
+  return Math.max(0, start + ms - Number(clock));
+}
+
+/**
+ * Night 5: a Cop claim with no report yet waits (up to COP_REPORT_WAIT_MS into the day) for the night's report,
+ * so the claim and its result go out as one line instead of "no results yet" and then the report.
+ */
+export const COP_REPORT_WAIT_MS = 5_000;
+function copReportHoldMs(view, line, clock) {
+  if (!/^cop$/i.test(String(view?.role || "")) || !/no results yet/i.test(String(line || ""))) return 0;
+  const start = Number(view.phaseStartedAt);
+  return Number.isFinite(start) ? Math.max(0, start + COP_REPORT_WAIT_MS - Number(clock)) : 0;
+}
+
+/** Night 5: the mafia counterclaim goes out at its own beat after the claim it answers (mafiaCounterclaim.at). */
+function mafiaCounterHoldMs(view, line, clock) {
+  const cc = mafiaCounterclaim(view, { now: clock });
+  return cc && cc.line === line ? Math.max(0, cc.at - Number(clock)) : 0;
+}
+
 /** A claim line is due and not already sent (the server echo may still be on its way). */
 function claimDue(table, id, view) {
   const line = claimLineFor(view);
@@ -1217,12 +1352,20 @@ async function sendClaim(table, id, ctx, clock = ctx.clockOf?.() ?? nowOf(table)
   if (view && selfAlive(view)) notePlanClaim(table, id, view);
   if (!view || !selfAlive(view) || table.stopped?.[id] || !claimDue(table, id, view)) return [];
   const line = claimLineFor(view);
+  // Night 5: a second same-day Cop line (the report after an early claim) is a split claim: never sent,
+  // and not retried on every frame.
+  const split = copSecondLine(view, line, { sent: ownSentToday(table, id, view) });
+  if (split) { ((table.claimSent ||= {})[id] ||= new Set()).add(line); table.onSpeechReject?.(id, [split], "claim-rule", line); return []; }
   // L5 (10/18): a counterclaim takes the shortest human beat (REACT.minMs). Live D2, the fake Journalist
   // claimed 6.6s before the lynch ended the game; the real one's 3-8s hold lost the race.
   const urgent = counterclaimLine(view, line);
-  const wait = Math.max(speechWaitMs(table, id, clock), reactWaitMs(table, id, view, line, clock, { urgent }));
+  const wait = Math.max(speechWaitMs(table, id, clock), reactWaitMs(table, id, view, line, clock, { urgent }),
+    sheriffClaimHoldMs(table, id, view, line, clock), copReportHoldMs(view, line, clock), mafiaCounterHoldMs(view, line, clock));
   if (wait > 0) { queueClaim(table, id, ctx, wait); return []; }
-  const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: publicSpeechMeeting(view).id, content: line } }], { ...ctx, source: "claim-rule", clock, claim: true });
+  // config.chatPassthrough: a call-out that echoes another seat ("cal is lying", said by ash) credits it instead
+  // of being blocked as too similar on every frame (Night 5: 73 retries of 4 lines).
+  const content = passEchoRewrite(view, publicSpeechMeeting(view).id, line) || line;
+  const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: publicSpeechMeeting(view).id, content } }], { ...ctx, source: "claim-rule", clock, claim: true });
   if (added.length) ((table.claimSent ||= {})[id] ||= new Set()).add(line);
   return added;
 }
@@ -1279,9 +1422,11 @@ async function ballotSwitchStep(table, id, ctx) {
  */
 export const BALLOT_NET = Object.freeze({ fraction: 0.9, remainingMs: 20_000, retryMs: 8_000, sheriffFraction: 0.96, sheriffRemainingMs: 12_000 });
 
-function ballotDeadline(view, now) {
+function ballotDeadline(view, now, { gun = false } = {}) {
   if (view.voteKickWarning) return "vote-kick warning";
-  if (Object.values(view.meetings || {}).some((m) => /^vote ?kick$/i.test(String(m?.name || "")))) return "vote kick open";
+  // voteKickGuard (Night 5 solo flag): the gun reacts to a Vote Kick only when it is aimed at this seat.
+  const guarded = gun && view.config?.voteKickGuard === "on";
+  if (guarded ? kickAimedAtMe(view) : Object.values(view.meetings || {}).some((m) => /^vote ?kick$/i.test(String(m?.name || "")))) return guarded ? "vote kick on me" : "vote kick open";
   // A Sheriff whose gun is still owed (Vinman: his Village vote waits for the shot) gets the last seconds.
   const owed = sheriffGunOwed(view);
   const frac = owed ? BALLOT_NET.sheriffFraction : BALLOT_NET.fraction;
@@ -1336,7 +1481,7 @@ export async function ballotNet(table, id, view, now, { send, dryRun, onError, e
  * unasked). The Village vote follows on the next pass.
  */
 async function gunNet(table, id, view, now, { send, dryRun, onError, entry } = {}) {
-  if (!sheriffGunOwed(view) || !ballotDeadline(view, now)) return [];
+  if (!sheriffGunOwed(view) || !ballotDeadline(view, now, { gun: true })) return [];
   const gun = Object.values(view.meetings || {}).find((m) => /shoot|gun/i.test(String(m?.name || "")) && m.voting && m.amMember !== false && m.canVote !== false && !m.used);
   if (!gun) return [];
   const r = sheriffShotReady({ ...view, clock: now }, { now });
@@ -1346,6 +1491,8 @@ async function gunNet(table, id, view, now, { send, dryRun, onError, entry } = {
   table.gunNetAt[k] = now;
   const action = { event: "vote", data: { meetingId: gun.id, selection: r.target } };
   if (!validateAction({ ...view, clock: now }, action).ok) return [];
+  if (gunSpent(table, id, view, action)) return [];
+  noteGunSend(table, id, view, action, "gun-net");
   table.onBallotNet?.(id, r.target, `gun first: ${r.why || "owed"}`, now);
   const proposal = { accountId: id, afterSeq: entry?.seq, source: "gun-net", phase: view.phase?.name || "", promptId: table.byId.get(id)?.promptId, ...action };
   table.proposed.push(proposal);
@@ -1435,7 +1582,7 @@ function startUpgrade(table, id, ctx) {
         const t = ctx.clockOf();
         const last = Math.max(0, ...(table.spokeAt?.[id] || []));
         const lively = (view.messages || []).filter((m) => m.meetingId === pm?.id && m.senderId && m.senderId !== view.selfId && Number(m.t) >= t - 30000).length >= 2;
-        if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && rngOf(table)() < CHAT_LIMITS.fillerChance) {
+        if (pm && lively && !addressedBy(view, pm.id) && t - last >= CHAT_LIMITS.fillerGapMs && !soloFlagsOf(table.config).groundedSpeech && rngOf(table)() < CHAT_LIMITS.fillerChance) {
           const line = cannedReaction(view, rngOf(table));
           const hold = line ? reactWaitMs(table, id, view, line, t) : 0;
           if (hold > 0) queueRecheck(table, id, ctx, hold);
@@ -1628,6 +1775,8 @@ function reviveHeld(table, view, content, opts) {
 
 /** quietTable.filler "facts": openers and fillers restate public facts only. */
 function quietLines(table, view) {
+  // groundedSpeech (Night 5 solo flag): a grounded line or nothing.
+  if (soloFlagsOf(table.config).groundedSpeech) return groundedSpeechLines(view);
   return quietTableOpts(table.config).filler === "facts" ? publicFactLines(view) : [dayOpener(view)];
 }
 
@@ -1643,7 +1792,11 @@ async function speakFresh(table, id, view, ctx, content) {
   if (!pm) return [];
   // quietTable.repair "intent": a model line that went stale keeps its intent or is dropped (no generic opener).
   const intent = quietTableOpts(table.config).repair === "intent";
-  const line = intent
+  const grounded = soloFlagsOf(table.config).groundedSpeech && !intent;
+  const groundedAlt = () => { const g = groundedSpeechLines(view)[0]; return g ? { event: "speak", data: { meetingId: pm.id, content: g } } : null; };
+  const line = grounded
+    ? (content ? reviveKeepingIntent(view, content, { stale: false, source: "llm" }) : null) || groundedAlt()
+    : intent
     ? (content ? reviveKeepingIntent(view, content, { stale: true, source: "llm" }) : null)
     : (content ? reviveSpeech(view, content) : null) || (dayOpener(view) ? { event: "speak", data: { meetingId: pm.id, content: dayOpener(view) } } : null);
   if (!line) return [];
@@ -1707,7 +1860,7 @@ async function silenceStep(table, id, view, ctx, now) {
   if ((table.silenceKey ||= {})[id] === stretch) return [];
   const said = new Set((table.proposed || []).filter((p) => p.accountId === id && p.event === "speak").map((p) => p.data?.content));
   if (keyLinePending(table)) return [];
-  const candidates = [...new Set([...quietLines(table, view), ...SPEECH_FLOOR.lines].filter(Boolean))];
+  const candidates = [...new Set([...quietLines(table, view), ...(soloFlagsOf(table.config).groundedSpeech ? [] : SPEECH_FLOOR.lines)].filter(Boolean))];
   const content = candidates.find((line) => {
     const spoken = humanizeSpeak(view, { event: "speak", data: { meetingId: pm.id, content: line } }).data?.content;
     return spoken && !said.has(spoken) && validateAction(view, { event: "speak", data: { meetingId: pm.id, content: line } }).ok;
@@ -1717,6 +1870,18 @@ async function silenceStep(table, id, view, ctx, now) {
   const added = await emitActions(table, id, [{ event: "speak", data: { meetingId: pm.id, content } }], { ...ctx, source: "day-speech", clock: now, claim: false });
   if (!added.length) delete table.silenceKey[id];
   return added;
+}
+
+/**
+ * soloCounterclaim (Night 5 solo flag): every seat's view learns which players are this harness's own seats
+ * (config.botSeats), so the mafia counterclaim counts only bot teammates (engine counterclaimMates).
+ */
+function syncBotSeats(table) {
+  const pids = [...table.byId.keys()].map((aid) => table.views[aid]?.selfId).filter(Boolean).map(String).sort();
+  const key = pids.join(",");
+  if (table.botSeatsKey === key) return;
+  table.botSeatsKey = key;
+  for (const aid of table.byId.keys()) if (table.views[aid]) table.views[aid] = engineReduce(table.views[aid], { event: "botConfig", data: { botSeats: pids } });
 }
 
 export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
@@ -1743,6 +1908,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
     const k = `${id}|${entry.data.id}`;
     if (m && !(table.meetLogged ||= new Set()).has(k)) { table.meetLogged.add(k); table.onMeeting(id, m); }
   }
+  if (soloFlagsOf(table.config).soloCounterclaim) syncBotSeats(table);
   const view = table.views[id];
   const clock = entry?.t != null && Number.isFinite(Number(entry.t)) ? Number(entry.t) : now;
   if (entry?.event === "winners" || entry?.event === "finished" || view?.winners || view?.finished) return [];
@@ -2058,6 +2224,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   table.onBallotUpdate = (who, from, to) => say(`ballot-update ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} queued=${from} sent=${to}`);
   // L4 (10/18): the late-day ballot safety net (ballotNet).
   table.onBallotNet = (who, pick, why, t) => say(`ballot-net ${who} [${table.views[who]?.phase?.name || ""}] t=${t} pick=${pick} why=${JSON.stringify(why)}`);
+  table.onSheriffClaimDelay = (who, ms, due) => say(`sheriff-claim-delay ${who} [${table.views[who]?.phase?.name || ""}] ms=${ms} due=${due}`);
   table.onPlanClaim = (who, what) => say(`plan-claim ${who} [${table.views[who]?.phase?.name || ""}] ${what}`);
   table.onHammer = (who, hv) => say(`hammer ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} target=${hv.target} why=${JSON.stringify(hv.why)}`);
   table.onAlert = (who, r) => say(`alert ${who} [${table.views[who]?.phase?.name || ""}] kind=${r.kind} target=${JSON.stringify(String(r.target).slice(0, 30))} result=${JSON.stringify(String(r.result).slice(0, 160))}`);

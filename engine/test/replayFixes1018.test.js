@@ -1,7 +1,7 @@
 // Three bugs the L2-L8 replay fixtures (harness/test/live1018.test.js) turned up, as unit tests.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, extractClaim, meetingActions, humanizeSpeak, SPENT_GUN_THREAT, validateAction } from "../src/index.js";
+import { reduceAll, extractClaim, meetingActions, humanizeSpeak, SPENT_GUN_THREAT, validateAction, reduce, SHERIFF_ASK } from "../src/index.js";
 
 const players = Object.fromEntries(["Ash", "Bea", "Cal", "Dot", "Eli"].map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
 const ids = Object.keys(players);
@@ -22,8 +22,13 @@ test("the gun's legal options are judged per target: an asked Villager is shoota
     { event: "meeting", data: { id: "gun", name: "Shoot Gun", actionName: "Shoot Gun", voting: true, canVote: true, amMember: true, instant: true, targets: ids.filter((x) => x !== "p1"), votes: {} } },
     say("p1", "im sheriff", 1000), say("p2", "hi", 2000), say("p3", "hm", 3000), say("p4", "who", 4000), say("p5", "idk", 5000), say("p2", "vote someone", 6000),
     say("p1", "cal what are you", 7000), say("p3", "ash im vt", 8000),
+    // Vinman 10/20: the asked Villager claimer is shot only while he is still clearly the most suspicious.
+    say("p4", "cal is sus", 8500), say("p5", "vote cal", 9000),
   ]);
-  const gun = meetingActions(v, v.meetings.gun);
+  // Night 5: the Villager answer is held first (more claims and reads), then shootable.
+  assert.ok(!meetingActions(v, v.meetings.gun).allowed.includes("p3"), "held right after the answer");
+  const after = reduce(v, { event: "time", t: 8000 + SHERIFF_ASK.vtHoldMaxMs, data: {} });
+  const gun = meetingActions(after, after.meetings.gun);
   assert.ok(gun.allowed.includes("p3"), JSON.stringify(gun.notes));
   assert.ok(!gun.allowed.includes("p2"), "an unasked seat waits");
 });

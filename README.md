@@ -313,6 +313,80 @@ No flag selects "humans" or "bots". These apply to the whole process, including 
 
 **Design intent.** `harness/selfplay/NOTES.md` describes facts-only fillers as a human-table safety change: private reads would be public if those openers stayed, and the simulated mafia do not read them, so self-play does not score the leak. The flag exists. It is off unless a self-play command turns it on. Turning it on in self-play is still an all-simulated table.
 
+### Night 5–6 flags
+
+These are `createBotTable` options in `harness/src/live.js`. Every one is off in code: the config key is absent unless the caller turns it on. `harness/scripts/selfplay.mjs` is the CLI that exposes them. `harness/scripts/live.mjs` (the dev live runner) has no switch for them yet, so a live dev game that needs a flag still takes a small wiring change.
+
+| Config key | CLI (`harness/scripts/selfplay.mjs`) | What it does |
+| --- | --- | --- |
+| `voteHold` | `--vote-hold on` | A town ballot waits for a confident read, or 60% of the day |
+| `soloCounterclaim` | `--solo-cc on` | A lone mafia bot counterclaims the Sheriff's asked Cop or Journalist, once |
+| `groundedSpeech` | `--grounded-speech on` | Drops filler lines |
+| `voteKickGuard` | `--kick-guard on` | Stops duplicate Vote Kick (gun) sends |
+| (the four above) | `--solo-flags all` | Turns on `voteHold`, `soloCounterclaim`, `groundedSpeech`, and `voteKickGuard` |
+| `gunOnce` | `--gun-once on` | Marks the Sheriff's gun as used when the shot goes out |
+| `chatPassthrough` | `--chat-pass on` | Loosens speech rules that blocked good lines, and adds guards for unsafe ones |
+| `sheriffLateGrace` | `--late-grace on` | +30 s for an asked seat's late answer before the Sheriff shoots |
+| `teamClaimGuard` | `--team-claim-guard on` | At most one fake power claim per mafia team |
+| `wideClaimParse` | `--wide-claims on` | Parses "cop X guilty", "journalist lol, …" and "Journalist, nothing to report yet." as claims |
+| `mixed.teamReveal` (harness eval only) | `mixed-table.mjs --team-reveal=on` | A mafia bot learns its scripted teammates. On by default in `cc-scenarios.mjs`. Off everywhere else |
+
+Some engine behavior from the same work is not behind a flag. The Sheriff target rules (`pairDecide`, `contestedDecide`, `lynchPairFramed`, re-ranking before shooting a Villager answer, and "2+ Cop claimers, shoot one") always apply. Claim wording at send time says villager or blue, never "vt", and a Cop claim and its report go on one line. The mafia counterclaim and the Sheriff's random 1–10 s claim delay always apply. `engine/src/stateModel.js` is the game-state model.
+
+#### `recommended` preset
+
+`harness/src/presets.js` names a set of flags. It does not change the code defaults. `recommended` turns on `soloCounterclaim`, `groundedSpeech`, `voteKickGuard`, `gunOnce`, `chatPassthrough`, `sheriffLateGrace`, `teamClaimGuard`, and `wideClaimParse`. `voteHold` is added only for a single-bot table: self-play uses `--preset recommended --preset-solo`, and mixed-table config `recommended` adds it on its own.
+
+From `harness/`:
+
+```bash
+node scripts/selfplay.mjs --preset recommended
+node scripts/selfplay.mjs --preset recommended --preset-solo
+node scripts/mixed-table.mjs --configs=base,recommended
+```
+
+An explicit `--vote-hold on` (and the other flag CLIs) still adds that flag on top of a preset.
+
+**Simulated results, from local self-play and mixed-table runs with a stubbed model.** Scripted seats stand in for the other players. These are not games against human players. Combined `recommended` against all flags off (self-play: seeds 51–54 × 50 = 200 games per config; mixed table: seeds 12001–12100 × 7 roles, Sheriff and Lawyer extended to 12001–12200; paired Δ with 95% CI):
+
+| Metric | All off | `recommended` | Paired Δ [95%] |
+| --- | --- | --- | --- |
+| Self-play village win | 51.0% | rec 57.0%; rec+voteHold 67.5% | rec +6.0 [−0.9, +12.9]; rec+VH +16.5 [+8.4, +24.6] |
+| Mixed bot win: Sheriff (200) | 54.0% | 51.0% | −3.0 [−10.6, +4.6] |
+| Mixed bot win: Cop / Journalist / Villager | 42 / 44 / 55 | 49 / 48 / 52 | +7.0 [−1, +15] / +4.0 [−4.3, +12.3] / −3.0 [−11.6, +5.6] |
+| Mixed bot win: Mafioso / Janitor | 70 / 73 | 69 / 74 | −1.0 [−3, +1] / +1.0 [−2.4, +4.4] |
+| Mixed bot win: Lawyer (200) | 77.5% | 75.0% | −2.5 [−4.7, −0.3] |
+| Sheriff shots on scum / town (mixed, 200) | 147 / 43 of 190 | 164 / 25 of 189 | town −9.0 [−14.6, −3.4]; scum +8.5 [+2.8, +14.2] |
+| Sheriff deadline-forced shots; median shot time | 2; 135 s | 21; 175 s | |
+| Sheriff shots on scum / town (self-play) | 120 / 45 | rec 110 / 50; rec+VH 95 / 46 | |
+| Correct town ballots (self-play) | 58.7% | rec 62.8%; rec+VH 72.2% | |
+| Correct town ballots (mixed: Sheriff / Cop / Journ. / Villager) | 54.5 / 79.4 / 66.5 / 73.4% | 64.5 / 82.7 / 72.8 / 69.2% | |
+| Filler (self-play / mixed bot) | 11.6% / 0.6–6.9% | 0.1% / 0.0% | |
+| Stale replies, rejected lines, public lines (self-play) | 433, 4296, 6190 | rec 138, 3486, 6474; rec+VH 55, 3447, 6191 | |
+| Double mafia power claims (self-play games) | 43 | rec 8; rec+VH 5 | |
+| Double claims (mixed scum games) | 3 | 3 | |
+| Illegal actions / chat drops | 0 / 0–2 | 0 / 0 | |
+
+Per-flag checks from the same simulated runs: `voteHold` moved solo-replay town ballots on scum from 63.4% to 74.6% (nine-bot self-play −2.2 pts, noise; the later combined run was +16.5 [+8.4, +24.6] on an all-bot table). `soloCounterclaim` counterclaimed 6/18 to 18/18 in the Night 5 replay, and the team scenario's exactly-one counterclaim went 44% to 98% (bot win +12 [+3, +21]). `groundedSpeech` took filler from 68% to 0%. `voteKickGuard` took illegal duplicate gun sends from 6 to 0. `chatPassthrough` let 108/411 replay rejects pass with 0 unsafe, planted unsafe lines 0/41, and self-play stale rejects 477 to 47. `sheriffLateGrace` took shots on town from 22 to 11 (−11/100 [−17.8, −4.2]), bot win +1 [−8, +10], median shot about 40 s later, deadline shots 1 to 14. `teamClaimGuard` took teamCop double mafia claims from 37% to 0% (bot win +5 [−1, +11]). `wideClaimParse` took power-claim recall from 81.5% to 100% with 0 false positives on 40.7k scripted lines, and teamCop doubles from 16% to 0% (bot win +7 [+1, +13]).
+
+#### Eval scripts
+
+All of these live in `harness/scripts/` and stay offline unless a command says otherwise.
+
+| Script | What it does |
+| --- | --- |
+| `night5-eval.mjs <log...> [--json]` | Read-only scoring of a live log for speech success, rejects, timing, and the five claim checks |
+| `solo-eval.mjs` | One-seat counterfactual replay of the timed fixtures on the rules path |
+| `solo-flags-eval.mjs` | The same replay for each flag config |
+| `solo-flags-selfplay.mjs <runsDir>` | Summarizes self-play runs for each config, with Wilson CIs and paired differences |
+| `mixed-table.mjs --roles= --seeds= --configs=` | One bot and eight scripted human-like seats |
+| `cc-scenarios.mjs --cases=lone,team,teamCop` | Counterclaim scenarios |
+| `fixture-diff.mjs` | Per-event diff of two fixture builds |
+| `state-replay.mjs` | Replays fixtures through the state model |
+| `rescrub.mjs <src> <dst> [--raw=…]` | Re-scrubs sanitized logs, printing counts only |
+
+`selfplay.mjs` also counts claim-guard rejects separately. `build-replays.mjs` accepts `--timeline=log`, `--nick-variants`, and `--alert-roles --vote-order=log`, all off by default.
+
 `sheriffWindowDone` looks up the Sheriff in `table.roster`. That roster is accounts this process controls. When the roster has no Sheriff, the function treats the Sheriff window as already finished, so the discussion gate does not wait for a Sheriff line. That is what the code does when the Sheriff account is outside this process. It has not been run against a human Sheriff.
 
 ## [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY) roles
@@ -367,6 +441,10 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 | `bus.js` | When scum may vote a teammate in the village |
 | `lynchMath.js` | Parity, lynch-or-lose, meteor, day-1 lynch owed |
 | `quietTable.js` | Optional quiet-table speech variants (off unless configured) |
+| `soloFlags.js` | Night 5 solo flags: vote hold, lone counterclaim, grounded speech, vote-kick guard (off unless configured) |
+| `mafiaCounter.js` | Mafia counterclaim of an asked Cop or Journalist |
+| `claimLines.js` | Claim wording at send time (villager/blue, Cop claim and report on one line) |
+| `stateModel.js` | Game-state model used by the state-replay eval |
 | `ruleBot.js` | Fixed baseline seat. No model |
 | `resolve.js` | Pure night and day resolution for the core roles |
 | `metrics.js` | `scoreGame` and pooled rates with Wilson intervals |
@@ -387,6 +465,12 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 | `prompts.js` | Seed prompt, epsilon-greedy selection, evolve gate |
 | `arena.js` | Offline [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY). RuleBot mixed with model seats. No socket |
 | `selfplay.js` | Offline [Frontier Justice](https://ultimafia.com/learn/setup/1T55KrrbY) on the live decision path. No model and no socket |
+| `presets.js` | Named flag sets. `recommended` turns flags on; code defaults stay off |
+| `mixedTable.js`, `mixedEval.js` | One bot plus eight scripted seats, and the scorer for that table |
+| `ccScenario.js` | Counterclaim scenarios for the mixed table |
+| `night5Eval.js`, `soloEval.js`, `soloFlagsEval.js` | Read-only log scoring, one-seat replay, and per-flag replay |
+| `stateReplay.js` | Replay fixtures through `stateModel.js` |
+| `rescrub.js` | Re-scrub sanitized logs. Prints counts only |
 | `replayBuild.js` | Rebuild sanitized protocol fixtures from live-harness logs |
 | `auditPlant.js` | Test-only planted lines for the chat audit |
 | `simLatency.js` | Replay logged model latencies. Reads `latency-live1018.json` |
@@ -396,14 +480,22 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 
 | Script | What it does |
 | --- | --- |
-| `live.mjs` | One private Testing game, or a dry run |
+| `live.mjs` | One private Testing game, or a dry run. No switch yet for the Night 5–6 flags |
 | `arena.mjs` | Offline arena, write `logs/replays/`, optional summary |
-| `selfplay.mjs` | Offline self-play, write `logs/selfplay/` |
+| `selfplay.mjs` | Offline self-play, write `logs/selfplay/`. Night 5–6 flag CLIs and `--preset` |
 | `lmstudio-smoke.mjs` | One local LM Studio completion. Not part of `npm test` |
-| `build-replays.mjs` | Build sanitized fixtures from log files |
+| `build-replays.mjs` | Build sanitized fixtures from log files. `--timeline=log`, `--nick-variants`, `--alert-roles`, `--vote-order=log` (all off by default) |
 | `audit-rejects.mjs` | Replay logged rejected lines through the current validators |
 | `sheriff-eval.mjs` | Count Sheriff shots and asks in `*.games.jsonl` |
 | `stale-latency.mjs` | Split stale speech rejects out of a live log |
+| `night5-eval.mjs` | Read-only live-log score: speech, rejects, timing, five claim checks |
+| `solo-eval.mjs`, `solo-flags-eval.mjs` | One-seat replay of the timed fixtures, then the same replay per flag config |
+| `solo-flags-selfplay.mjs` | Summarize self-play runs per config, with Wilson CIs and paired differences |
+| `mixed-table.mjs` | One bot and eight scripted seats. `--roles`, `--seeds`, `--configs` |
+| `cc-scenarios.mjs` | Counterclaim scenarios (`--cases=lone,team,teamCop`) |
+| `fixture-diff.mjs` | Per-event diff of two fixture builds |
+| `state-replay.mjs` | Replay fixtures through the state model |
+| `rescrub.mjs` | Re-scrub sanitized logs. Prints counts only |
 
 ### Docs
 
@@ -413,6 +505,7 @@ Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` 
 | `docs/PROTOCOL.md` | Frames the harness handles, checked by `protocol-doc.test.js` |
 | `docs/protocol-map.md` | Earlier notes from the Ultimafia client and the Dev API |
 | `docs/prior-bots.md` | Notes on `UM-Autobot-Player` and `claude-um-bot-1` |
+| `docs/night5-*.md`, `docs/sheriff-*.md`, `docs/chat-pass*.md`, `docs/claim-parse.md`, `docs/defaults-eval.md`, `docs/mixed-table.md` | Night 5–6 notes: flags, Sheriff targeting, claim parse, and the eval writeups |
 | `harness/selfplay/NOTES.md` | Historical self-play tuning notes |
 | `harness/test/INJECTION_CASES.md` | Injection cases the tests cover |
 

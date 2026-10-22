@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, reduce, validateAction, rulesSeatActions, sheriffShotReady, applySheriffRule } from "../src/index.js";
+import { reduceAll, reduce, validateAction, rulesSeatActions, sheriffShotReady, applySheriffRule, SHERIFF_ASK } from "../src/index.js";
 
 const players = Object.fromEntries(["p1", "p2", "p3", "p4", "p5", "p6"].map((id, i) => [id, { id, name: ["Me", "Alice", "Bob", "Cat", "Dan", "Eve"][i] }]));
 const base = (extra = []) => reduceAll([
@@ -31,7 +31,10 @@ test("after discussion the Sheriff shoots the Cop's guilty, not a quiet player",
     say("p1", "I'm Sheriff. Claims please.", 1),
     say("p2", "I'm Cop. Bob is guilty.", 2), say("p3", "I'm villager, Alice is lying", 3),
     say("p4", "vanilla", 4), say("p5", "villager", 5), say("p6", "villager here", 6), say("p4", "shoot Bob", 7),
+    // Night 5: Bob's fresh Villager claim is held for more claims and reads (vtHoldMaxMs) before the shot.
+    { event: "time", t: 3 + SHERIFF_ASK.vtHoldMaxMs, data: {} },
   ]);
+  assert.match(sheriffShotReady(v, { now: 10 }).reason, /pending-vt/);
   const ready = sheriffShotReady(v);
   assert.equal(ready.ok, true);
   assert.equal(ready.target, "p3");
@@ -59,10 +62,12 @@ test("time can stand in for discussion once the Sheriff has outed and has a read
   assert.equal(later.ask.target, "p4");
   v = reduce(v, say("p1", later.ask.line, 130_000));
   v = reduce(v, say("p4", "vt", 131_000));
-  const shot = sheriffShotReady(v, { now: 132_000 });
+  // Night 5: held for more claims and reads, then shot (nobody else gave a stronger case).
+  assert.match(sheriffShotReady(v, { now: 132_000 }).reason, /pending-vt/);
+  const shot = sheriffShotReady(v, { now: 131_000 + SHERIFF_ASK.vtHoldMaxMs });
   assert.equal(shot.ok, true);
   assert.equal(shot.target, "p4");
-  v = reduce(v, { event: "time", t: 132_000, data: {} });
+  v = reduce(v, { event: "time", t: 131_000 + SHERIFF_ASK.vtHoldMaxMs, data: {} });
   assert.equal(validateAction(v, shoot("p4")).ok, true);
 });
 
@@ -192,9 +197,12 @@ test("evidence rule: no strong read on Day 1 means hold; Vinman's default still 
 });
 
 test("evidence rule shoots Day 1 on a Cop guilty, a unique-role counterclaim, or a threat to the Sheriff", () => {
-  const guilty = sheriffShotReady(withRule("evidence", [...chatter, say("p2", "I'm Cop. Bob is guilty.", 8_000)]));
+  const guilty = sheriffShotReady(withRule("evidence", [...chatter, say("p2", "I'm Cop. Bob is guilty.", 8_000)]), { now: 250_000 });
   assert.deepEqual([guilty.ok, guilty.target], [true, "p3"]);
-  const counter = sheriffShotReady(withRule("evidence", [...chatter, say("p4", "I'm Cop.", 8_000), say("p5", "no, I'm the cop", 9_000)]));
+  // 10/20 2:02pm: a weak Cop pair waits for reads and the village vote; late in the day he shoots one of them.
+  const pair = withRule("evidence", [...chatter, say("p4", "I'm Cop.", 8_000), say("p5", "no, I'm the cop", 9_000)]);
+  assert.equal(sheriffShotReady(pair, { now: 25_000 }).ok, false);
+  const counter = sheriffShotReady(pair, { now: 250_000 });
   assert.equal(counter.ok, true);
   assert.ok(["p4", "p5"].includes(counter.target), counter.why);
   // A Sheriff counterclaim is still shot at once; a bare accusation (L4) is not.

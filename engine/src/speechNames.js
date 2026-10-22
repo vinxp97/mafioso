@@ -2,6 +2,7 @@
 import { NO_ONE } from "./types.js";
 import { repairOutgoingClaim } from "./chatStyle.js";
 import { repairSpentGunThreat } from "./sheriffGate.js";
+export * from "./claimLines.js";
 
 function escapeReg(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

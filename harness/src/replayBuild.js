@@ -48,10 +48,12 @@ export function parseLog(text) {
     // L4+ logs (10/18) carry "t=<ms>" after the phase tag on sends and after the text on chat lines.
     } else if ((m = /^send (\S+) (?:\[([^\]]*)\] )?(?:t=\d+ )?(vote|speak) (\S+) (.*?) source=(\S+)/.exec(line))) {
       const val = m[3] === "speak" ? (() => { try { return JSON.parse(m[5]); } catch { return m[5]; } })() : m[5];
-      g.items.push({ k: m[3], seat: m[1], phase: m[2] || phaseNow(), tagged: !!m[2], mid: m[4], val, source: m[6] });
+      const ms = /\] t=(\d+) /.exec(line);
+      g.items.push({ k: m[3], seat: m[1], phase: m[2] || phaseNow(), tagged: !!m[2], mid: m[4], val, source: m[6], ...(ms ? { ms: Number(ms[1]) } : {}) });
     } else if ((m = /^chat \[([^\]]*)\] (\S+) (\S+): (.*?)(?: t=\d+)?$/.exec(line))) {
       let content = m[4]; try { content = JSON.parse(content); } catch {}
-      g.items.push({ k: "chat", phase: m[1], meeting: m[2], sender: m[3], content });
+      const ms = / t=(\d+)$/.exec(line);
+      g.items.push({ k: "chat", phase: m[1], meeting: m[2], sender: m[3], content, ...(ms ? { ms: Number(ms[1]) } : {}) });
     } else if ((m = /^speech-reject (\S+) \[([^\]]*)\] source=(\S+) reasons=(\[.*?\])(?: line=("(?:[^"\\]|\\.)*"))?$/.exec(line))) {
       // A line the harness held or rejected (chatAudit, validators, pacing). Not a frame: kept as a sidecar.
       let reasons = []; try { reasons = JSON.parse(m[4]); } catch { reasons = [m[4]]; }
@@ -225,7 +227,31 @@ function rawAlertTarget(g, it, type, deaths) {
   return s ? s.val : null;
 }
 
-export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
+/**
+ * Options, both off by default (the committed fixtures are built without them; found by the state-model replay,
+ * scripts/state-replay.mjs, 2026-10-20):
+ *   alertRoles  a Janitor's alert names the cleaned player's role: that seat gets it. Off, a seat that died before
+ *               its role meeting (L2: the Sheriff, killed and cleaned Night 1) took a leftover role (Villager) and a
+ *               living Villager was handed the Sheriff.
+ *   voteOrder   "log": a day's ballots go out in log order around the Sheriff's shot, and a ballot the shot victim
+ *               sent after he died is dropped. Off ("after"), every ballot follows the shot (L5: the shot Janitor's
+ *               earlier ballot then arrives after his death).
+ * And one found by the Night 5 rebuild of g05/g14/g16 (docs/night5-fixture-diff.md):
+ *   nickVariants  bots' spellings of a short (3-4 letter) first name are scrubbed like the name: the plural or
+ *               possessive ("<name>s") and the "ck" spelling ("<na>ck" for "<na>k"). Off, those words pass the
+ *               nickname matcher (it needs 5+ letters to guess) and a real first name's variant stays in the chat
+ *               (g14: two such variants of one dev handle, 49 lines).
+ * And one for the Night 5 single-bot eval (harness/src/soloEval.js):
+ *   timeline    "log": frames carry the log's own times (the t= of L4+ sends and chat lines, shifted to the fixture
+ *               epoch) and a phase's speech, chat and ballots go out in one log-ordered stream around the shot. A
+ *               phase starts TIMELINE_LEAD_MS before its first timed line (the log has no phase-start time). Off
+ *               ("order"), every frame is 37 ms after the one before and a day is all its speech, then its chat,
+ *               then its ballots: fine for state, useless for timing (a whole L10 day is ~5 s).
+ */
+export const BUILD_DEFAULTS = Object.freeze({ alertRoles: false, voteOrder: "after", nickVariants: false, timeline: "order" });
+export const TIMELINE_LEAD_MS = 2_000;
+
+export function build(g, { source, realNames: REAL_NAMES = [], alertRoles = BUILD_DEFAULTS.alertRoles, voteOrder = BUILD_DEFAULTS.voteOrder, nickVariants = BUILD_DEFAULTS.nickVariants, timeline = BUILD_DEFAULTS.timeline } = {}) {
   const n = g.accounts.length;
   const acc = new Map(g.accounts.map((a, i) => [a, `acc${String(i + 1).padStart(2, "0")}`]));
   // Players: the seatmap's, then every id a send or the winners named, first-seen order.
@@ -267,6 +293,11 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
   const left = [...FJ];
   const take = (r) => { const i = left.indexOf(r); if (i >= 0) left.splice(i, 1); return i >= 0; };
   for (const [a, r] of [...role]) if (!take(r)) role.delete(a);
+  if (alertRoles) for (const it of g.items) {
+    if (it.k !== "alert" || it.kind !== "janitor") continue;
+    const seat = seatOfRaw.get(rawAlertTarget(g, it, type, deaths));
+    if (seat && !role.has(seat) && !mafiaSeats.has(seat) && take(String(it.result))) role.set(seat, String(it.result));
+  }
   if (!evidence) g.accounts.forEach((a, i) => role.set(a, FJ[i % FJ.length]));
   const nightActor = new Set(g.items.filter((it) => it.k === "vote" && type.get(`${it.phase}|${it.mid}`) === "Night Action").map((it) => it.seat));
   for (const a of g.accounts) {
@@ -302,7 +333,7 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
   const ID_SHAPED = /(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*(?:\d|_|-|[a-z][A-Z]))[A-Za-z0-9_-]{9,12}(?![A-Za-z0-9_-])/g;
   const idsSeen = [...new Set([...allRaw.filter((r) => String(r).length >= 8), ...(JSON.stringify(g).match(ID_SHAPED) || [])])];
   const PARTS = REAL_NAMES.map((full) => ({ full, letters: full.replace(/\d+$/, "").toLowerCase(), parts: full.replace(/\d+$/, "").match(/[A-Z][a-z]+/g).map((x) => x.toLowerCase()) }));
-  const nameOwner = (word) => ownerOf(word, PARTS);
+  const nameOwner = (word) => ownerOf(word, PARTS, { nickVariants });
   const fakeName = (real) => {
     const pid = nameToPid.get(real);
     if (pid) return name(pid);
@@ -358,13 +389,13 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
     if (!m) { m = { id, name: type.get(`${it.phase}|${it.mid}`) || null, members: new Set(), voting: true, speech: false, n: null, targets: new Set() }; ph.meetings.set(id, m); }
     m.members.add(it.seat);
     if (it.k === "meeting") { m.voting = it.voting; m.speech = it.role === "chat" || it.name === "Village"; m.n = it.n; m.canVote = it.canVote; }
-    if (it.k === "vote") { m.targets.add(mapSel(it.val)); ph.votes.push({ seat: it.seat, mid: id, sel: mapSel(it.val), at }); }
-    if (it.k === "speak") { m.speech = true; ph.speech.push({ seat: it.seat, mid: id, content: scrub(it.val), at }); }
+    if (it.k === "vote") { m.targets.add(mapSel(it.val)); ph.votes.push({ seat: it.seat, mid: id, sel: mapSel(it.val), at, ms: it.ms }); }
+    if (it.k === "speak") { m.speech = true; ph.speech.push({ seat: it.seat, mid: id, content: scrub(it.val), at, ms: it.ms }); }
   }
   for (const [at, it] of g.items.entries()) if (it.k === "chat" && nameToPid.has(it.sender)) {
     const ph = phaseOf(it.phase);
     ph.chat = ph.chat || [];
-    ph.chat.push({ sender: nameToPid.get(it.sender), meeting: it.meeting, content: scrub(it.content), at });
+    ph.chat.push({ sender: nameToPid.get(it.sender), meeting: it.meeting, content: scrub(it.content), at, ms: it.ms });
   }
   // Rejected/held lines (sidecar): placed among the phase's own sends in log order; they emit no frame.
   const rejects = [];
@@ -457,8 +488,17 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
   };
   let alertCount = 0;
 
+  // timeline "log": the log's clock, shifted so the game starts a minute after the join burst.
+  const logMs = timeline === "log" ? g.items.map((it) => it.ms).filter(Number.isFinite) : [];
+  const ms0 = logMs.length ? Math.min(...logMs) : null;
+  const t0 = t + 60_000;
+  const stamp = (ms) => { if (ms0 != null && Number.isFinite(ms)) t = Math.max(t, t0 + ms - ms0); };
   for (const ph of phases.filter((p) => p.name !== "Pregame")) {
     stateId += 1;
+    if (ms0 != null) {
+      const first = [...ph.speech, ...ph.votes, ...(ph.chat || [])].map((x) => x.ms).filter(Number.isFinite);
+      if (first.length) stamp(Math.min(...first) - TIMELINE_LEAD_MS);
+    }
     const alive = g.accounts.filter((a) => !dead.has(seatPid.get(a)));
     const to = (a, event, data) => { if (!dead.has(seatPid.get(a))) emit(a, event, data); };
     if (has("state")) for (const a of alive) to(a, "state", { id: stateId, name: ph.name, dayCount: Number(ph.name.split(" ")[1]) || 0 });
@@ -501,20 +541,30 @@ export function build(g, { source, realNames: REAL_NAMES = [] } = {}) {
     };
     const spoken = new Set(ph.speech.map((x) => x.content));
     const lines = [
-      ...ph.speech.map((s) => ({ at: s.at, send: () => { for (const a of ph.meetings.get(s.mid)?.members || []) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: seatPid.get(s.seat), content: s.content, meetingId: s.mid, time: t }); } })),
+      ...ph.speech.map((s) => ({ at: s.at, ms: s.ms, send: () => { for (const a of ph.meetings.get(s.mid)?.members || []) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: seatPid.get(s.seat), content: s.content, meetingId: s.mid, time: t }); } })),
       ...(ph.rejects || []).map((r) => ({ at: r.at, send: () => { r.rec.outIndex = out.length; } })),
-      ...(ph.chat || []).filter((c) => vil && has("message") && !spoken.has(c.content)).map((c) => ({ at: c.at, chat: true, send: () => { for (const a of alive) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: c.sender, content: c.content, meetingId: vil.id, time: t }); } })),
+      ...(ph.chat || []).filter((c) => vil && has("message") && !spoken.has(c.content)).map((c) => ({ at: c.at, ms: c.ms, chat: true, send: () => { for (const a of alive) to(a, "message", { id: `msg${stateId}-${++mi}`, senderId: c.sender, content: c.content, meetingId: vil.id, time: t }); } })),
     ];
     // Speech first, then chat (the old order) unless a shot splits the day.
     const before = shotVote ? lines.filter((l) => l.at < shotVote.at) : lines;
     const after = shotVote ? lines.filter((l) => l.at >= shotVote.at) : [];
-    for (const group of [before, after]) {
-      for (const l of group.filter((x) => !x.chat).sort((a, b) => a.at - b.at)) l.send();
-      for (const l of group.filter((x) => x.chat)) l.send();
-      if (group === before && shotVote) fire();
-    }
     const reAim = (v) => shotVote && v.seat === shotVote.seat && v.mid === shotVote.mid;
-    if (has("vote")) for (const v of ph.votes) if (v !== shotVote && !reAim(v)) for (const a of ph.meetings.get(v.mid)?.members || []) to(a, "vote", { voterId: seatPid.get(v.seat), target: v.sel, meetingId: v.mid });
+    const sendVote = (v) => { for (const a of ph.meetings.get(v.mid)?.members || []) to(a, "vote", { voterId: seatPid.get(v.seat), target: v.sel, meetingId: v.mid }); };
+    const ballots = has("vote") ? ph.votes.filter((v) => v !== shotVote && !reAim(v)) : [];
+    const early = voteOrder === "log" && shotVote ? ballots.filter((v) => v.at < shotVote.at) : [];
+    if (ms0 != null) {
+      // One stream in log order (to() drops the shot victim's later frames), each frame at its logged time.
+      const stream = [...lines.map((l) => ({ at: l.at, ms: l.ms, go: l.send })), ...ballots.map((v) => ({ at: v.at, ms: v.ms, go: () => sendVote(v) })), ...(shotVote ? [{ at: shotVote.at, ms: shotVote.ms, go: fire }] : [])];
+      for (const x of stream.sort((a, b) => a.at - b.at)) { stamp(x.ms); x.go(); }
+    } else {
+      for (const group of [before, after]) {
+        for (const l of group.filter((x) => !x.chat).sort((a, b) => a.at - b.at)) l.send();
+        for (const l of group.filter((x) => x.chat)) l.send();
+        if (group === before && shotVote) { early.forEach(sendVote); fire(); }
+      }
+      // to() already drops a dead seat's frames; voteOrder "log" also drops the shot victim's ballots sent after the shot.
+      for (const v of ballots) if (!early.includes(v)) sendVote(v);
+    }
     if (has("youAreBeingVoteKicked") && /^Day/.test(ph.name)) { const lazy = alive.find((a) => !ph.votes.some((v) => v.seat === a)); if (lazy) { to(lazy, "youAreBeingVoteKicked", { status: true }); } }
     if (has("clearTimer")) for (const a of alive) to(a, "clearTimer", "main");
     if (has("leftMeeting")) for (const m of meetings) if (m.name !== "Village") for (const a of m.members) if (alive.includes(a)) to(a, "leftMeeting", m.id);
@@ -591,7 +641,7 @@ function editsAtMostOne(a, b) {
   return a.length === b.length ? a.slice(i + 1) === b.slice(i + 1) : a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
 }
 
-function ownerOf(word, PARTS) {
+function ownerOf(word, PARTS, { nickVariants = false } = {}) {
   const w = word.toLowerCase(); const letters = w.replace(/\d+$/, "");
   if (/^(player|guest)$/.test(letters)) return null;
   for (const p of PARTS) if (letters === p.letters) return p.full;
@@ -607,6 +657,9 @@ function ownerOf(word, PARTS) {
   if (digits) for (const p of PARTS) if (p.parts.includes(letters) && p.full.endsWith(digits)) return p.full;
   if (STOP.has(letters) || /\d/.test(w)) return null;
   for (const p of PARTS) if (p.parts.includes(letters)) return p.full;
+  // nickVariants: "<part>s" and the "ck" spelling of a short part ("tock" for Tok). Longer parts already match
+  // through the run-on and one-edit rules above.
+  if (nickVariants) for (const p of PARTS) for (const x of p.parts) if (x.length >= 3 && (letters === `${x}s` || (letters.includes("ck") && letters.replace(/ck/g, "k") === x))) return p.full;
   const capital = word[0] === word[0].toUpperCase();
   if (letters.length >= (capital ? 4 : 5)) {
     for (const p of PARTS) if (p.parts.some((x) => x.length >= 5 && x.slice(0, 4) === letters.slice(0, 4) && letters.length <= x.length + (capital ? 1 : 0))) return p.full;

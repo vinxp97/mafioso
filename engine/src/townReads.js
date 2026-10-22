@@ -8,7 +8,8 @@
 //   - being named a liar by several players, or giving a guilty on a power-role claimer, adds a little.
 // Scores are additive and in "evidence points"; TOWN_READS holds every weight. No seed tuning: the
 // weights only order evidence (hard > proven lie > report > contested claim > vote history).
-import { claimedRoleIn } from "./chatStyle.js";
+import { claimedRoleIn, claimOpts, wideClaimsOn, wideClaimNegative } from "./chatStyle.js";
+import { extractClaim } from "./claims.js";
 import { ALIGNMENT, alignmentOf, allies } from "./faction.js";
 import { lawyerGone, memoryOf } from "./notes.js";
 import { DAY1_LYNCH_OWED, METEOR_DAY, NO_LYNCH_LOSES, dayOneLynchOwed, meteorOn, noLynchLoses } from "./lynchMath.js";
@@ -119,7 +120,11 @@ export function publicRecord(view) {
   for (const m of publicLines(view)) {
     const by = m.senderId;
     const text = String(m.content || "");
-    const claimed = roleName(claimedRoleIn(text) || (view.claims?.[by]?.kind !== "retract" ? view.claims?.[by]?.role : null));
+    // config.wideClaimParse: the claim board fallback is this line's own extracted claim, and never a hypothetical,
+    // a report about another role or a dead claimer ("if im cop", "cop said x guilty", "rip cop").
+    const board = !wideClaimsOn(view) ? (view.claims?.[by]?.kind !== "retract" ? view.claims?.[by]?.role : null)
+      : wideClaimNegative(text) ? null : ((c) => (c && c.kind !== "retract" && c.kind !== "soft" ? c.role : null))(extractClaim(m));
+    const claimed = roleName(claimedRoleIn(text, claimOpts(view)) || board);
     if (claimed && claimed !== "Villager" && !claims[by]) { claims[by] = claimed; claimedAt[by] = phaseOrdinal(m.phase); }
     const segs = text.split(/[.;!?,]+/);
     let reportedCop = null; // "x got a cop report, real cop, it said y guilty": the relay's source is x

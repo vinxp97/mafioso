@@ -1,10 +1,18 @@
 // Build sanitized protocol replay fixtures from live-harness logs; the logic is in src/replayBuild.js.
-//   node scripts/build-replays.mjs <out-dir> <log>...
+//   node scripts/build-replays.mjs [--alert-roles] [--vote-order=log] [--nick-variants] [--timeline=log] <out-dir> <log>...   (all options off by default)
 import fs from "node:fs";
 import path from "node:path";
 import { build, parseLog, realNamesIn } from "../src/replayBuild.js";
 
-const [outDir, ...logs] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const opts = {};
+if (argv.includes("--alert-roles")) opts.alertRoles = true;
+if (argv.includes("--nick-variants")) opts.nickVariants = true;
+const vo = argv.find((a) => a.startsWith("--vote-order="));
+if (vo) opts.voteOrder = vo.split("=")[1];
+const tl = argv.find((a) => a.startsWith("--timeline="));
+if (tl) opts.timeline = tl.split("=")[1];
+const [outDir, ...logs] = argv.filter((a) => !a.startsWith("--"));
 if (!outDir || !logs.length) { console.error("usage: build-replays.mjs <out-dir> <log>..."); process.exit(2); }
 
 const texts = logs.map((f) => fs.readFileSync(f, "utf8"));
@@ -16,7 +24,7 @@ let k = 0;
 logs.forEach((file, i) => {
   for (const g of parseLog(texts[i])) {
     if (Object.keys(g.frames).length < 6) continue; // runs that never got past the handshake
-    const r = build(g, { source: path.basename(file), realNames });
+    const r = build(g, { source: path.basename(file), realNames, ...opts });
     const shape = JSON.stringify(r.out.map(({ t, ...e }) => e));
     if (seenShapes.has(shape)) continue; // same frames as an earlier run (e.g. two connect-only retries)
     seenShapes.add(shape);

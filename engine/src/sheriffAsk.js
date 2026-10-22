@@ -5,8 +5,9 @@
 //              one living player and asking for a role ("ash claim?", "ash whats your role").
 //   reply      that player's first public line after the ask: parseClaimReply -> power | plain | refuse | null.
 //   counter    another living player claims the same role, or a dead player already flipped it.
-import { claimedRoleIn } from "./chatStyle.js";
+import { claimedRoleIn, claimOpts, wideClaimNegative } from "./chatStyle.js";
 import { splitAppearance } from "./reducer.js";
+export * from "./mafiaCounter.js";
 
 export const SHERIFF_ASK = Object.freeze({
   replyMs: 15_000, // how long the Sheriff waits for an answer (L6 10/18: 30s -> 15s, then he shoots)
@@ -16,7 +17,22 @@ export const SHERIFF_ASK = Object.freeze({
   ccMs: 40_000, // after a power-role answer, how long he waits for a counterclaim
   askFraction: 0.45, // with no read, the Sheriff asks once this much of the day has gone (or the discussion gate passed)
   maxAsks: 3, // asks per day
+  // Night 5 (Vinman 10/20): a Villager/blue answer is not shot at once. The Sheriff waits for more claims and
+  // reads: at least vtHoldMinMs and vtHoldLines other lines after the answer, at most vtHoldMaxMs; then he
+  // re-ranks and decides (the same target or another). The day-1 deadline still fires the gun.
+  vtHoldMinMs: 12_000,
+  vtHoldMaxMs: 30_000,
+  vtHoldLines: 4,
+  // Night 6 (config.sheriffLateGrace "on", off by default): extra wait for a late answer before an ask's silence
+  // counts as "no claim when asked". 30s: replyMs + 30s = 45s covers the 80th percentile of the mixed-table answer
+  // delays (p50 31s, p80 44s, p90 49s; 358 answers, seeds 6001-6100). The deadline paths ignore it.
+  lateGraceMs: 30_000,
 });
+
+/** The Sheriff's reply window for an ask: replyMs, plus lateGraceMs with config.sheriffLateGrace "on". */
+export function askReplyWindowMs(view) {
+  return SHERIFF_ASK.replyMs + (view?.config?.sheriffLateGrace === "on" ? SHERIFF_ASK.lateGraceMs : 0);
+}
 
 /** Power roles a claim protects from the shot (Vinman: Cop/Journalist/Sheriff/Doctor etc.). */
 export const ASK_POWER = Object.freeze(new Set(["Cop", "Journalist", "Sheriff", "Doctor", "Detective", "Medic", "Tracker", "Watcher", "Vigilante", "Deputy"]));
@@ -42,16 +58,18 @@ const today = (view) => lines(view).filter((m) => !m.phase || !view?.phase?.name
  * A reply to "claim?": { role, kind } where kind is "power" (a power role), "plain" (Villager or a non-power
  * role), "refuse" (won't claim), or null (not an answer). Live-path parser: casual chat, any case.
  */
-export function parseClaimReply(text) {
+export function parseClaimReply(text, opts) {
   const t = String(text || "").trim();
   if (!t) return null;
-  if (NEG_RE.test(t) && !claimedRoleIn(t.replace(NEG_RE, " "))) {
+  if (NEG_RE.test(t) && !claimedRoleIn(t.replace(NEG_RE, " "), opts)) {
     // "not cop, vt": the negated role is not a claim; read what is left.
     const rest = t.replace(NEG_RE, " ").replace(/^[\s,.;:!-]+/, "");
-    const r = parseClaimReply(rest);
+    const r = parseClaimReply(rest, opts);
     return r || { role: null, kind: "refuse" };
   }
-  const word = claimedRoleIn(t) || (t.match(DOC_RE) || [])[1] || (t.match(BARE_RE) || [])[1];
+  // config.wideClaimParse: "cop said bea is guilty", "if im cop..", "cop is dead" are not answers with a role.
+  const bareOk = !(opts?.wide && (wideClaimNegative(t) || /\?\s*$/.test(t)));
+  const word = claimedRoleIn(t, opts) || (bareOk && (t.match(DOC_RE) || [])[1]) || (bareOk && (t.match(BARE_RE) || [])[1]);
   const role = word ? ROLE_OF[String(word).toLowerCase()] || null : null;
   if (role) return { role, kind: ASK_POWER.has(role) ? "power" : "plain" };
   if (REFUSE_RE.test(t)) return { role: null, kind: "refuse" };
@@ -63,7 +81,7 @@ export function sheriffSeat(view) {
   if (/^sheriff$/i.test(String(view?.role || "")) && alive(view, view.selfId)) return view.selfId;
   const rev = Object.entries(view?.reveals || {}).find(([id, a]) => splitAppearance(a).role === "Sheriff" && alive(view, id));
   if (rev) return rev[0];
-  for (const m of lines(view)) if (alive(view, m.senderId) && claimedRoleIn(m.content) === "sheriff") return m.senderId;
+  for (const m of lines(view)) if (alive(view, m.senderId) && claimedRoleIn(m.content, claimOpts(view)) === "sheriff") return m.senderId;
   const c = Object.entries(view?.claims || {}).find(([id, x]) => x?.kind !== "retract" && /^sheriff$/i.test(String(x?.role || "")) && alive(view, id));
   return c ? c[0] : null;
 }
@@ -82,7 +100,7 @@ function replyAfter(view, target, ask) {
   const from = all.indexOf(ask);
   for (const m of all.slice(from + 1)) {
     if (m.senderId !== target) continue;
-    const r = parseClaimReply(m.content);
+    const r = parseClaimReply(m.content, claimOpts(view));
     if (r) return { ...r, at: Number(m.t), text: String(m.content || "") };
   }
   return null;
@@ -93,8 +111,8 @@ export function roleCounterclaimed(view, id, role, { sheriffId = null } = {}) {
   if (!role) return null;
   for (const m of lines(view)) {
     if (m.senderId === id || !alive(view, m.senderId)) continue;
-    const r = parseClaimReply(m.content);
-    if (claimedRoleIn(m.content) && r?.role === role) return { by: m.senderId, kind: "claim" };
+    const r = parseClaimReply(m.content, claimOpts(view));
+    if (claimedRoleIn(m.content, claimOpts(view)) && r?.role === role) return { by: m.senderId, kind: "claim" };
   }
   for (const [pid, c] of Object.entries(view?.claims || {})) if (pid !== id && c?.kind !== "retract" && String(c?.role || "") === role && alive(view, pid)) return { by: pid, kind: "claim" };
   const flip = Object.entries(view?.reveals || {}).find(([pid, a]) => pid !== id && !alive(view, pid) && splitAppearance(a).role === role);

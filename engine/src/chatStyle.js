@@ -1,9 +1,10 @@
 // Fast-chatroom public speech: short lines, early-claim discipline.
 import { memoryOf, JANITOR_REPORT } from "./notes.js";
+import { fitCopLine, isCopClaim, joinCopLines, rewriteVt } from "./claimLines.js";
 import { sanitizeChat, defang } from "./sanitize.js";
 import { ALIGNMENT, allies } from "./faction.js";
 import { dayFraction } from "./sheriffGate.js";
-import { sheriffAskedMe } from "./sheriffAsk.js";
+import { sheriffAskedMe, mafiaCounterclaim } from "./sheriffAsk.js";
 import { adaptiveClaimLine, claimOptions, exposedTeam, publicReads, stateHash } from "./adaptiveMafia.js";
 import { agreedPlan } from "./scumPlan.js";
 
@@ -15,6 +16,8 @@ export const PUBLIC_MAX = 160;
 export const SPEECH_WORDS = 12;
 /** First n words of a line (the model line cap, applied after every step that can add a word). */
 export function capSpeechWords(text, n = SPEECH_WORDS) {
+  // Night 5: a Cop claim keeps its whole report (the chat cap, fitCopLine, already bounds it).
+  if (isCopClaim(text)) return String(text || "").replace(/\s+/g, " ").trim();
   return String(text || "").trim().split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 }
 
@@ -38,6 +41,8 @@ export function stripReasoning(text) {
 /** First line, no list markup; a line over the cap keeps its first sentence, then is cut at a word boundary. */
 export function chatShorten(text, max = PUBLIC_MAX) {
   let s = stripReasoning(text).replace(/^\s*["'`]+|["'`]+\s*$/g, "");
+  // Night 5: a Cop claim and its report are ONE line: join its lines, fit by whole result items.
+  if (isCopClaim(s.split(/\n+/).find((l) => l.trim()) || "")) return fitCopLine(joinCopLines(s), max);
   s = s.split(/\n+/).map((l) => l.replace(/^\s*([-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean)[0] || "";
   s = s.replace(/\s+/g, " ").trim();
   // A whole line that fits stays whole: "im journalist. x got no report, fake cop" must not lose its point.
@@ -58,16 +63,67 @@ const CLAIM_RE = new RegExp(`\\b(?:i'?m|i am|im|i'?ve been|i claim|i'?m claiming
 const TRAIL_CLAIM_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*(?:here|btw|fyi|[.!]|$)`, "i");
 const PLAIN_TOWN = new Set(["villager", "vanilla", "vt", "v/t", "town", "townie", "blue"]);
 
+// ---- config.chatPassthrough (Night 6, 10/20; off by default) ----
+// Loosens only the speech rules that blocked good lines in the Night 5 live games (docs/chat-passthrough.md):
+// the cross-seat repeat check, the early-claim parse of third-person role mentions, the dead-player read of
+// past-tense lines, and (harness) the stale-reply window. Never touches vt wording, leaks, machine text,
+// PUBLIC_MAX, exact names, Cop split lines, chatAudit LEAK/false facts, or who may claim.
+export const CHAT_PASS = Object.freeze({
+  crossSimilarity: 0.8, // other seats' recent lines: block only near-echoes (own lines keep VARIETY.maxSimilarity)
+  staleMaxMs: 120_000, // harness: a late reply up to this old is re-validated and sent as a plain line
+});
+export function chatPassOn(view) {
+  return !!view?.config?.chatPassthrough;
+}
+// "as the journalist reported", "as a villager would": a role named in the third person, not a self-claim.
+// A comma or a first-person word after the role ("as the cop, x guilty", "as a villager i think") stays a claim.
+const NARRATIVE_ROLE_RE = new RegExp(`\\bas\\s+(?:a|an|the)\\s+(?:real\\s+)?(?:${ROLE_WORDS})\\s+(?=(?:reported|reports|found|finds|did|does|would|will|should|can|could|might|must|has|had|is|was|knows|knew|showed|shows|confirmed|explained|mentioned|noted|stated|suggested|pointed|checked|checks|got|gets|needs?|you|we|they|he|she)\\b)`, "gi");
+/** The line with third-person role mentions removed (chatPassthrough's early-claim parse). */
+export function withoutNarrativeRoles(text) {
+  return String(text || "").replace(NARRATIVE_ROLE_RE, " ");
+}
+
+// ---- config.wideClaimParse (Night 6 part 5, 10/21; off by default) ----
+// Three line-opening claim shapes the default parse misses (scripted mixed-table wordings, docs/claim-parse.md):
+//   "cop bea guilty" / "cop: bea inno"      role word, a name, a result
+//   "journalist lol, no reports to share"   role word, then a filler word
+//   "Journalist, nothing to report yet."    role word, a comma, then a no-result / first-person clause
+// and negatives, applied with the flag to every shape: a hypothetical ("if im cop", "if i were cop"), a question
+// for the wide shapes ("cop?", "cop bea guilty?"), a report about another ("cop said bea is guilty"), or a dead
+// claimer ("cop is dead", "cop flipped").
+const POWER_WORDS = "cop|journalist|sheriff|doctor|medic";
+const NOT_A_NAME = "said|says|say|claimed|claims|claim|thinks|think|told|tells|reported|reports|was|is|are|were|has|had|have|got|gets|found|finds|showed|shows|who|whos|where|what|which|should|would|could|will|can|cant|needs?|lied|lies|lying|flipped|flips|died|dies|dead|checked|checks|check|and|or|but|the|a|an|to|of|in|on|for|if|we|you|they|he|she|it|me|my|our|your";
+const WIDE_RESULT_RE = new RegExp(`^\\s*(${POWER_WORDS})\\s*[.,:;-]?\\s+(?!(?:${NOT_A_NAME})\\b)[a-z0-9_]+\\s*[:,-]?\\s*(?:is\\s+|came back\\s+|=\\s*)?(guilty|inno|innocent|not guilty)\\b`, "i");
+const WIDE_FILLER_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*[,.]?\\s+(?:lol|lmao|haha|ha|tbh|ngl|honestly|fr|obv|obviously|ofc|lmfao|xd)\\b(?!.*\\b(?:you|u|ur|where|who|what|claim|pls|please|anyone)\\b)`, "i");
+const WIDE_COMMA_RE = new RegExp(`^\\s*(${ROLE_WORDS})\\s*[,:;-]\\s*(?:nothing|no\\s+(?:reports?|results?|guilty|guilties|info|checks?)|i\\b|i'?m\\b|im\\b|my\\b|got\\b|checked\\b|been\\b|results?\\b|reports?\\b)`, "i");
+const HYPOTHETICAL_RE = /\b(?:if|unless|suppose|supposing|imagine|pretend(?:ing)?|say|what if|even if)\s+(?:i'?m|im|i am|i was|i were|i'?d be|i be)\b|\bi\s+(?:were|would be|could be|might be|wish i was)\b|\bwould (?:you|u|we) (?:believe|trust)\b/i;
+const OTHER_REPORT_RE = new RegExp(`^\\s*(?:the\\s+|our\\s+|a\\s+|dead\\s+|fake\\s+|real\\s+)?(?:${ROLE_WORDS})\\s+(?:said|says|claimed|claims|told|reported|thinks|was|is\\s+(?:dead|lying|fake|mafia|scum|confirmed)|flipped|died|got\\s+(?:shot|killed|lynched))\\b`, "i");
+const DEAD_CLAIMER_RE = new RegExp(`\\b(?:${ROLE_WORDS})\\s+(?:is|was)\\s+dead\\b|\\b(?:rip|dead)\\s+(?:${ROLE_WORDS})\\b`, "i");
+/** With the flag: a hypothetical, a report about another role, or a dead claimer (never a self-claim). */
+export function wideClaimNegative(text) { const t = String(text || ""); return HYPOTHETICAL_RE.test(t) || OTHER_REPORT_RE.test(t) || DEAD_CLAIMER_RE.test(t); }
+export function wideClaimsOn(view) { return view?.config?.wideClaimParse === "on"; }
+/** claimedRoleIn / parseClaimReply options for a view: { wide } with config.wideClaimParse "on". */
+export function claimOpts(view) { return wideClaimsOn(view) ? WIDE : undefined; }
+const WIDE = Object.freeze({ wide: true });
+
 /** The role word a self-claim uses, or null. Town slang stays raw ("vt", "blue") so callers can tell wording from role. */
-export function claimToken(text) {
+export function claimToken(text, opts) {
   const t = String(text || "");
+  if (opts?.wide) {
+    if (wideClaimNegative(t)) return null;
+    const m = t.match(CLAIM_RE) || t.match(TRAIL_CLAIM_RE);
+    if (m) return m[1].toLowerCase();
+    if (/\?/.test(t)) return null;
+    const w = t.match(WIDE_RESULT_RE) || t.match(WIDE_FILLER_RE) || t.match(WIDE_COMMA_RE);
+    return w ? w[1].toLowerCase() : null;
+  }
   const m = t.match(CLAIM_RE) || t.match(TRAIL_CLAIM_RE);
   return m ? m[1].toLowerCase() : null;
 }
 
-/** Role named in a self-claim, or null. "vt", "v/t" and "blue" are Villager claims. */
-export function claimedRoleIn(text) {
-  const raw = claimToken(text);
+/** Role named in a self-claim, or null. "vt", "v/t" and "blue" are Villager claims. opts.wide: config.wideClaimParse. */
+export function claimedRoleIn(text, opts) {
+  const raw = claimToken(text, opts);
   if (!raw) return null;
   return PLAIN_TOWN.has(raw) ? "villager" : raw;
 }
@@ -77,10 +133,8 @@ export function claimedRoleIn(text) {
  * A Cop result stays on the claim line: "im cop. name inno", never "results:" or "result -".
  */
 export function repairOutgoingClaim(view, text) {
-  let s = String(text ?? "");
-  const raw = claimToken(s);
-  if (raw === "vt" || raw === "v/t") s = raw === "v/t" ? s.replace(/v\/t/i, "villager") : s.replace(/\bvt\b/i, "villager");
-  else if (/,\s*(?:vt|v\/t)\b/i.test(s)) s = s.replace(/,\s*v\/t\b/i, ", villager").replace(/,\s*\bvt\b/i, ", villager");
+  // Night 5: every vt / v/t token, not only the claim word (rewriteVt; player names untouched).
+  let s = rewriteVt(view, String(text ?? ""));
   const cop = /^cop$/i.test(String(view?.role || "")) || /\b(?:i'?m|im|i am)\s+(?:the\s+real\s+)?cop\b/i.test(s);
   if (cop) {
     s = s.replace(/(\b(?:i'?m|im|i am)\s+(?:the\s+real\s+)?cop\b)\s*[.,]?\s*results?\s*[:\-–]\s*/gi, "$1. ");
@@ -143,7 +197,7 @@ export function counterclaimReason(view) {
   const mine = lc(view?.role);
   for (const m of todayLines(view)) {
     if (m.senderId === view.selfId) continue;
-    const r = claimedRoleIn(m.content) || lc(view?.claims?.[m.senderId]?.role);
+    const r = claimedRoleIn(m.content, claimOpts(view)) || lc(view?.claims?.[m.senderId]?.role);
     if (mine && r && r === mine) return { kind: "role", by: m.senderId };
     if (mentionsId(view, m.content, view.selfId) && /\b(guilty|mafia|scum)\b/i.test(String(m.content || "")) && !/\bnot\s+(guilty|mafia)/i.test(String(m.content || ""))) return { kind: "guilty", by: m.senderId };
   }
@@ -204,7 +258,7 @@ export function journalistExtras(view) {
   for (const [id, c] of Object.entries(checks)) {
     if (id === view?.selfId || view.dead?.[id] || !/^no reports?$/i.test(String(c?.detail || ""))) continue;
     const claim = lc(view?.claims?.[id]?.kind === "retract" ? "" : view?.claims?.[id]?.role || "")
-      || lc(claimedRoleIn((view.messages || []).filter((m) => m?.senderId === id && m.public !== false).map((m) => m.content).join(". ")) || "");
+      || lc(claimedRoleIn((view.messages || []).filter((m) => m?.senderId === id && m.public !== false).map((m) => m.content).join(". "), claimOpts(view)) || "");
     if (/journalist/.test(claim)) out.push({ kind: "fakejournalist", target: id });
     else if (/villager|vanilla|^vt$|^v\/t$|^blue$|town/.test(claim)) out.push({ kind: "noreport", target: id });
   }
@@ -220,7 +274,7 @@ export function journalistExtraWhat(x, nm) {
 export function sheriffOutAlive(view) {
   for (const m of todayLines(view).concat(view?.messages || [])) {
     if (!m?.senderId || m.senderId === "server" || view.dead?.[m.senderId]) continue;
-    if (claimedRoleIn(m.content) === "sheriff" || /\bsheriff\b/i.test(String(view?.claims?.[m.senderId]?.role || ""))) return m.senderId;
+    if (claimedRoleIn(m.content, claimOpts(view)) === "sheriff" || /\bsheriff\b/i.test(String(view?.claims?.[m.senderId]?.role || ""))) return m.senderId;
     if (/\b(i'?m|im|i am)\s+(the\s+)?sheriff\b/i.test(String(m.content || ""))) return m.senderId;
   }
   return null;
@@ -387,12 +441,15 @@ export function repeatedDefense(view, content) {
 
 /** Reason to block this public line as an early claim, or null. */
 export function earlyClaimBlock(view, content, opts = {}) {
-  const role = claimedRoleIn(content);
+  // chatPassthrough: "as the journalist reported, x is sus" names a role, it does not claim one.
+  const role = claimedRoleIn(chatPassOn(view) ? withoutNarrativeRoles(content) : content);
   if (!role) return null;
   // "I'm Villager if asked" (g09) is a hedge, not an opening claim.
   if (role === "villager" && /\b(?:if|when) asked\b/i.test(String(content || ""))) return null;
   // The mafia PLAN speaker may make exactly the PLAN's fake claim, nothing else.
   const planOk = opts.planSpeaker && opts.planRole && role === String(opts.planRole).toLowerCase();
+  // Night 5: the faction's one counterclaim on the Sheriff's asked power-role claimer (mafiaCounter.js).
+  if (String(mafiaCounterclaim(view)?.role || "").toLowerCase() === role) return null;
   return claimAllowed(view, { ...opts, planSpeaker: planOk }) ? null : `early claim (${role})`;
 }
 
@@ -438,7 +495,7 @@ export function askReplyChoice(view) {
   const why = plan && !plan.speakerId ? `plan has no fake claim, but ${exposed ? "a report named me" : "I was called guilty"}: counterclaim` : "no plan claim";
   if (pick === "cop") return { line: "im cop, no guilty yet", why: `${why} (cop)` };
   if (pick === "journalist") return { line: "im journalist, nothing useful yet", why: `${why} (journalist)` };
-  return { line: `${sheriff} im villager`.trim(), why: "no fake claim open: villager" };
+  return { line: `${sheriff} im villager`.trim(), why: opts.teamPower ? "a teammate already made the power claim: villager" : "no fake claim open: villager" };
 }
 
 const CANNED = ["ya", "idk", "sus", "who u voting", "hm", "fair", "not sure", "agreed", "wait what", "eh idk", "same", "lol", "go on", "ok but why"];
@@ -601,9 +658,28 @@ export function repeatBlock(view, meetingId, content) {
   const dup = repeatedDefense(view, content);
   if (dup) return dup;
   const recent = (view?.messages || []).filter((m) => m.meetingId === meetingId && m.senderId && m.senderId !== "server").slice(-VARIETY.window);
+  const pass = chatPassOn(view);
   for (const m of recent) {
     const sim = lineSimilarity(content, m.content);
-    if (sim >= VARIETY.maxSimilarity) return `too similar to a recent line (${sim.toFixed(2)})`;
+    // chatPassthrough: agreeing with another seat is chat; only a near-echo of someone else is blocked.
+    const max = pass && m.senderId !== view?.selfId ? CHAT_PASS.crossSimilarity : VARIETY.maxSimilarity;
+    if (sim >= max) return `too similar to a recent line (${sim.toFixed(2)})`;
   }
   return null;
+}
+
+/**
+ * chatPassthrough: a rule line (a liar call-out, a claim's lead) that echoes another seat's recent line is
+ * rewritten to credit that seat ("agree with ash, cal is lying") instead of being retried and blocked every
+ * frame. Null when the flag is off, the line passes as is, or the echo is our own line.
+ */
+export function passEchoRewrite(view, meetingId, content) {
+  if (!chatPassOn(view) || !repeatBlock(view, meetingId, content)) return null;
+  const recent = (view?.messages || []).filter((m) => m.meetingId === meetingId && m.senderId && m.senderId !== "server").slice(-VARIETY.window);
+  const echo = recent.filter((m) => lineSimilarity(content, m.content) >= VARIETY.maxSimilarity);
+  if (!echo.length || echo.some((m) => m.senderId === view?.selfId)) return null;
+  const who = view?.players?.[echo[echo.length - 1].senderId]?.name;
+  if (!who) return null;
+  const line = `agree with ${who}, ${content}`;
+  return line.length <= PUBLIC_MAX && !repeatBlock(view, meetingId, line) ? line : null;
 }
