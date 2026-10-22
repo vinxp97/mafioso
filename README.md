@@ -1,126 +1,313 @@
 # Mafioso
 
-Hybrid AI player for [Ultimafia](https://github.com/UltiMafia/Ultimafia) (dev only).
+Mafioso is an AI player for [Ultimafia](https://github.com/UltiMafia/Ultimafia), a real-time, text-based mafia / werewolf game. It is a hybrid:
 
-A deterministic **rules engine** owns roles, phases, votes, night actions, claims, and win-facing legality. An optional **LLM layer** (chat + deduction) proposes actions; the engine **validates every action** before anything can be sent. If the model fails or proposes something illegal, the bot falls back to the rules policy.
+- **`engine/`** is a deterministic rules engine and state tracker. It has no network code. It folds game events into a per-seat view, decides what that seat may legally do, and rejects anything else.
+- **`harness/`** connects to a development Ultimafia server over the Developer API (HTTPS and server-sent events, not the site's raw game socket), asks an LLM for chat and deductions, and sends an action only after the engine accepts it.
 
-**Guardrails:** targets `dev.ultimafia.gg` or `http://127.0.0.1:3000` only. No prod, no public lobbies by default. Credentials stay in env vars (`MAFIOSO_LIVE=1`).
+A model proposes. The engine validates. If the model fails, returns bad JSON, or proposes something illegal, the seat falls back to the rules policy.
 
-## Layout
+The setup this tree plays is **Frontier Justice**: three Villagers, a Cop, a Journalist, a Sheriff, a Mafioso, a Janitor, and a Lawyer. Role text lives in `engine/data/frontier-justice.json`.
 
+## Architecture
+
+```mermaid
+flowchart TD
+  server["Ultimafia Dev API<br/>token, host, accounts, SSE or poll"]
+  client["harness DevApiClient"]
+  table["per-account table<br/>live.js / stream.js"]
+  reduce["engine reduce<br/>one View per seat"]
+  brief["buildBriefing<br/>sanitizeChat on untrusted chat"]
+  model["LLM complete adapter<br/>optional"]
+  propose["proposeSeatActions"]
+  gate["validateAction<br/>public lines also chatAudit"]
+  rules["rules decide / ruleBot"]
+  send["POST /api/dev/accounts/:id/send"]
+
+  server --> client --> table --> reduce
+  reduce --> brief --> model --> propose --> gate
+  gate -->|accepted| send --> server
+  gate -->|rejected or model failed| rules --> gate
 ```
-engine/     Pure state + rules (no network). Offline tests.
-harness/    Dev API client + stream replay. Injectable fetch + LLM.
-protocol-map.md   Client/server events learned from Ultimafia + prior bots
-prior-bots.md     Notes on UM-Autobot-Player and claude-um-bot-1
-```
 
-## How it works
+Each Dev API account has its own view, notes, fact ledger, beliefs, and digest. Seats do not read each other's memory. Mafia seats learn a plan only from faction chat the game delivered to that seat.
 
-```
-  Dev API SSE stream ──▶ harness replay/reduce ──▶ engine View
-                                                      │
-                         ┌────────────────────────────┤
-                         ▼                            ▼
-                   scheduler (this seat)        candidates → selector
-                   speak? → generator           else llmDecide → decide
-                         │                            │
-                         └──────── validateAction ────┘
-                                      │
-                         proposals only (send is opt-in + gated)
-```
+### What the engine checks before a send
 
-1. **Wire + reduce** — Dev API envelopes (or Autobot-style frames) update a pure `View`: players, meetings, votes, messages, role reveals, claims.
-2. **Legal actions** — `legalVotes` / `validateAction` know what this account may vote or say right now.
-3. **Rules decide** — day lynch and night picks prefer suspects, then other non-allies, and skip cleared players while another target exists. Night roles in `data/night-actions.json` must vote when their meeting is open. Mafia coordination is read from that seat's faction chat, not from other bots.
-4. **LLM decide** — builds a briefing (status + this seat's `NOTES` + fact ledger + belief board + phase digest + `TEAM PLAN` when this seat has seen one + that seat's Frontier Justice role guide + LEGAL ACTIONS + the last K lines of quoted untrusted chat). For each open decision the model proposes 3 or 4 different options in one call. The engine drops illegal ones, applies hard rules (open night action, no teammate kill or vote, town does not lynch a 0.8 town read unless the vote would tip, a seen PLAN target wins, Loyal Lawyer litigates only teammates, Janitor cleans the plan), and samples the rest with a seeded softmax. If that call fails or nothing legal remains, the seat falls back to one JSON action, then to rules. `wait` is rejected while a night ability or faction night vote is still open. Beliefs and the digest are refreshed once per phase end or hard result, on that seat only. A claim stays a claim until a hard check or reveal says otherwise. The engine drops a belief that cites a missing fact or fights a hard result. The scorer is replaceable later; there is no learned policy in this tree.
-5. **Public speech** — a per-seat scheduler decides whether this account talks in Village. Urgency is 0–4 (named, new info, vote pressure, a thought, or nothing). Own recent messages versus other living players make the seat talkative or quiet, and a cooldown / messages-per-minute cap blocks spam. If the scheduler waits, there is no speech proposal. If it says speak, the generator writes one line from the same briefing, using the chosen speech goal when the selector produced one, and `validateAction` still gates it. Votes, investigates, and faction chat are not delayed for that decision. Seats do not share a scheduler or a candidate pool.
-6. **Harness** — `runLoop` / `runLoopAsync` collect validated proposals from fixtures. Live send needs `MAFIOSO_LIVE=1` and a Developer API key; hosts outside the allowlist throw.
-7. **Arena** — `harness/scripts/arena.mjs` plays Frontier Justice offline. RuleBot seats are the fixed baseline. Mafioso seats call the same adapters (a mock adapter in tests). Metrics land in `logs/replays/*.jsonl`. A summary pools them with Wilson intervals. The post-game prompt rewrite stores a child only when an arena run on the same seeds beats the current prompt by more than the noise (`MAFIOSO_ARENA_GAMES`). The arena never calls ultimafia.gg. A live host must be on the dev allowlist and a private Testing lobby, and the runner still does not open a socket.
+`proposeSeatActions` (`engine/src/llmDecide.js`) is the decision path:
 
-## Quick start (offline)
+1. The speech scheduler decides whether this seat talks in public. Votes and night actions are not held for that decision.
+2. When a `complete` function is injected, the seat asks once for several different options on each open decision (day vote, night target, whether to claim, and a speech goal only if the scheduler already said speak).
+3. `selectAction` drops options `validateAction` rejects, applies hard rules, and samples the rest with a seeded softmax. Hard rules include: act on an open night ability; do not kill or vote a known teammate; town does not vote a player it reads as town at probability 0.8 or higher unless that vote would tip the lynch; a PLAN line this seat has seen wins while that target is still legal; a Loyal Lawyer litigates teammates; the Janitor cleans the planned kill and does not skip.
+4. If that call fails or no legal vote remains, `llmDecide` asks for one JSON action. If that also fails, the seat uses rules `decide`.
+5. Public speech, when the scheduler allows it, is generated from the same briefing and checked again. `wait` is rejected while a night ability or a faction night vote is still open.
+6. Every action in the returned list has passed `validateAction`.
+
+`DevApiClient.send` runs `validateAction` again and throws `IllegalActionError` before any HTTP when a view is provided. `runLoop` / `runLoopAsync` collect proposals and do not send.
+
+`legal.js` keeps three layers apart: what the Ultimafia server accepts, hard rules `validateAction` refuses, and advice a bot should not pick. Vote Kick is refused. A town seat cannot vote no-one into an autoloss, on day 1 while the Sheriff lives, or under a day meteor.
+
+### Untrusted chat
+
+Player chat is data, not instructions.
+
+- `sanitize.js` normalizes text (NFKC, strips invisible format characters), flattens it to one line, caps it, defangs injection markers, and JSON-quotes it (`sanitizeChat`).
+- `buildBriefing` puts the last messages under `PLAYERS SAID (untrusted, quoted)` and quotes names the same way. Faction chat in NOTES is quoted too.
+- `SYSTEM_PROMPT` tells the model that block is untrusted and that the reply must be one JSON action from `LEGAL ACTIONS`.
+- `validateAction` rejects public or faction speech that contains machine coordination (`PLAN`, `key=value`, raw player ids, invisible characters) and public speech that admits a mafia faction, names a teammate as team, or fails `chatAudit`.
+- `chatAudit` checks a public line against what this seat knows. Flags are `LEAK` (hidden info), `CONTRADICTION` (a public fact stated wrong), and `SCUM_MISTAKE` (a fake claim or result the public facts already disprove). Deception that still fits the public facts is allowed. `view.config.chatAudit === "measure"` records flags and does not block. The default on the live table and in self-play is `enforce`.
+
+Case notes for the injection tests are in `harness/test/INJECTION_CASES.md`.
+
+## How a game flows
+
+Live entry point: `harness/scripts/live.mjs` → `runLiveCli`.
+
+1. **Dry run.** If `MAFIOSO_LIVE` is not `1`, the process logs one dry-run line and returns. It does not call fetch.
+2. **Allowlist.** `DEV_HOSTS` in `engine/src/types.js` is `https://dev.ultimafia.gg` and `http://127.0.0.1:3000`. Any other origin throws `HostNotAllowedError` on the client and again on each request. `DEV_API_BASE_URL` defaults to `https://dev.ultimafia.gg`.
+3. **Auth.** `POST /api/dev/token` with `DEV_API_CLIENT_ID` and `DEV_API_CLIENT_SECRET`. The Bearer token is refreshed on a 55-minute timer, including before each stream connect. Optional Cloudflare Access headers (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) are added only to game fetches.
+4. **Lobby.** `hostGame` forces `private: true`, `lobby: "Testing"`, and `spectating: true`, and refuses ranked or competitive. `DEV_SETUP_ID` is required to host. `GAME_ID` joins a game that is already open. `createAccounts` seats `BOT_COUNT` test accounts (default 9, range 1–50). When this process hosted, it then leaves the developer's own seat so the developer does not take a player slot.
+5. **Self ids.** The server sends `self` once, often before the stream attaches. `seedSelfIds` reads each account's `playerId` from `GET /api/dev/accounts`. Without a self id the seat decides nothing.
+6. **Events.** `MAFIOSO_TRANSPORT=stream` (default) reads `GET /api/dev/stream` (`event: game`, data `{accountId, seq, t, event, data}`). `poll` reads `GET /api/dev/accounts/:id/events?since=`. `DEV_STREAM_PATH` must stay under `/api/dev/`. Reconnect uses exponential backoff. After each subscribe the harness backfills buffered events and drops sequence numbers it has already applied. `docs/PROTOCOL.md` is the frame catalog; `harness/test/protocol-doc.test.js` checks it against the fixtures and `classifyEvent`.
+7. **Reduce.** Each account's frames fold into its own `View`: players, phase, meetings, votes, messages, reveals, claims, notes, and the seat memory. A new `state` clears meetings. `history` restores the current state's meetings, dead players, and winners on reconnect.
+8. **Phases.** `state.name` is `Pregame`, `Day N`, or `Night N`.
+   - **Night.** Mafia chat, Mafia Kill, and the role meetings the server opens: Cop Investigate (`Learn Alignment`), Journalist Receive Reports, Lawyer Litigate, Janitor Clean Death (Yes/No, once). The offline resolver in `engine/src/resolve.js` applies them in server priority order: a Doctor save (not part of the Frontier Justice deal), then Litigate, then Clean Death when the kill will land, then the Mafia kill, then Cop and Journalist reports. A killed seat still acts that night.
+   - **Day.** Village lynch vote, and the Sheriff's Shoot Gun when the gun is still loaded. The gun is instant and single use. The shot reveals the shooter. The village tally counts every ballot, including no-one (`*`); a tie kills nobody.
+9. **Decide and send.** One queue per seat. A limiter caps concurrent model calls (1 for LM Studio, 4 otherwise, or `MAFIOSO_LLM_CONCURRENCY`). `client.send` posts only actions that pass `validateAction`. Log lines pass through `redact` for the credential and key environment values.
+10. **After the game.** `winners` / `finished` end the loop. If evolving is on, each prompt that played is scored and the model is asked for a child system prompt. The child is stored only when it still contains the never-admit-AI line and the JSON action contract (`"vote"|"unvote"|"speak"|"wait"`). `MAFIOSO_ARENA_GAMES` above 0 also requires an offline arena on the same seeds to beat the parent by more than the noise. The runtime store is `harness/data/prompts/runtime/` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
+
+The harness does not open the website session cookie or the raw `auth` / `join` game socket. `engine/src/wire.js` is the raw frame codec, kept for reference. It is not the live transport.
+
+## Frontier Justice roles
+
+Dealt by the arena and by self-play (`FJ_ROLES`): Villager, Villager, Villager, Cop, Journalist, Sheriff, Mafioso, Janitor, Lawyer.
+
+Alignments in `engine/src/faction.js`: Villager, Cop, Journalist, and Sheriff are Village. Mafioso, Janitor, Lawyer, and Loyal Lawyer are Mafia. Allies come from the server reveal and the harness-injected teammate roster. A claim is never an ally.
+
+`winnerOf` in `engine/src/resolve.js`: Village wins when every living player is Village. Mafia wins when living Mafia is at least half the living players. An empty town, or the meteor stalemate, is "No one".
+
+The cards in `engine/data/frontier-justice.json` are guidance in the briefing. They do not replace `validateAction`.
+
+| Role | What the card and the resolver model |
+| --- | --- |
+| Villager | No night action. Claim Villager (the card says "villager" or "blue"). Follow a living Sheriff and a confirmed Cop. A Cop guilty is hard because a Loyal Lawyer cannot frame town. A Cop innocent is soft. |
+| Cop | Night meeting Investigate. Must vote a living player while the meeting is open (`data/night-actions.json`, `alwaysAct`). Guilty means the target appears non-Village after litigation. The card says to put the result on the same line as the claim once the Sheriff is alive and has claimed. |
+| Journalist | Night meeting Receive Reports: the reports the target got that night, or none. The card says to read the Cop on night 2, and that a target with no report is a fake Cop. |
+| Sheriff | One day gun (Shoot Gun). No visit. The card says to shoot on day 1. `sheriffGate.js` also has an `evidence` rule used by self-play (`--sheriff-rule`). The shot reveals the Sheriff, so a Sheriff counterclaim is refused. |
+| Mafioso | Vanilla Mafia. Looks guilty to the Cop unless the Lawyer litigates them. Kill priority in the card and in `MAFIA_KILL_PRIORITY`: Cop, then Sheriff, then Journalist. Coordinate in Mafia chat with names. `PLAN`, `key=value`, and raw ids are illegal in every meeting. |
+| Janitor | Clean Death once. The clean hides the flip and the Janitor learns the role. The card says to clean the night 1 kill and to pass the cleaned role with a short code in Mafia chat, not by naming the role in town. |
+| Lawyer | Loyal. Litigate only reaches teammates in the loyal model: a visit on town is blocked, and a teammate then appears Village to the Cop. The card says to litigate the Mafioso unless the counterclaim plan says otherwise. |
+
+`engine/data/night-actions.json` also lists night policies for roles outside this setup (Doctor, Tracker, and others). Those entries do not add seats to Frontier Justice.
+
+Live mafia behavior comes from `createBotTable`, which sets `mafia: "adaptive"` (`engine/src/adaptiveMafia.js`): kill priority from public claims, varied fake claims, the Janitor holding its one clean for a claimed power role or a late night, and day votes that do not pile three scum onto one wagon. The engine's own `decide` stays on the scripted plan unless `view.config.mafia` is `"adaptive"`. Self-play defaults to adaptive; `--mafia script` restores the fixed plan.
+
+## Module map
+
+### Engine (`engine/src/`)
+
+| Module | Role |
+| --- | --- |
+| `types.js` | View shapes, `DEV_HOSTS`, speech length, no-one (`*`) |
+| `wire.js` | Raw socket frame codec. Not the live transport |
+| `reducer.js` | `emptyView`, `reduce`, handled and ignored event lists |
+| `legal.js` | Meeting definitions, `legalVotes`, `validateAction`, leak checks |
+| `decide.js` | Rules policy. Always returns actions that validate |
+| `nightAct.js` | Forced night votes from `data/night-actions.json` |
+| `claims.js` | Regex claims, counterclaims, and retracts |
+| `faction.js` | Alignment, allies, enemies |
+| `notes.js` | Checks, deaths, votes, and parsed server alerts |
+| `factLedger.js`, `beliefs.js`, `digest.js`, `memory.js` | Per-seat facts, reads, and a rolling summary |
+| `scumPlan.js` | Plan parsed from faction chat this seat has seen |
+| `adaptiveMafia.js` | Public-info mafia plan used when the seat is in adaptive mode |
+| `roleGuide.js` | This seat's Frontier Justice card in the briefing |
+| `scheduler.js` | Whether this seat speaks in public, plus cooldown and rate cap |
+| `candidates.js`, `selector.js` | Several model options, then hard rules and a seeded pick |
+| `llmDecide.js` | Briefing, JSON parse, `proposeSeatActions`, `SYSTEM_PROMPT` |
+| `sanitize.js` | Defang and quote untrusted text |
+| `chatAudit.js` | Ground public lines in this seat's view |
+| `chatStyle.js` | Length, claim wording, pressure, repeated lines |
+| `speechNames.js`, `speechFacts.js` | Names and facts a public line may use |
+| `sheriffGate.js`, `sheriffAsk.js` | Gun timing and claim asks |
+| `hammer.js`, `ballot.js` | Revealed-Sheriff hammer ask, and the village ballot |
+| `townReads.js`, `townVote.js` | Town reads from public evidence, and the day vote |
+| `bus.js` | When scum may vote a teammate in the village |
+| `lynchMath.js` | Parity, lynch-or-lose, meteor, day-1 lynch owed |
+| `quietTable.js` | Optional quiet-table speech variants (off unless configured) |
+| `ruleBot.js` | Fixed baseline seat. No model |
+| `resolve.js` | Pure night/day resolution for the core roles |
+| `metrics.js` | `scoreGame` and pooled rates with Wilson intervals |
+| `jsonText.js` | Pull one JSON object out of a model reply |
+
+`engine/src/index.js` re-exports the public surface. `harness` depends on it with `"mafioso-engine": "file:../engine"`.
+
+### Harness (`harness/src/`)
+
+| Module | Role |
+| --- | --- |
+| `client.js` | Dev API client. Injected `fetch`. Host allowlist. `send` validates first |
+| `stream.js` | SSE parse, per-account replay, `runLoop` / `runLoopAsync` (never send) |
+| `live.js` | Multi-seat table, pacing, and `runLiveCli` |
+| `clock.js` | Wall clock and a virtual clock for tests and self-play |
+| `openaiCompatible.js` | Shared `POST {base}/chat/completions` client. Not the game API |
+| `lmstudio.js`, `experiential.js`, `opencodeGo.js`, `openrouter.js` | Backend factories |
+| `prompts.js` | Seed prompt, epsilon-greedy selection, evolve gate |
+| `arena.js` | Offline Frontier Justice. RuleBot mixed with model seats. No socket |
+| `selfplay.js` | Offline Frontier Justice on the live decision path. No model and no socket |
+| `replayBuild.js` | Rebuild sanitized protocol fixtures from live-harness logs |
+| `auditPlant.js` | Test-only planted lines for the chat audit |
+| `simLatency.js` | Replay logged model latencies. Reads `latency-live1018.json` |
+| `latency-live1018.json` | Service times and reject counts for that simulator. No ids and no chat text |
+
+### Scripts (`harness/scripts/`)
+
+| Script | What it does |
+| --- | --- |
+| `live.mjs` | One private Testing game, or a dry run |
+| `arena.mjs` | Offline arena, write `logs/replays/`, optional summary |
+| `selfplay.mjs` | Offline self-play, write `logs/selfplay/` |
+| `lmstudio-smoke.mjs` | One local LM Studio completion. Not part of `npm test` |
+| `build-replays.mjs` | Build sanitized fixtures from log files |
+| `audit-rejects.mjs` | Replay logged rejected lines through the current validators |
+| `sheriff-eval.mjs` | Count Sheriff shots and asks in `*.games.jsonl` |
+| `stale-latency.mjs` | Split stale speech rejects out of a live log |
+
+### Docs
+
+| File | What it is |
+| --- | --- |
+| `docs/PROTOCOL.md` | Frames the harness handles, checked by `protocol-doc.test.js` |
+| `docs/protocol-map.md` | Earlier notes from the Ultimafia client and the Dev API |
+| `docs/prior-bots.md` | Notes on `UM-Autobot-Player` and `claude-um-bot-1` |
+| `harness/selfplay/NOTES.md` | Historical self-play tuning notes |
+| `harness/test/INJECTION_CASES.md` | Injection cases the tests cover |
+
+## Configuration
+
+Secrets stay in the environment. `.env.example` lists placeholders. Copy it to `.env` locally. `.env` and `.env.*` are gitignored, except `.env.example`.
+
+`MAFIOSO_LLM` selects the factory: `lmstudio` (default), `experiential`, `opencode`, or `openrouter`. Aliases `lm-studio`, `explabs`, `opencode-go` are accepted. Every backend returns `complete({system, user})`. The reply is still parsed and passed through `validateAction`.
+
+They share `createOpenAICompatibleComplete`: `POST {baseUrl}/chat/completions`, `stream: false`, and `response_format: { type: "json_object" }`. If the server rejects `response_format`, the client retries once without it. `temperature` and `max_tokens` are sent only when you pass finite numbers. This client does not use `DEV_HOSTS`.
+
+| Backend | Factory | Base URL default | Key variable | Model variable |
+| --- | --- | --- | --- | --- |
+| LM Studio | `createLmStudioComplete` | `http://127.0.0.1:1234/v1` | `LM_API_KEY` (default placeholder `lm-studio`) | `LM_STUDIO_MODEL` (empty discovers the first id) |
+| Experiential Labs | `createExperientialComplete` | `https://api.experientiallabs.ai/v1` | `EXPLABS_API_KEY` | `EXPLABS_MODEL` |
+| OpenCode Go | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` |
+| OpenRouter | `createOpenRouterComplete` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | `OPENROUTER_MODEL` (default `minimax/minimax-m3.1-flash`) |
+
+Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`, `OPENROUTER_BASE_URL`. OpenCode Go also reads `OPENCODE_SESSION` and sends `user-agent: mafioso/0.1`. OpenRouter sends `HTTP-Referer` and `X-Title` only when `OPENROUTER_HTTP_REFERER` and `OPENROUTER_TITLE` are set. `EXPLABS_ZDR=1` adds `provider.zdr` on that backend.
+
+### Environment variables
+
+Names only. Defaults in parentheses come from the code.
+
+**Game connection**
+
+`MAFIOSO_LIVE` (connect only when `1`), `DEV_API_BASE_URL`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, `DEV_SETUP_ID`, `GAME_ID`, `BOT_COUNT` (`9`), `LOBBY_NAME` (`mafioso-bots`), `MAFIOSO_TRANSPORT` (`stream` or `poll`), `DEV_STREAM_PATH`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`.
+
+**Model and prompts**
+
+`MAFIOSO_LLM` (`lmstudio`), `MAFIOSO_LLM_CONCURRENCY`, `MAFIOSO_REASONING`, `MAFIOSO_EVOLVE` (off when `0`), `MAFIOSO_PROMPT_DIR`, `PROMPT_EPSILON` (`0.2`), `PROMPT_TEMPERATURE` (`0.5`), `MAFIOSO_ARENA_GAMES` (`0`), `MAFIOSO_ARENA_SEED` (`1`), `MAFIOSO_ARENA_MARGIN` (`0`).
+
+**Seat strategy for one live process**
+
+`MAFIOSO_TOWN` (`rules`, `suspicion`, or `random`), `MAFIOSO_HAMMER` (off when `0`, `off`, `false`, or `no`).
+
+**Model backends**
+
+`LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY`, `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY`, `EXPLABS_ZDR`, `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`.
+
+### CLI flags
+
+`live.mjs` and `lmstudio-smoke.mjs` take no flags. They read the environment.
+
+`arena.mjs`: `--games`, `--seed`, `--mafioso`, `--days`, `--file`, `--summary`, `--quiet`, `--live`, `--base`, `--lobby`, `--private`. `--live` checks the dev allowlist and a private Testing lobby, then refuses to open a socket.
+
+`selfplay.mjs`: `--games`, `--seed`, `--days`, `--out`, `--quiet`, `--cop-rule` (`vinman` or `wait`), `--sheriff-rule` (`vinman` or `evidence`), `--lawyer` (`loyal` or `plain`), `--mafia` (`adaptive` or `script`), `--town` (`rules`, `suspicion`, or `random`), `--chat-audit` (`enforce` or `measure`), `--audit-tight` (`on` or `off`), `--stale-votes` (`clear` or `server`), `--hammer` (`on` or `off`), `--hammer-gate`, `--qt-filler`, `--qt-repair`, `--qt-keyfirst`, `--claim-pressure`, `--plant-audit`, `--sim-latency`, `--stale-recheck`, `--stale-cancel`, `--stale-fallback`.
+
+`build-replays.mjs` takes an output directory and log paths. `audit-rejects.mjs` takes a fixture directory and optional `--json`, `--engine`. `sheriff-eval.mjs` takes one directory per arm. `stale-latency.mjs` takes log paths and optional `--json`, `--dist`.
+
+## Running
+
+Node 18 or newer. The Docker image is Node 22. Tests use `node:test` and a fake model. They do not need API keys.
 
 ```bash
 cd engine && npm test
 cd ../harness && npm install && npm test
 ```
 
-Node ≥ 18. No API keys required for tests (fake model + fixture SSE).
+`harness` must be installed once so `mafioso-engine` resolves. `engine` has no dependencies.
 
-## Model backend
+### Tests, fixtures, replays
 
-Pick one factory. Each returns `complete({system, user})` for `llmDecide` / `runLoopAsync`. Every reply is still parsed and passed through `validateAction`. Illegal actions and bad JSON fall back to rules `decide`.
+- Engine fixtures: `engine/test/fixtures/` (`*.jsonl`, `claims.json`, `real-alerts.json`).
+- Protocol replays: `harness/test/fixtures/replays/` (`g01`–`g16` plus `manifest.json`). Ids and names in those fixtures are replacements, not the raw logs.
+- Live-shaped fixtures: `harness/test/fixtures/live-1018/`.
+- A sample SSE body: `harness/test/fixtures/stream.sse`.
+- Rebuild fixtures from a live log (offline): `node scripts/build-replays.mjs <out-dir> <log>...` from `harness/`. The builder replaces ids and names and throws if a raw id or name remains.
 
-They share `createOpenAICompatibleComplete` (`harness/src/openaiCompatible.js`): `POST {baseUrl}/chat/completions` with system + user messages, `stream: false`, and `response_format: { type: "json_object" }`. If the server rejects `response_format`, it retries once without that field. `temperature` / `max_tokens` are sent only when you pass finite numbers. This client is not the game API and does not use `DEV_HOSTS`.
+### Self-play and arena
 
-| Backend | Factory | Base URL | Key | Model |
-| --- | --- | --- | --- | --- |
-| LM Studio (local Qwen) | `createLmStudioComplete` | `http://127.0.0.1:1234/v1` | `LM_API_KEY` (default `lm-studio`, any non-empty string) | `LM_STUDIO_MODEL` (empty = first id from `GET /v1/models`) |
-| [Experiential Labs](https://platform.experientiallabs.ai/docs/openai-compatibility) | `createExperientialComplete` | `https://api.experientiallabs.ai/v1` | `EXPLABS_API_KEY` (`xpl_...`) | `EXPLABS_MODEL` (example `qwen3.8-27b`) |
-| [OpenCode Go](https://opencode.ai/docs/go/) | `createOpenCodeGoComplete` | `https://opencode.ai/zen/go/v1` | `OPENCODE_API_KEY` | `OPENCODE_MODEL` (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`) |
-| [OpenRouter](https://openrouter.ai/docs/api/reference/overview) | `createOpenRouterComplete` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` | `OPENROUTER_MODEL` (default `minimax/minimax-m3.1-flash`) |
-
-Optional base overrides: `LM_STUDIO_BASE_URL`, `EXPLABS_BASE_URL`, `OPENCODE_BASE_URL`, `OPENROUTER_BASE_URL`. OpenRouter also takes optional `OPENROUTER_HTTP_REFERER` (`HTTP-Referer`) and `OPENROUTER_TITLE` (`X-Title`, placeholder `mafioso`). Both headers are omitted when unset. Placeholders only in `.env.example`. Do not commit keys.
-
-```js
-import { createLmStudioComplete, createExperientialComplete, createOpenCodeGoComplete, createOpenRouterComplete, runLoopAsync } from "./harness/src/index.js";
-
-// Local Qwen. Run this process on the same machine as LM Studio.
-const complete = createLmStudioComplete();
-
-// Hosted Qwen on Experiential Labs. Leave temperature unset unless that model accepts it.
-// const complete = createExperientialComplete();
-
-// OpenCode Go. Sends Authorization plus a stable x-opencode-session for this client.
-// const complete = createOpenCodeGoComplete();
-
-// OpenRouter. Default model minimax/minimax-m3.1-flash. Set OPENROUTER_API_KEY.
-// const complete = createOpenRouterComplete();
-
-const { proposed } = await runLoopAsync(entries, { complete });
-```
-
-LM Studio only: `127.0.0.1:1234` is that PC’s loopback. A remote VPS does not see it unless you tunnel it. Smoke (live, not part of `npm test`):
+Both stay on this machine. They do not open a socket and do not call Ultimafia.
 
 ```bash
-export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
-export LM_STUDIO_MODEL=          # empty = first loaded model
-export LM_API_KEY=lm-studio
+cd harness
+npm run selfplay -- --games 50 --seed 1
+npm run arena -- --games 4 --seed 1 --mafioso 3 --summary
+node scripts/arena.mjs --summary --file ../logs/replays/arena-1.jsonl
+```
+
+Self-play writes `logs/selfplay/selfplay-seed<seed>-n<games>...` as `.json`, `.md`, `.records.jsonl`, and `.games.jsonl`. The arena writes `logs/replays/arena-<seed>.jsonl`. Those directories are gitignored apart from a `.gitkeep`. The process exits 1 when a self-play game records an illegal action or an error.
+
+`harness/selfplay/NOTES.md` is a historical tuning note. It is not a fresh scorecard.
+
+### Live run against a dev instance
+
+From `harness/`:
+
+```bash
+node scripts/live.mjs
+```
+
+With `MAFIOSO_LIVE` unset, that prints a dry run and exits. A real session needs `MAFIOSO_LIVE=1`, a base URL on `DEV_HOSTS`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID`). Put those in `.env`. Do not commit it.
+
+Local LM Studio smoke (talks to the model, not to Ultimafia):
+
+```bash
 cd harness && node scripts/lmstudio-smoke.mjs
 ```
 
-OpenCode Go also sends `user-agent: mafioso/0.1`. Set `OPENCODE_SESSION` to pin the session id, or leave it unset and the factory generates one id and reuses it for every call on that client.
+### Docker
 
-## Nine bots
+`Dockerfile` and `docker-compose.yml` run the live script.
 
-One process seats `BOT_COUNT` Dev API accounts (default 9) in a single private Testing game, reduces each account’s events, and sends only actions that pass `validateAction`. `MAFIOSO_LLM=lmstudio` is the default. `MAFIOSO_LIVE=0` (the Compose default) prints a dry-run line and does not connect.
+- `docker compose up --build` builds the `bots` service. Compose defaults `MAFIOSO_LIVE` to `0`, so the container dry-runs until `.env` turns it on. LM Studio is reached at `host.docker.internal` from Docker Desktop.
+- `docker compose up --build vps` is the host-network service (`profiles: ["vps"]`). Its default base URL is `http://127.0.0.1:3000`, for a Dev API already listening on that machine. The profile keeps a plain `up` from starting host networking.
 
-| Where | Command | Dev API | LM Studio |
-| --- | --- | --- | --- |
-| Windows Docker Desktop | `docker compose up --build bots` | `https://dev.ultimafia.gg` unless you override it | `http://host.docker.internal:1234/v1` |
-| VPS (API already on port 3000) | `docker compose up --build vps` | `http://127.0.0.1:3000` | `http://127.0.0.1:1234/v1` if Qwen is on that machine |
+The image copies `engine/` and `harness/`, installs production dependencies, and runs `node scripts/live.mjs`. Prompt history is mounted at `harness/data/prompts/runtime`. The image does not copy `.env`; Compose reads it via `env_file`.
 
-The VPS service uses host networking. `127.0.0.1` inside a normal bridge container is the container, not the VPS. Token exchange against `http://127.0.0.1:3000` is the path that already works there. Both origins are on the `DEV_HOSTS` allowlist. Prod is rejected.
+This repository has no Apple container config.
 
-On Windows: start Docker Desktop, start LM Studio, load Qwen, start the local server on port 1234. Copy `.env.example` to `.env` and set `MAFIOSO_LIVE=1`, `DEV_API_CLIENT_ID`, `DEV_API_CLIENT_SECRET`, and `DEV_SETUP_ID` (or `GAME_ID` to join a game you already opened). Do not commit `.env`.
+## Safety
 
-`dev.ultimafia.gg` sits behind Cloudflare Access. A PC that only gets an Access wall or error 1010 needs `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in `.env`. Those headers are sent only to the game host, not to LM Studio.
-
-`hostGame` sets `spectating: true`. `openTestingGame` calls `createAccounts(BOT_COUNT)` first, then `leaveGame`, so the developer does not take a seat. Leaving before the bots are seated empties the lobby and `POST /dev/accounts` returns 400. `BOT_COUNT` is the setup size. Frontier Justice is 9. Each account keeps its own view, notes, and decisions. Bots do not share memory. Mafia seats agree only by speaking in the Mafia meeting.
-
-After the game, each prompt lineage that played is scored (win / loss / draw, plus per-role counts) and Qwen is asked for a child system prompt. The child is saved only if it still contains the never-admit-AI line and the JSON action contract. The next launch draws `BOT_COUNT` prompts with epsilon-greedy (default epsilon 0.2) so the nine bots can sit on different lineages. History is `harness/data/prompts/runtime/prompts.json` (gitignored). The committed seed is `harness/data/prompts/seed.json`.
-
-## Status
-
-| Piece | State |
-| --- | --- |
-| Engine (wire, reduce, legal, night, claims, factions) | Tested offline |
-| LLM decide + rules fallback | Tested with fake model |
-| Harness Dev API stub + SSE replay | Tested offline |
-| Model backends (LM Studio, Experiential Labs, OpenCode Go) | Tested offline (fake fetch). Live keys stay in env |
-| Live multi-bot runner + prompt evolve | Tested offline (fake fetch). Live run is on the Windows PC or the VPS |
-| RuleBot, offline arena, metrics, evolve gate | Tested offline. Arena does not open a socket |
+- Live mode is off unless `MAFIOSO_LIVE=1`.
+- The client talks only to `DEV_HOSTS`. A production host is rejected with `HostNotAllowedError`. There is no flag in this tree that switches the client onto a public lobby.
+- `hostGame` forces a private Testing lobby and refuses ranked or competitive games.
+- `docs/prior-bots.md` records the project rule that a production or public game still needs the owner's explicit yes.
+- Credentials and model keys are environment variables. `runLiveCli` redacts those values in log lines. `DevApiClient.api` does not echo request bodies.
+- Do not commit `.env`, tokens, or live logs. `logs/replays/` and `logs/selfplay/` are gitignored. The prompt runtime directory is gitignored.
+- The arena's `--live` path checks the allowlist and then still does not open a socket.
 
 ## License
 
-Private. Ultimafia / Autobot code referenced for learning only; this tree does not vendor those repos.
+PolyForm Noncommercial License 1.0.0. The text is in [`LICENSE`](LICENSE).
+
+Required Notice: Copyright (c) 2026 Vincent Deriu
+
+Both packages set `"license": "PolyForm-Noncommercial-1.0.0"`.
+
+`engine/src/wire.js` carries an in-file note that it was copied from UM-Autobot-Player (`src/wire.js`, MIT). Ultimafia itself is a separate project and is not vendored here.
+
+Noncommercial use is what that license allows. Read the license before you distribute copies or build on this tree.
