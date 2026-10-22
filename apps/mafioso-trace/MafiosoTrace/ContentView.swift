@@ -51,11 +51,13 @@ struct ContentView: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            Toggle(isOn: traceReasoning) {
+            HStack(spacing: 6) {
                 Text("Trace reasoning")
+                Toggle("", isOn: traceReasoning)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Trace reasoning")
             }
-            .toggleStyle(.switch)
-            .accessibilityLabel("Trace reasoning")
             .fixedSize(horizontal: true, vertical: false)
             .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
         }
@@ -69,8 +71,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(minWidth: 72, alignment: .leading)
+                .fixedSize()
                 .help(run.statusText)
         }
         if let banner {
