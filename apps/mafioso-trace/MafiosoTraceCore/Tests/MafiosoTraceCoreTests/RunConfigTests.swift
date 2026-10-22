@@ -2,7 +2,7 @@ import XCTest
 @testable import MafiosoTraceCore
 
 final class RunConfigTests: XCTestCase {
-    func testPrefillUsesHarnessDefaultsAndLeavesQaAndProdBlank() {
+    func testPrefillUsesHarnessDefaultsAndLeavesQaAndProdBlank() throws {
         let config = AppConfig.prefilled()
         let local = try XCTUnwrap(config.profile(.localContainer))
         let dev = try XCTUnwrap(config.profile(.dev))

@@ -120,7 +120,7 @@ final class RunController: ObservableObject {
         knownIDs = Set(store.games.map(\.id))
         adopted = false
         phase = .starting
-        appendLine("starting \(profile.displayName)")
+        appendLine("starting \(profile.id.displayName)")
 
         let child = Process()
         child.executableURL = URL(fileURLWithPath: request.executable)
