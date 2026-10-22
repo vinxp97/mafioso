@@ -1,6 +1,6 @@
 # mafioso-harness
 
-Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep). The repository [README](../README.md) covers architecture, how to run, and the license.
+Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep). The repository [README](../README.md) covers the engine, the harness, and the license. The [quickstart](../docs/QUICKSTART.md) is how to install, test, and run.
 
 - **Hosts:** only `https://dev.ultimafia.gg` and `http://127.0.0.1:3000` (from engine `DEV_HOSTS`). Anything else, including prod, throws `HostNotAllowedError`.
 - **No built-in network:** `new DevApiClient({baseUrl, fetch})` requires an injected `fetch`.
