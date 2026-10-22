@@ -24,15 +24,19 @@ function nonempty(v) {
  * off|none|0|false|no|disabled -> null.
  * on|true|1|yes|enabled -> { effort: "low", exclude: true }.
  * max|xhigh|high|medium|low|minimal -> that effort with exclude: true.
+ * capture: true (MAFIOSO_TRACE_REASONING) sets exclude false so the provider returns
+ * message.reasoning. That text is for the trace only; complete() still returns content.
  * @param {string|null|undefined} raw
- * @returns {{effort:string, exclude:true}|null}
+ * @param {{capture?:boolean}} [opts]
+ * @returns {{effort:string, exclude:boolean}|null}
  */
-export function parseOpenRouterReasoning(raw) {
+export function parseOpenRouterReasoning(raw, opts = {}) {
+  const exclude = opts.capture === true ? false : true;
   const v = nonempty(raw).toLowerCase();
-  if (!v) return { effort: OPENROUTER_DEFAULT_REASONING_EFFORT, exclude: true };
+  if (!v) return { effort: OPENROUTER_DEFAULT_REASONING_EFFORT, exclude };
   if (/^(0|off|none|false|no|disabled)$/.test(v)) return null;
-  if (/^(1|true|yes|on|enabled)$/.test(v)) return { effort: OPENROUTER_DEFAULT_REASONING_EFFORT, exclude: true };
-  if (REASONING_EFFORTS.includes(v)) return { effort: v, exclude: true };
+  if (/^(1|true|yes|on|enabled)$/.test(v)) return { effort: OPENROUTER_DEFAULT_REASONING_EFFORT, exclude };
+  if (REASONING_EFFORTS.includes(v)) return { effort: v, exclude };
   throw new Error(`OPENROUTER_REASONING must be off|low|medium|high|minimal|max|xhigh (got ${JSON.stringify(raw)})`);
 }
 
@@ -42,6 +46,7 @@ export function parseOpenRouterReasoning(raw) {
  * Does not call the network. model falls back to minimax/minimax-m3.1-flash.
  * apiKey is "" when unset. referer and title are "" when unset (those headers are then omitted).
  * reasoning is { effort, exclude:true } by default (low); null when reasoning is off.
+ * This helper does not read MAFIOSO_TRACE_REASONING. The factory does, and only there exclude becomes false.
  * @param {NodeJS.ProcessEnv} [env]
  */
 export function openrouterConfigFromEnv(env = process.env) {
@@ -80,6 +85,9 @@ export function createOpenRouterComplete(opts = {}) {
   if (referer && headers["HTTP-Referer"] == null) headers["HTTP-Referer"] = referer;
   if (title && headers["X-Title"] == null) headers["X-Title"] = title;
 
+  // Default exclude stays true. The trace flag asks the provider to return chain-of-thought
+  // in message.reasoning; createOpenAICompatibleComplete does not put that field in the reply.
+  const captureReasoning = opts.captureReasoning === true || env.MAFIOSO_TRACE_REASONING === "1";
   let reasoning;
   if (opts.reasoning === false || opts.reasoning === null) reasoning = null;
   else if (opts.reasoning && typeof opts.reasoning === "object") {
@@ -87,9 +95,9 @@ export function createOpenRouterComplete(opts = {}) {
     if (!REASONING_EFFORTS.includes(effort.toLowerCase())) {
       throw new Error(`OpenRouter reasoning.effort must be one of ${REASONING_EFFORTS.join("|")}`);
     }
-    reasoning = { effort: effort.toLowerCase(), exclude: opts.reasoning.exclude !== false };
+    reasoning = { effort: effort.toLowerCase(), exclude: captureReasoning ? false : opts.reasoning.exclude !== false };
   } else {
-    reasoning = parseOpenRouterReasoning(env.OPENROUTER_REASONING);
+    reasoning = parseOpenRouterReasoning(env.OPENROUTER_REASONING, { capture: captureReasoning });
   }
 
   // Leave room for low-effort reasoning + a short chat line / JSON action when the caller omits maxTokens.
@@ -105,6 +113,8 @@ export function createOpenRouterComplete(opts = {}) {
     maxTokens,
     label: "OpenRouter",
     discoverModels: false,
+    onCall: opts.onCall,
+    captureReasoning,
     ...(reasoning ? { extraBody: { reasoning } } : {}),
   });
 }

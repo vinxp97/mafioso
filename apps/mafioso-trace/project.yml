@@ -1,0 +1,47 @@
+name: MafiosoTrace
+options:
+  bundleIdPrefix: com.mafioso
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "YES"
+    DEVELOPMENT_TEAM: ""
+packages:
+  MafiosoTraceCore:
+    path: MafiosoTraceCore
+targets:
+  MafiosoTrace:
+    type: application
+    platform: macOS
+    sources:
+      - path: MafiosoTrace
+    dependencies:
+      - package: MafiosoTraceCore
+        product: MafiosoTraceCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mafioso.MafiosoTrace
+        PRODUCT_NAME: MafiosoTrace
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Mafioso Trace
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright (c) 2026 Vincent Deriu"
+        ENABLE_APP_SANDBOX: "NO"
+        ENABLE_HARDENED_RUNTIME: "NO"
+        CODE_SIGN_ENTITLEMENTS: ""
+schemes:
+  MafiosoTrace:
+    build:
+      targets:
+        MafiosoTrace: all
+    run:
+      config: Debug

@@ -12,6 +12,7 @@ import { createOpenRouterComplete, OPENROUTER_DEFAULT_MODEL } from "./openrouter
 import { createArenaScorer } from "./arena.js";
 import { realClock } from "./clock.js";
 import { ensurePromptStore, finishGame, outcomeForView, replayDigest, savePromptStore, selectPrompts } from "./prompts.js";
+import { createTraceWriter, observeTableEntry, traceEnabled } from "./trace.js";
 
 export const TOKEN_REFRESH_MS = 55 * 60 * 1000;
 export const DEFAULT_DEV_BASE = "https://dev.ultimafia.gg";
@@ -108,9 +109,9 @@ export function streamUrl(baseUrl, pathname = "/api/dev/stream") {
 }
 
 /** MAFIOSO_LLM=lmstudio|experiential|opencode|openrouter. fetch is only for the model, not the game API. */
-export function createBackendComplete(env = process.env, { fetch } = {}) {
+export function createBackendComplete(env = process.env, { fetch, onCall } = {}) {
   const which = (nonempty(env.MAFIOSO_LLM) || "lmstudio").toLowerCase();
-  const opts = { env, ...(fetch ? { fetch } : {}) };
+  const opts = { env, ...(fetch ? { fetch } : {}), ...(typeof onCall === "function" ? { onCall } : {}) };
   if (which === "lmstudio" || which === "lm-studio") return createLmStudioComplete(opts);
   if (which === "experiential" || which === "explabs") return createExperientialComplete(opts);
   if (which === "opencode" || which === "opencode-go") return createOpenCodeGoComplete(opts);
@@ -219,6 +220,41 @@ export function reasoningModel(env = process.env) {
 }
 /** A fresh seat view carrying the table's strategy config (engine "botConfig" frame). */
 const seatView = (table) => (table?.config ? engineReduce(emptyView(), { event: "botConfig", data: table.config }) : emptyView());
+function traceEvent(table, seat, type, data) {
+  const log = table?.traceLog;
+  if (!log?.enabled) return;
+  try { log.event({ seat, type, data }); } catch { /* a trace write must not change the game */ }
+}
+
+function traceSent(table, id, view, proposal, dryRun, extra = {}) {
+  if (!table?.traceLog?.enabled || !proposal) return;
+  const meetingName = String(view?.meetings?.[proposal.data?.meetingId]?.name || "");
+  if (proposal.event === "speak") {
+    traceEvent(table, id, "chat.sent", {
+      content: String(proposal.data?.content || ""),
+      meetingId: proposal.data?.meetingId || "",
+      meetingName,
+      source: proposal.source || "",
+      dryRun: !!dryRun,
+      ...extra,
+    });
+    return;
+  }
+  if (proposal.event === "vote" || proposal.event === "unvote") {
+    const gun = /shoot|gun/i.test(meetingName);
+    const night = !gun && (view?.phase?.phase === "Night" || /mafia|kill|investigate|clean|litigate|report/i.test(meetingName));
+    traceEvent(table, id, night ? "night.sent" : "vote.sent", {
+      action: proposal.event,
+      meetingId: proposal.data?.meetingId || "",
+      meetingName,
+      selection: proposal.data?.selection ?? null,
+      source: proposal.source || "",
+      dryRun: !!dryRun,
+      ...extra,
+    });
+  }
+}
+
 const nowOf = (table) => (table?.clock || realClock).now();
 const rngOf = (table) => table?.rng || Math.random;
 const waitOn = (table, ms) => new Promise((r) => (table?.clock || realClock).setTimer(r, ms));
@@ -856,6 +892,17 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       if (source === "llm") action.data.content = capSpeechWords(action.data.content);
     }
     let verdict = validateAction(view, action);
+    if (table.traceLog?.enabled) {
+      traceEvent(table, id, "engine.validation", {
+        ok: !!verdict.ok,
+        reason: verdict.ok ? "" : String(verdict.reason || ""),
+        action: action.event,
+        meetingId: action.data?.meetingId ?? "",
+        selection: action.data?.selection ?? null,
+        content: action.event === "speak" ? String(action.data?.content || "") : undefined,
+        source: source || "",
+      });
+    }
     // chat-audit: a public line that states a wrong fact or leaks is dropped (logged) and replaced, when the
     // town's reads have one, by a grounded line (groundedLine), which goes through the same checks.
     if (!verdict.ok && /^chat-audit/.test(String(verdict.reason)) && isPublicSpeak(view, action)) {
@@ -869,6 +916,7 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
         const r = String(verdict.reason || "?").replace(/\(.*$/, "").trim();
         (table.speechRejects ||= {})[r] = ((table.speechRejects || {})[r] || 0) + 1;
         table.onSpeechReject?.(id, [String(verdict.reason || "?")], source, action.data.content);
+        if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: String(verdict.reason || "rejected"), content: String(action.data.content || ""), source: source || "", filter: "validate" });
         if (source !== "floor-rule") {
           noteSpeechBlock(table, id, view);
           const fl = applySpeechFloor(table, id, view);
@@ -881,23 +929,43 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     // Night 5: one Cop line per seat per day, counting our own lines the server has not echoed yet.
     if (pub) {
       const split = copSecondLine(view, action.data.content, { sent: ownSentToday(table, id, view) });
-      if (split) { table.onSpeechReject?.(id, [split], source, action.data.content); continue; }
+      if (split) {
+        table.onSpeechReject?.(id, [split], source, action.data.content);
+        if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: split, content: String(action.data.content || ""), source: source || "", filter: "cop-line" });
+        continue;
+      }
     }
     // Machine coordination text never goes to ANY chat (validateAction also bans it; belt and braces).
-    if (action.event === "speak" && machineLeak(view, action.data?.content)) continue;
+    if (action.event === "speak" && machineLeak(view, action.data?.content)) {
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "machine text", content: String(action.data?.content || ""), source: source || "", filter: "machine" });
+      continue;
+    }
     const key = pub
       ? `${id}|${stamp}|speak|${action.data.meetingId}|${action.data.content}`
       : action.event === "vote"
         ? `${id}|${view.stateId}|vote|${action.data.meetingId}|${JSON.stringify(action.data.selection)}`
         : `${id}|${view.stateId}|${action.event}|${action.data.meetingId}|${action.data.content ?? ""}`;
     // One line per new event, except a role claim: it is news by itself (one claim per game is still enforced below).
-    if (pub && !claim && source !== "day-speech" && table.speechStamp[id] === stamp) continue;
+    if (pub && !claim && source !== "day-speech" && table.speechStamp[id] === stamp) {
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "already spoke this meeting", content: String(action.data?.content || ""), source: source || "", filter: "speech-stamp" });
+      continue;
+    }
     // L6 (10/18): a seat the Sheriff asked answers him first; its model chatter waits until the reply is out.
-    if (pub && !claim && askReplyLine(view)) { table.onSpeechReject?.(id, ["owes the Sheriff an answer first"], source, action.data.content); continue; }
+    if (pub && !claim && askReplyLine(view)) {
+      table.onSpeechReject?.(id, ["owes the Sheriff an answer first"], source, action.data.content);
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "owes the Sheriff an answer first", content: String(action.data?.content || ""), source: source || "", filter: "sheriff-ask" });
+      continue;
+    }
     const ckey = `${id}|${view.stateId}|${action.data?.content}`;
     if (pub && claim && table.claimPending?.has(ckey)) continue;
-    if (pub && !claim && source !== "day-speech" && !localSpeechOk(table, id, clock)) continue;
-    if (table.seen.has(key) && !(pub && claim)) continue;
+    if (pub && !claim && source !== "day-speech" && !localSpeechOk(table, id, clock)) {
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "chat cooldown", content: String(action.data?.content || ""), source: source || "", filter: "cooldown" });
+      continue;
+    }
+    if (table.seen.has(key) && !(pub && claim)) {
+      if (pub && table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "duplicate line", content: String(action.data?.content || ""), source: source || "", filter: "duplicate" });
+      continue;
+    }
     if (action.event === "vote") {
       if (gunSpent(table, id, view, action)) continue;
       const vk = `${id}|${view.stateId}|${action.data.meetingId}`;
@@ -917,7 +985,12 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
       // Copy/teammate votes and the server's vote rate limit: send later, re-checked at send time.
       const wait = voteDelay(table, id, view, action);
       (table.voteEpoch ||= {})[vk] = deadCount(view);
-      if (wait > 0) { table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection); deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError }); continue; }
+      if (wait > 0) {
+        table.voteCount[vk] = n + 1; table.lastVote[vk] = JSON.stringify(action.data.selection);
+        traceSent(table, id, view, { ...action, source }, dryRun, { deferred: true });
+        deferVote(table, id, action, wait, { source, entry, send: dryRun ? null : send, onError });
+        continue;
+      }
       table.voteCount[vk] = n + 1;
       table.lastVote[vk] = JSON.stringify(action.data.selection);
       (table.lastVoteAt ||= {})[id] = nowOf(table);
@@ -926,16 +999,24 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     if (pub) {
       action = humanizeSpeak(view, action);
       if (!String(action.data?.content || "").trim()) continue;
-      if (publicLeak(view, action.data.content)) { table.leaksBlocked = (table.leaksBlocked || 0) + 1; continue; }
+      if (publicLeak(view, action.data.content)) {
+        table.leaksBlocked = (table.leaksBlocked || 0) + 1;
+        if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "public leak", content: String(action.data.content || ""), source: source || "", filter: "leak" });
+        continue;
+      }
       // One role claim per seat per game: no duplicate "I'm Sheriff." lines.
       const claimed = claimedRoleIn(action.data.content);
-      if (claimed && table.claimedRole?.[id]) continue;
+      if (claimed && table.claimedRole?.[id]) {
+        if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "already claimed", content: String(action.data.content || ""), source: source || "", filter: "claim" });
+        continue;
+      }
       // L5 (10/18): pacing at send time (paceSpeech): the reply beat from the line answered, own and table
       // spacing, stale replies dropped. A held line goes out later through deferSpeech.
       const now = clock ?? nowOf(table);
       const pace = paceSpeech(table, id, view, action, now, { entry, claim: claim || !!claimed, source });
       if (pace.drop) {
         table.onSpeechReject?.(id, [pace.drop], source, action.data.content);
+        if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: pace.drop, content: String(action.data.content || ""), source: source || "", filter: "pace" });
         const revived = /^stale reply/.test(pace.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
         if (revived && source !== "day-speech") {
           forgetSpoken(table, id, action.data.meetingId, action.data.content);
@@ -973,9 +1054,13 @@ async function emitActions(table, id, actions, { source, entry, dryRun, send, on
     }
     table.proposed.push(proposal);
     added.push(proposal);
+    traceSent(table, id, view, proposal, dryRun);
     if (!dryRun && send) {
       try { await send({ accountId: id, event: action.event, data: pub ? proposal.data : action.data, view }); }
-      catch (err) { if (onError) onError(err, id); }
+      catch (err) {
+        traceEvent(table, id, "error", { message: String(err?.message || err), action: action.event, where: "send" });
+        if (onError) onError(err, id);
+      }
     }
   }
   return added;
@@ -1102,6 +1187,7 @@ export function sendGuardBlock(table, id, view, proposal, source) {
       : copSecondLine(view, text, { sent: ownSentToday(table, id, view) });
   if (!why) return false;
   table.onSpeechReject?.(id, [why], source, text);
+  if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: why, content: text, source: source || "", filter: "send-guard" });
   return true;
 }
 
@@ -1124,6 +1210,7 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     const why = !validateAction(view, action).ok ? `held line invalid at send: ${validateAction(view, action).reason}` : publicLeak(view, action.data.content) ? "held line leaks" : machineLeak(view, action.data.content) ? "held line machine text" : null;
     if (why) {
       table.onSpeechReject?.(id, [why], source, action.data.content);
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: why, content: String(action.data.content || ""), source: source || "", filter: "held" });
       const revived = reviveHeld(table, view, action.data.content, { stale: false, source });
       const revivedOk = revived && validateAction(view, revived).ok && !publicLeak(view, revived.data.content) && !machineLeak(view, revived.data.content);
       if (revivedOk && source !== "day-speech") {
@@ -1137,13 +1224,18 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
       return done();
     }
     const claimed = claimedRoleIn(action.data.content);
-    if (claimed && table.claimedRole?.[id]) { table.onSpeechReject?.(id, ["held claim: already claimed"], source, action.data.content); return done(); }
+    if (claimed && table.claimedRole?.[id]) {
+      table.onSpeechReject?.(id, ["held claim: already claimed"], source, action.data.content);
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: "held claim: already claimed", content: String(action.data.content || ""), source: source || "", filter: "claim" });
+      return done();
+    }
     const now = nowOf(table);
     // Re-check at the real send time (other lines may have gone out meanwhile); this line's own slot is free.
     if (table.lastPublicAt === pace.due) table.lastPublicAt = -Infinity;
     const again = paceSpeech(table, id, view, action, now, { entry, claim, source, anchor: pace.anchor });
     if (again.drop) {
       table.onSpeechReject?.(id, [again.drop], source, action.data.content);
+      if (table.traceLog?.enabled) traceEvent(table, id, "chat.suppressed", { reason: again.drop, content: String(action.data.content || ""), source: source || "", filter: "pace" });
       const revived = /^stale reply/.test(again.drop) ? reviveHeld(table, view, action.data.content, { stale: true, source }) : null;
       if (revived && source !== "day-speech") {
         forgetSpoken(table, id, action.data.meetingId, action.data.content);
@@ -1164,9 +1256,13 @@ function deferSpeech(table, id, action, pace, { source, entry, dryRun, send, onE
     if (sendGuardBlock(table, id, view, proposal, source)) return;
     table.proposed.push(proposal);
     table.onDeferred?.(proposal);
+    traceSent(table, id, view, proposal, dryRun, { deferred: true });
     if (!dryRun && send) {
       try { await send({ accountId: id, event: action.event, data: proposal.data, view }); }
-      catch (err) { if (onError) onError(err, id); }
+      catch (err) {
+        traceEvent(table, id, "error", { message: String(err?.message || err), action: action.event, where: "send" });
+        if (onError) onError(err, id);
+      }
     }
   });
   (table.upgrades ||= new Set()).add(p);
@@ -1609,7 +1705,10 @@ function startUpgrade(table, id, ctx) {
         } else if (String(err?.message) === "fallback") {
           table.onSpeechReject?.(id, [`model fallback (queued over ${staleFixOf(table.config).fallbackMs / 1000}s)`], "llm");
           await speakFresh(table, id, table.views[id], ctx);
-        } else if (ctx.onError) ctx.onError(err, id);
+        } else {
+          traceEvent(table, id, "error", { message: String(err?.message || err), where: "upgrade" });
+          if (ctx.onError) ctx.onError(err, id);
+        }
         continue;
       }
       if (plan.speechRejections?.length) table.onSpeechReject?.(id, plan.speechRejections, "llm");
@@ -1884,13 +1983,25 @@ function syncBotSeats(table) {
   for (const aid of table.byId.keys()) if (table.views[aid]) table.views[aid] = engineReduce(table.views[aid], { event: "botConfig", data: { botSeats: pids } });
 }
 
-export async function onGameEntry(table, entry, { complete, send, dryRun = true, rng, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = {}) {
+export async function onGameEntry(table, entry, opts = {}) {
+  if (table?.traceLog?.enabled && !opts._inTrace) {
+    const seat = entry?.accountId ?? "_";
+    const next = { ...opts, _inTrace: true };
+    if (typeof opts.complete === "function") {
+      const base = opts.complete;
+      next.complete = (input) => table.traceLog.run(seat, () => base(input));
+    }
+    return table.traceLog.run(seat, () => onGameEntry(table, entry, next));
+  }
+  const { complete, send, dryRun = true, now, onError, onSchedule, fast = false, limiter = null, onAdded, onChat } = opts;
+  let { rng } = opts;
   const id = entry?.accountId ?? "_";
   if (!table.byId.has(id)) return [];
   rng = rng ?? rngOf(table);
   if (entry.seq != null && table.lastSeq[id] != null && entry.seq <= table.lastSeq[id]) return [];
   if (entry.seq != null) table.lastSeq[id] = entry.seq;
   table.views[id] = engineReduce(table.views[id] ?? seatView(table), entry);
+  if (table.traceLog?.enabled) observeTableEntry(table, id, entry);
   if (onChat) { const line = publicChatLogLine(table, id, entry); if (line) onChat(line); }
   if (entry?.event === "message" && table.onAlert) { const r = alertResult(table.views[id], entry.data); if (r) table.onAlert(id, r); }
   if ((entry?.event === "players" || entry?.event === "self") && table.onSeatMap && !table.seatMapLogged) {
@@ -1959,6 +2070,7 @@ export async function onGameEntry(table, entry, { complete, send, dryRun = true,
       ? await proposeSeatActions(view, { complete: bound, rng, now: clock, scheduleComplete: bound })
       : rulesSeatActions(view, { rng, now: clock });
   } catch (err) {
+    traceEvent(table, id, "error", { message: String(err?.message || err), where: "decide" });
     if (onError) onError(err, id);
     plan = rulesSeatActions(view, { rng, now: clock });
   }
@@ -2209,11 +2321,30 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   say(`token ok; hosting on ${cfg.baseUrl} bots=${cfg.botCount} llm=${cfg.llm}`);
   const store0 = await ensurePromptStore(cfg.promptDir);
   const chosen = selectPrompts(store0, cfg.botCount, { epsilon: cfg.epsilon, temperature: cfg.temperature, rng });
-  const complete = createBackendComplete(env, { fetch: baseFetch });
+  let traceLog = null;
+  try {
   const opened = await openTestingGame(client, { gameId: cfg.gameId, setupId: cfg.setupId, botCount: cfg.botCount, lobbyName: cfg.lobbyName });
+  traceLog = traceEnabled(env) ? createTraceWriter({ env, gameId: opened.gameId, secrets }) : null;
+  const complete = createBackendComplete(env, {
+    fetch: baseFetch,
+    ...(traceLog?.enabled ? { onCall: (info) => traceLog.recordModel(info) } : {}),
+  });
   const accounts = zipAccounts(opened.accounts, chosen);
   say(`game ${opened.gameId} accounts=${accounts.map((a) => a.accountId).join(",")} prompts=${accounts.map((a) => a.promptId).join(",")}`);
   const table = createBotTable(accounts, { clock, rng, reasoning: reasoningModel(env), town: cfg.town, hammer: cfg.hammer });
+  if (traceLog?.enabled) {
+    table.traceLog = traceLog;
+    traceLog.event({
+      seat: "harness",
+      type: "game.start",
+      data: {
+        gameId: opened.gameId,
+        setupId: cfg.setupId || null,
+        botCount: accounts.length,
+        seats: accounts.map((a) => ({ accountId: a.accountId, promptId: a.promptId })),
+      },
+    });
+  }
   say(`town vote arm=${table.config.town}`);
   // Suspicion arm: one line per town day pick with the seat's top reads, to compare ballots with reads.
   table.onTownVote = (who, tv, score) => say(`town-vote ${who} [${table.views[who]?.phase?.name || ""}] t=${clock.now()} target=${tv.target} why=${JSON.stringify(String(tv.why).slice(0, 120))} reads=${JSON.stringify(Object.entries(score).filter(([, s]) => s).sort((x, y) => y[1] - x[1]).slice(0, 4))}`);
@@ -2235,6 +2366,8 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       signals.once(sig, () => {
         for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
         say(`game_end status=stopped reason=${sig.toLowerCase()} game=${opened.gameId}`);
+        traceEvent(table, "harness", "game.end", { status: "stopped", reason: sig.toLowerCase() });
+        traceLog?.close?.();
         exit(130);
       });
     }
@@ -2329,7 +2462,10 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
       },
       onInfo: say,
       settle: async () => { await seats.drain(); await drainUpgrades(table); },
-      onError: (err) => say(`stream-error ${err?.stack || err?.message || err}`),
+      onError: (err) => {
+        say(`stream-error ${err?.stack || err?.message || err}`);
+        traceEvent(table, "harness", "error", { message: String(err?.message || err), where: "stream" });
+      },
     });
   }
   if (outcome?.status === "aborted") {
@@ -2337,6 +2473,7 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
     for (const a of accounts) (table.stopped ||= {})[a.accountId] = true;
     await seats.drain().catch(() => {});
     say(`game_end status=aborted reason=${outcome.reason} game=${opened.gameId}`);
+    traceEvent(table, "harness", "game.end", { status: "aborted", reason: outcome.reason || "" });
     return 0;
   }
   await Promise.race([
@@ -2368,6 +2505,10 @@ export async function runLiveCli({ env = process.env, fetch: fetchImpl, log = co
   } else {
     say(`game ended; scored=${results.length}; evolve=${cfg.evolve ? "yes" : "no"}`);
   }
+  traceEvent(table, "harness", "game.end", { status: "finished", winner: (winView?.winners?.groups || []).join("/") || "" });
   return 0;
+  } finally {
+    traceLog?.close?.();
+  }
 }
 
