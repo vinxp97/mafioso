@@ -1,12 +1,14 @@
 # mafioso-engine (offline)
-Pure state/rules engine for the Mafioso Ultimafia AI player. No network, no deps.
+
+Pure state/rules engine for the Mafioso Ultimafia AI player. No network, no deps. The repository [README](../README.md) covers the engine, the harness, and the license. The [quickstart](../docs/QUICKSTART.md) is how to install, test, and run.
+
 - `src/wire.js` frame codec (copied from UM-Autobot-Player)
 - `src/reducer.js` pure `reduce(view, {event,data})` (accepts Dev API envelopes)
 - `src/legal.js` `legalVotes`, `validateAction`
 - `src/decide.js` rules policy (always legal)
 - `src/types.js` JSDoc typedefs; host allowlist is dev-only.
 
-Run: `cd /workspace/mafioso/engine && npm test` (Node ≥18; uses node:test). Fixtures: `test/fixtures/*.jsonl`.
+Run: `cd engine && npm test` (Node ≥18; uses node:test). Fixtures: `test/fixtures/*.jsonl`.
 
 ## Night policy
 - `data/night-actions.json` — per-role `alwaysAct / nights / n1Pick / laterPick`. Visiting roles, including Cop, Journalist, and Sheriff, use `nights: "all"`.
