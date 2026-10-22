@@ -107,7 +107,7 @@ test("silent Day 1: several seats speak with a mock LLM, the Sheriff outs, nobod
   const roles = ["Sheriff", "Cop", "Journalist", "Villager", "Villager", "Villager", "Mafioso", "Janitor", "Lawyer"];
   const all = Object.fromEntries(seats.map((id) => [id, { id, name: `Bot${id.slice(1)}` }]));
   const accounts = seats.map((id) => ({ accountId: `A${id}` }));
-  const table = createBotTable(accounts);
+  const table = createBotTable(accounts, { pace: "off" }); // L5 send-time pacing is tested in live5.test.js
   let n = 0;
   const complete = async ({ user, purpose }) => {
     if (purpose === "speech" || user.includes("SCHEDULER: approved")) {
@@ -156,10 +156,10 @@ test("silent Day 1: several seats speak with a mock LLM, the Sheriff outs, nobod
 
 test("public speech never leaks player ids: names swap in, unknown ids drop", async () => {
   const { humanizePlayerIds } = await import("mafioso-engine");
-  const v = reduce(emptyView(), { event: "players", data: { zekOPxX6S: { id: "zekOPxX6S" }, wONLAMmupM7: { id: "wONLAMmupM7", name: "Bob" }, c3AuF5: { id: "c3AuF5", name: "Ann" } } });
-  assert.equal(humanizePlayerIds(v, "Quiet so far: zekOPxX6S, wONLAMmupM7, c3AuF5."), "Quiet so far: Bob, Ann.");
+  const v = reduce(emptyView(), { event: "players", data: { zekOPxX6S: { id: "zekOPxX6S" }, wONLAMmupM7: { id: "wONLAMmupM7", name: "Bob" }, k8VmQ2: { id: "k8VmQ2", name: "Ann" } } });
+  assert.equal(humanizePlayerIds(v, "Quiet so far: zekOPxX6S, wONLAMmupM7, k8VmQ2."), "Quiet so far: Bob, Ann.");
 
-  const table = createBotTable([{ accountId: "A" }]);
+  const table = createBotTable([{ accountId: "A" }], { pace: "off" });
   const client = { api: async () => [{ id: "A", playerId: "p1", name: "Me" }, { id: "B", playerId: "p2", name: "Alice" }] };
   await seedSelfIds(client, table, ["A", "B"], { sleep: async () => {} });
   assert.equal(table.views.A.players.p2.name, "Alice");
@@ -217,7 +217,7 @@ test("a dead seat is silent: validateAction rejects, scheduler and generator ski
 });
 
 import { runStreamLoop as rsl, createBotTable as cbt, onGameEntry as oge } from "../src/live.js";
-test("qAl36MVss: backfill replays buffered start events before the stream; stale accounts_dropped is ignored", async () => {
+test("GAME03: backfill replays buffered start events before the stream; stale accounts_dropped is ignored", async () => {
   const table = cbt([{ accountId: "A1" }]);
   const sse = [
     `event: accounts_dropped\ndata: ${JSON.stringify({ accounts: [{ id: "xX", gameId: "l0bS-lGKX", status: "dropped" }] })}\n\n`,

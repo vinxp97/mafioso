@@ -3,7 +3,9 @@
 import { allies, FACTION_MEETINGS, myFaction } from "./faction.js";
 import { memoryOf } from "./notes.js";
 import { MAX_SPEECH, NO_ONE } from "./types.js";
-import { adaptiveClaimLine, adaptiveDraft, adaptiveVote, formatAdaptivePlan, mafiaModeOf } from "./adaptiveMafia.js";
+import { adaptiveClaimLine, adaptiveDraft, adaptiveKill, adaptiveVote, formatAdaptivePlan, mafiaModeOf } from "./adaptiveMafia.js";
+import { killOptional } from "./lynchMath.js";
+import { meetingActions } from "./legal.js";
 
 
 export function scumFaction(view) {
@@ -47,7 +49,9 @@ export function isVoteKick(meeting) {
 
 /** Seats that lead the faction's night: lowest player id among living faction members. */
 export function factionLeader(view) {
-  const ids = [view.selfId, ...allies(view)].filter((id) => id && alive(view, id)).sort();
+  // The leader must be able to vote the kill: when the kill meeting lists its members, pick among them.
+  const members = new Set((factionKillMeeting(view)?.members || []).map((m) => m?.id).filter(Boolean));
+  const ids = [view.selfId, ...allies(view)].filter((id) => id && alive(view, id) && (!members.size || members.has(id))).sort();
   return ids[0] || null;
 }
 
@@ -67,7 +71,7 @@ function blank(token) {
   return token == null || token === "-" || token === "none" ? null : String(token);
 }
 
-const ROLE_WORDS = "cop|journalist|journ|sheriff|villager|vanilla|vt|doctor|doc|medic|blue|cleric|caroler|baker|deputy|vigilante|vig|cult|nurse|mason";
+const ROLE_WORDS = "v/t|cop|journalist|journ|sheriff|villager|vanilla|vt|townie|town|doctor|doc|medic|blue|cleric|caroler|baker|deputy|vigilante|vig|cult|nurse|mason";
 const STOP = new Set(["tonight", "tmrw", "tomorrow", "it", "them", "him", "her", "me", "you", "we", "the", "a", "on", "first", "now", "him/her", "again"]);
 
 function norm(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
@@ -120,8 +124,8 @@ function firstPlayer(view, text, res, skip = []) {
 }
 
 /**
- * Read a teammate's plan from faction chat. Casual phrasing ("kill bom tonight, ill fake cop tmrw,
- * lawyer go on podip") is resolved to ids with the view's player names. The old PLAN key=value form is
+ * Read a teammate's plan from faction chat. Casual phrasing ("kill rowan tonight, ill fake cop tmrw,
+ * lawyer go on delton") is resolved to ids with the view's player names. The old PLAN key=value form is
  * still read for old logs, but bots never write it.
  */
 export function parsePlanLine(text, view = null, senderId = null) {
@@ -140,7 +144,7 @@ export function parsePlanLine(text, view = null, senderId = null) {
   const mm = cm ? null : s.match(MATE_CLAIM_RE);
   const mateId = mm ? resolvePlayer(view, mm[1]) : null;
   const roleWord = cm ? (cm[1] || cm[2]).toLowerCase() : mm && mateId ? mm[2].toLowerCase() : null;
-  const roleOf = (w) => ({ journ: "Journalist", vt: "Villager", vanilla: "Villager", doc: "Doctor", vig: "Vigilante" }[w] || w[0].toUpperCase() + w.slice(1));
+  const roleOf = (w) => ({ journ: "Journalist", vt: "Villager", "v/t": "Villager", vanilla: "Villager", blue: "Villager", town: "Villager", townie: "Villager", doc: "Doctor", vig: "Vigilante" }[w] || w[0].toUpperCase() + w.slice(1));
   const noClaim = !roleWord && NO_CLAIM_RE.test(s);
   const claimRole = noClaim ? null : roleWord ? roleOf(roleWord) : "Cop";
   const lm = s.match(LAWYER_RE);
@@ -257,6 +261,22 @@ function pickFrom(view, ids) {
   return pool.find((id) => memory.suspects.has(id)) || pool[0] || null;
 }
 
+/** Vinman's kill priority (10/18): Cop > Sheriff > Journalist (Journalist last), by flip/reveal or public claim. */
+export const MAFIA_KILL_PRIORITY = Object.freeze(["Cop", "Sheriff", "Journalist"]);
+export function priorityKill(view, pool) {
+  const roleOf = (id) => {
+    const shown = String(view.reveals?.[id] || "").split(/[ :(]/)[0];
+    if (shown) return shown;
+    const c = view.claims?.[id];
+    return c && c.kind !== "retract" ? String(c.role || "") : "";
+  };
+  for (const role of MAFIA_KILL_PRIORITY) {
+    const hit = pool.filter((id) => roleOf(id).toLowerCase() === role.toLowerCase()).sort()[0];
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /** This seat's own proposal. Not written onto the view and not visible to other seats. */
 export function draftPlan(view) {
   const faction = scumFaction(view);
@@ -265,7 +285,7 @@ export function draftPlan(view) {
   if (!meeting) return null;
   const teammates = allies(view);
   const killPool = (meeting.targets || []).filter((id) => id !== view.selfId && id !== NO_ONE && alive(view, id) && !teammates.has(id));
-  const killTarget = pickFrom(view, killPool);
+  const killTarget = priorityKill(view, killPool) || pickFrom(view, killPool);
   if (!killTarget) return null;
   const lynchPool = Object.keys(view.players || {}).filter((id) => id !== view.selfId && id !== killTarget && alive(view, id) && !teammates.has(id));
   const asked = lawyerAsk(view, teammates);
@@ -332,6 +352,24 @@ function roleMeetings(view) {
     && meeting.faction == null && meeting.name !== (FACTION_MEETINGS[scumFaction(view)] || "") && !isVoteKick(meeting));
 }
 
+/**
+ * The plan's kill must be a legal kill target (alive, in the meeting's options, not a teammate or this seat).
+ * If not: a teammate's legal vote (teammates follow the leader), else the best legal target by the adaptive
+ * priority (Cop > Sheriff > Journalist claimers, then the most trusted), the same pick on every seat. A plan
+ * of no kill ("*") stands only when Vinman's rules allow skipping (killOptional); a night meteor or a living
+ * power-role claimer makes the kill mandatory.
+ */
+export function withLegalKill(view, kill, plan, copied = teammateKillVote(view)) {
+  // legalActions' picks: offered by the server, not refused by the rules, not a teammate or this seat.
+  const picks = new Set(meetingActions(view, kill).picks);
+  const killable = (id) => !!id && id !== NO_ONE && alive(view, id) && picks.has(id);
+  if (killable(plan.killTarget)) return plan;
+  if (plan.killTarget === NO_ONE && killOptional(view)) return plan;
+  const next = killable(copied) ? copied : adaptiveKill(view, (kill.targets || []).filter(killable));
+  const janitorTarget = plan.janitorTarget === plan.killTarget ? next || null : plan.janitorTarget;
+  return { ...plan, killTarget: next || null, janitorTarget };
+}
+
 function nightScum(view, faction) {
   const agreed = agreedPlan(view);
   const copied = teammateKillVote(view);
@@ -346,6 +384,7 @@ function nightScum(view, faction) {
   if (!plan) return null;
   const chat = factionMeeting(view, faction);
   const kill = factionKillMeeting(view, faction);
+  if (kill) plan = withLegalKill(view, kill, plan, copied);
   const out = [];
   // One PLAN per faction, from the leader, in the faction chat only.
   if (!agreed && !copied && leader && chat?.speech && (chat.name === "Mafia" || chat.name === "Cult")) {

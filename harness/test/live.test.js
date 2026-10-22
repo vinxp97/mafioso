@@ -271,3 +271,9 @@ test("live cli hosts on 127.0.0.1:3000, sends legal votes, and stores a child pr
   assert.match(child.text, /Prefer a quiet vote/);
   assert.match(child.text, /Never say or hint that you are an AI/);
 });
+
+test("MAFIOSO_TOWN picks the town vote arm for one live process; unset stays rules; junk is refused", () => {
+  assert.equal(liveConfigFromEnv({}).town, "rules");
+  assert.equal(liveConfigFromEnv({ MAFIOSO_TOWN: "suspicion" }).town, "suspicion");
+  assert.throws(() => liveConfigFromEnv({ MAFIOSO_TOWN: "yolo" }), /MAFIOSO_TOWN/);
+});

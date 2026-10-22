@@ -44,7 +44,9 @@ test("a check result on this seat changes the next investigate and the next vote
   ]);
   assert.equal(night.notes.checks.p2.detail, "Village");
   assert.equal(night.notes.checks.p3.result, "Mafia");
-  assert.match(buildBriefing(night), /cleared: p2/);
+  // A Village result is soft while a Loyal Lawyer may be alive (it can litigate a teammate to Village).
+  assert.match(buildBriefing(night), /cleared: none/);
+  assert.match(buildBriefing(night), /soft clears \(Village check, a living Lawyer could fake it\): p2/);
   assert.match(buildBriefing(night), /suspects: p3/);
   assert.deepEqual(decide(night), [{ event: "vote", data: { meetingId: "mCop", selection: "p4" } }]);
   const wasted = await llmDecide(night, { complete: async () => '{"action":"vote","meeting":"mCop","target":"p2"}', maxRetries: 0 });

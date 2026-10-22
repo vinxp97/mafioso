@@ -1,7 +1,7 @@
 // Claims under pressure (Vinman's FJ rule: no immediate claims; claim with real info or under pressure).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reduceAll, roleClaimLine, claimAllowed, underPressure, townReads, TOWN_READS, adaptivePressureLine } from "../src/index.js";
+import { reduceAll, roleClaimLine, claimAllowed, underPressure, townReads, TOWN_READS, adaptivePressureLine, VILLAGER_DEFENSES, claimedRoleIn } from "../src/index.js";
 
 const names = ["Ash", "Bea", "Cal", "Dot", "Eli", "Fin", "Gil", "Hap", "Ivo"];
 const players = Object.fromEntries(names.map((n, i) => [`p${i + 1}`, { id: `p${i + 1}`, name: n }]));
@@ -38,7 +38,10 @@ test("no immediate claims: a quiet Journalist, Villager, or Cop without a trigge
 test("under pressure every town role claims: Journalist, Cop, and a Villager says it has no power", () => {
   assert.match(roleClaimLine(seat("Journalist", on(4))), /^im journalist/);
   assert.match(roleClaimLine(seat("Cop", on(4))), /^im cop/);
-  assert.equal(roleClaimLine(seat("Villager", on(4))), "im just a villager, no power role. not me");
+  // Vinman 10/18: the defense varies (VILLAGER_DEFENSES); it is still a Villager claim.
+  assert.ok(VILLAGER_DEFENSES.includes(roleClaimLine(seat("Villager", on(4)))));
+  assert.equal(claimedRoleIn(roleClaimLine(seat("Villager", on(4)))), "villager");
+  assert.doesNotMatch(roleClaimLine(seat("Villager", on(4))), /\bvt\b|v\/t/i);
   // Once claimed, no second claim.
   const again = seat("Villager", on(4), [say("p1", "im just a villager, no power role. not me")]);
   assert.equal(roleClaimLine(again), null);
@@ -46,8 +49,8 @@ test("under pressure every town role claims: Journalist, Cop, and a Villager say
 
 test("Journalist: a rival Journalist claim is countered at once, with or without pressure", () => {
   const pre = [{ event: "state", data: { id: 3, name: "Day 2" } }, say("p4", "im journalist, nothing useful yet")];
-  assert.match(roleClaimLine(seat("Journalist", {}, pre)), /^dot is lying, im journalist/);
-  assert.match(roleClaimLine(seat("Journalist", on(4), pre)), /^dot is lying, im journalist/);
+  assert.match(roleClaimLine(seat("Journalist", {}, pre)), /^Dot is lying, im journalist/);
+  assert.match(roleClaimLine(seat("Journalist", on(4), pre)), /^Dot is lying, im journalist/);
 });
 
 test("town weighs a pressure claim: contested by a living claimer, or the role already flipped", () => {

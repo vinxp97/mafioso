@@ -36,6 +36,11 @@ function pushCap(list, item, cap) {
   if (list.length > cap) list.splice(0, list.length - cap);
 }
 
+/** A dead player flipped Lawyer: nothing is left to litigate a Cop result. */
+export function lawyerGone(view) {
+  return Object.entries(view?.reveals || {}).some(([id, r]) => (!!view?.dead?.[id] || !!view?.players?.[id]?.left) && /\blawyer\b/i.test(String(r)));
+}
+
 export function memoryOf(view) {
   const notes = view?.notes || emptyNotes();
   const cleared = new Set(notes.cleared || []);
@@ -53,10 +58,19 @@ export function memoryOf(view) {
     byRole.get(claim.role).push(id);
   }
   for (const ids of byRole.values()) if (ids.length > 1) for (const id of ids) suspects.add(id);
+  // FJ's Loyal Lawyer makes a teammate read Village to the Cop: while it may be alive, my own Village result
+  // is a soft read, not a clear (a server reveal still clears).
+  const softCleared = new Set();
+  if (!lawyerGone(view)) {
+    for (const [id, c] of Object.entries(notes.checks || {})) {
+      if (/^village$/i.test(String(c?.result || "")) && alignmentOf(view?.reveals?.[id]) !== "Village" && cleared.delete(id)) softCleared.add(id);
+    }
+  }
   if (view?.selfId) for (const id of allies(view)) { cleared.delete(id); suspects.delete(id); }
   return {
     checks: notes.checks || {},
     cleared,
+    softCleared,
     suspects,
     deaths: notes.deaths || [],
     votes: notes.votes || [],

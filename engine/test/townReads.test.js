@@ -65,9 +65,10 @@ test("voters on a Day death that flipped town earn suspicion, the first voters m
     { event: "state", data: { id: 4, name: "Day 2" } },
   ]);
   const r = townReads(v);
-  assert.equal(r.score.p2, TOWN_READS.lynchPusher + TOWN_READS.firstPusher);
-  assert.equal(r.score.p4, TOWN_READS.lynchPusher + TOWN_READS.firstPusher);
-  assert.equal(r.score.p5, TOWN_READS.lynchPusher);
+  // L3 (10/18): weighted by how early (starter +wagonEarly, then halving).
+  assert.equal(r.score.p2, TOWN_READS.lynchPusher + TOWN_READS.firstPusher + TOWN_READS.wagonEarly);
+  assert.equal(r.score.p4, TOWN_READS.lynchPusher + TOWN_READS.firstPusher + TOWN_READS.wagonEarly / 2);
+  assert.equal(r.score.p5, TOWN_READS.lynchPusher + TOWN_READS.wagonEarly / 4);
   assert.equal(r.score.p6, undefined);
 });
 

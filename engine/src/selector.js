@@ -4,12 +4,13 @@ import { adaptiveVote, mafiaModeOf } from "./adaptiveMafia.js";
 import { beliefAlign } from "./beliefs.js";
 import { allies, FACTION_MEETINGS } from "./faction.js";
 import { busCheck, busPick } from "./bus.js";
-import { validateAction } from "./legal.js";
+import { meetingActions, validateAction } from "./legal.js";
 import { isKillMeeting, mustActMeeting } from "./nightAct.js";
 import {
   agreedPlan, factionKillMeeting, isLawyerRole, janitorSelection, lawyerSelection, scumFaction, scumOwesNightVote,
 } from "./scumPlan.js";
 import { NO_ONE } from "./types.js";
+import { killOptional } from "./lynchMath.js";
 
 export const SELECTOR_TEMPERATURE = 1;
 
@@ -109,7 +110,10 @@ export function rejectCandidate(view, candidate) {
     const bus = busCheck(view, candidate.meetingId, target, { deliberate: candidate.kind === "day-vote" });
     if (!bus.ok) return `known teammate (${bus.reason})`;
   }
-  if (lawyerRoom && !allies(view).has(target)) return "lawyer only litigates teammates";
+  // legalActions' advice on Litigate: a Loyal Lawyer's vote on a non-teammate is server-legal but has no effect,
+  // and the Lawyer never skips. Only Litigate: the Lawyer votes the Mafia Kill like any teammate.
+  const advice = lawyerRoom && meeting ? meetingActions(view, meeting) : null;
+  if (advice?.kind === "litigate" && advice.notes[target]?.tier === "advice") return "lawyer only litigates teammates";
   if (view.role === "Janitor" && personalMeeting(meeting)) {
     const plan = agreedPlan(view);
     const saving = mafiaModeOf(view) === "adaptive" && plan && plan.janitorTarget === null;
@@ -117,7 +121,10 @@ export function rejectCandidate(view, candidate) {
     const wanted = plan ? janitorSelection(meeting, plan) : null;
     if (wanted && target !== wanted) return "janitor must clean the plan";
   }
-  if (nightMust(view) && (target === NO_ONE || /^(no|skip|none)$/i.test(target))) return "night action is open";
+  const skip = target === NO_ONE || /^(no|skip|none)$/i.test(target);
+  // Mafia need not kill when the meteor is not on them; they still kill a living town power-role claimer.
+  const optionalKill = skip && meeting === factionKillMeeting(view) && killOptional(view);
+  if (nightMust(view) && skip && !optionalKill) return "night action is open";
   const dayVote = candidate.kind === "day-vote" || (view.phase?.phase === "Day" && meeting?.name === "Village");
   if (!scumFaction(view) && dayVote && candidate.kind !== "night-target") {
     const town = townBelief(view, target);
