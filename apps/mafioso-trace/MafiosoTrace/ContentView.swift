@@ -146,38 +146,43 @@ struct ContentView: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background)
+                .zIndex(1)
             Divider()
+                .zIndex(1)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(store.visible.enumerated()), id: \.element.id) { index, row in
-                            Button {
-                                store.selectRow(row.id)
-                            } label: {
-                                timelineRow(
-                                    seq: "\(row.seq)",
-                                    time: Self.clock(row.ts),
-                                    seat: row.seat,
-                                    phase: TimelineState.phaseLabel(row.phase),
-                                    type: row.type,
-                                    summary: TraceLink.summary(row),
-                                    header: false
-                                )
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(rowBackground(index: index, selected: store.selection.contains(row.id)))
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                            let summary = TraceLink.summary(row)
+                            timelineRow(
+                                seq: "\(row.seq)",
+                                time: Self.clock(row.ts),
+                                seat: row.seat,
+                                phase: TimelineState.phaseLabel(row.phase),
+                                type: row.type,
+                                summary: summary,
+                                header: false
+                            )
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(rowBackground(index: index, selected: store.selection.contains(row.id)))
+                            .contentShape(Rectangle())
+                            .onTapGesture { store.selectRow(row.id) }
+                            .focusable()
                             .focused($focusedRow, equals: row.id)
-                            .accessibilityLabel("\(row.seq), \(row.type), \(TraceLink.summary(row))")
+                            .help(summary)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("\(row.seq), \(row.type), \(summary)")
                             .accessibilityAddTraits(store.selection.contains(row.id) ? .isSelected : AccessibilityTraits())
-                            .help(TraceLink.summary(row))
+                            .accessibilityAction(.default) { store.selectRow(row.id) }
                             .id(row.id)
                         }
                     }
                 }
+                .clipped()
                 .onAppear { revealSelection(proxy) }
                 .onChange(of: store.selection) { _, _ in
                     revealSelection(proxy)
