@@ -1,7 +1,8 @@
 # mafioso-harness
-Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep).
 
-- **Hosts:** only `https://dev.ultimafia.gg` and `http://127.0.0.1:3000` (from engine `DEV_HOSTS`). Anything else, including prod, throws `HostNotAllowedError`.
+Dev API client for the Mafioso AI player. Depends on `../engine` (file: dep). The repository [README](../README.md) covers the engine, the harness, and the license. The [quickstart](../docs/QUICKSTART.md) is how to install, test, and run.
+
+- **Hosts:** `https://dev.ultimafia.gg`, `http://127.0.0.1:3000`, and the Apple container host gateway (from engine `DEV_HOSTS`). Anything else, including prod, throws `HostNotAllowedError`.
 - **No built-in network:** `new DevApiClient({baseUrl, fetch})` requires an injected `fetch`.
 - **Methods:** `getToken`, `me`, `hostGame` (forces `lobby:"Testing"`, `private:true`, `spectating:true`, refuses ranked/competitive), `leaveGame`, `createAccounts`, `leaveAccount`, `control`, `events`, `send({accountId,event,data,view})` (runs `validateAction` before HTTP when `view` is given).
 - **Stream:** `parseStreamFrame`, `parseSse`, `replayStream` (per-account views, seq dedup), `runLoop` (reduce→decide→validate, collects proposals, never sends).
@@ -25,7 +26,7 @@ Thin factories resolve env, then call that client. Pass `env: {}` in tests. Expl
 | `createLmStudioComplete` | `LM_STUDIO_BASE_URL`, `LM_STUDIO_MODEL`, `LM_API_KEY` | `http://127.0.0.1:1234/v1`, model `""` (discover), api key `lm-studio`. `apiKey: ""` omits Authorization. Same machine as LM Studio. |
 | `createExperientialComplete` | `EXPLABS_BASE_URL`, `EXPLABS_MODEL`, `EXPLABS_API_KEY` | `https://api.experientiallabs.ai/v1`. Model and key are required (example model `qwen3.8-27b`, key looks like `xpl_...`). No model discovery. Docs: https://platform.experientiallabs.ai/docs/openai-compatibility |
 | `createOpenCodeGoComplete` | `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`, `OPENCODE_SESSION` | `https://opencode.ai/zen/go/v1`. Model and key are required (examples `kimi-k2.6`, `mimo-v2.5`, `glm-5.1`). Sends `user-agent: mafioso/0.1` and `x-opencode-session`. Session comes from `session` / `OPENCODE_SESSION`, else one `randomUUID()` reused for that client. Docs: https://opencode.ai/docs/go/ |
-| `createOpenRouterComplete` | `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE` | `https://openrouter.ai/api/v1`. Key is required. Model defaults to `minimax/minimax-m3.1-flash`. No model discovery. `HTTP-Referer` and `X-Title` are sent only when those env vars are set (`OPENROUTER_TITLE=mafioso` is the placeholder). Docs: https://openrouter.ai/docs/api/reference/overview |
+| `createOpenRouterComplete` | `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_TITLE`, `OPENROUTER_REASONING` | `https://openrouter.ai/api/v1`. Key is required. Model defaults to `minimax/minimax-m3.1-flash`. No model discovery. `HTTP-Referer` and `X-Title` are sent only when those env vars are set (`OPENROUTER_TITLE=mafioso` is the placeholder). `OPENROUTER_REASONING` defaults to `low` (`{ effort, exclude: true }`); `off` / `none` / `0` / `false` omits it. `exclude` stays true so chain-of-thought is not returned as the reply. Docs: https://openrouter.ai/docs/api/reference/overview |
 
 `temperature` and `maxTokens` are omitted unless you pass a finite number (`maxTokens` → `max_tokens`). Experiential Labs models sometimes reject sampling params; leave them unset there.
 
@@ -104,4 +105,4 @@ The scorecard (JSON and markdown) has:
 - the existing `summarizeMetrics` block
 - ranked weaknesses with evidence and an example game log
 
-`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. The seed 1, 50-game scorecard is checked in as the baseline. The jsonl files are gitignored. Town play is scored from public evidence by `engine/src/townReads.js`; see `selfplay/NOTES.md` for the before/after numbers per seed and the lessons from tuning it.
+`records.jsonl` uses the `scoreGame` format, so `scripts/arena.mjs --summary --file` reads it. The command exits 1 if any game has an illegal action or an error. Scorecards and the other run files (`json`, `md`, `jsonl`) are written under `logs/selfplay/` and gitignored. Town play is scored from public evidence by `engine/src/townReads.js`; see `selfplay/NOTES.md` for the before/after numbers per seed and the lessons from tuning it.

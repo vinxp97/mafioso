@@ -2,13 +2,15 @@
   "name": "mafioso-engine",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "Vincent Deriu",
   "description": "Offline Ultimafia state/rules engine for Mafioso (dev-only harness)",
-  "scripts": {
-    "test": "node --test"
-  },
+  "type": "module",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }
