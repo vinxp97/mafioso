@@ -404,6 +404,55 @@ final class TraceCoreTests: XCTestCase {
         XCTAssertEqual(TraceTime.display("t", in: utc, locale: locale), "t")
     }
 
+    /// Filtering and phase resolution of a full game stay on one pass, not a scan per row.
+    func testFilterAndPhaseResolutionOfTenThousandEventsStaysUnderFiftyMilliseconds() {
+        let phases = (0 ..< 24).map { "Day \($0)" }
+        let files = (0 ..< 12).map { "seat-\($0)" }
+        var events: [TraceEvent] = []
+        events.reserveCapacity(10_000)
+        for index in 0 ..< 10_000 {
+            events.append(TraceEvent(
+                v: 1,
+                seq: index,
+                ts: "t",
+                gameId: "g",
+                seat: files[index % 12],
+                phase: phases[index % phases.count],
+                type: "chat.sent",
+                data: .object([:])
+            ))
+        }
+        let state = TimelineState(seat: files[3], phase: "Day 3")
+        let clock = ContinuousClock()
+        var snapshot = TimelineSnapshot.empty
+        let elapsed = clock.measure {
+            snapshot = TimelineSnapshot.make(events: events, files: files, state: state)
+        }
+        XCTAssertLessThan(elapsed, .milliseconds(50))
+        XCTAssertEqual(snapshot.resolvedPhase, "Day 3")
+        XCTAssertEqual(snapshot.resolvedSeat, files[3])
+        XCTAssertEqual(snapshot.phases, phases)
+        XCTAssertEqual(snapshot.playerSeats, files)
+        XCTAssertEqual(snapshot.visible.count, 417)
+        XCTAssertTrue(snapshot.visible.allSatisfy { $0.seat == files[3] && $0.phase == "Day 3" })
+
+        let index = TimelineIndex(events: events, files: files)
+        XCTAssertEqual(index.countsByFile.count, 12)
+        XCTAssertEqual(index.countsByFile.values.reduce(0, +), 10_000)
+        XCTAssertEqual(index.resolvedPhase("Day 3"), "Day 3")
+        XCTAssertEqual(index.resolvedPhase("not-a-phase"), TimelineState.all)
+        let missing = TimelineSnapshot.make(
+            events: events,
+            files: files,
+            state: TimelineState(seat: files[3], phase: "not-a-phase"),
+            index: index
+        )
+        XCTAssertEqual(missing.resolvedPhase, TimelineState.all)
+        XCTAssertEqual(missing.resolvedSeat, files[3])
+        XCTAssertEqual(missing.visible.count, 834)
+        XCTAssertTrue(missing.visible.allSatisfy { $0.seat == files[3] })
+    }
+
     private func make(seq: Int, seat: String, type: String, data: JSONValue) -> TraceEvent {
         TraceEvent(
             v: 1,

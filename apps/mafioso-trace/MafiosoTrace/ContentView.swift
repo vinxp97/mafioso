@@ -68,10 +68,13 @@ struct ContentView: View {
                     run.stop()
                 }
             }
+            // Wide enough for "Running" and "Starting" inside the toolbar.
             Text(run.statusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .frame(minWidth: 112, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
                 .help(run.statusText)
         }
