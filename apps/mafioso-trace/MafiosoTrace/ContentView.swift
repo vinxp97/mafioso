@@ -10,19 +10,28 @@ struct ContentView: View {
     @FocusState private var focusedRow: TraceEvent.ID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            runBar
-            Divider()
-            NavigationSplitView {
-                sidebar
-            } content: {
-                seatColumn
-            } detail: {
-                detail
-            }
-            if showLog {
+        NavigationSplitView {
+            sidebar
+        } content: {
+            seatColumn
+        } detail: {
+            detail
+        }
+        .toolbarBackground(.visible, for: .windowToolbar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                runBar
                 Divider()
-                logPane
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showLog {
+                VStack(spacing: 0) {
+                    Divider()
+                    logPane
+                }
+                .background(Color(nsColor: .windowBackgroundColor))
             }
         }
         .onAppear {
@@ -215,32 +224,35 @@ struct ContentView: View {
     }
 
     private var seatColumn: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            List {
-                seatButton("All", id: TimelineState.all)
-                seatButton("Harness", id: TimelineState.harness)
-                ForEach(store.playerSeats, id: \.self) { seat in
-                    seatButton(seat, id: seat)
-                }
+        List {
+            seatButton("All", id: TimelineState.all)
+            seatButton("Harness", id: TimelineState.harness)
+            ForEach(store.playerSeats, id: \.self) { seat in
+                seatButton(seat, id: seat)
             }
-            .navigationTitle("Seat")
-            Divider()
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Phase")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Menu {
-                    Button("All") { store.choosePhase(TimelineState.all) }
-                    ForEach(store.phases, id: \.self) { phase in
-                        Button(phase) { store.choosePhase(phase) }
+        }
+        .navigationTitle("Seat")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Phase")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Menu {
+                        Button("All") { store.choosePhase(TimelineState.all) }
+                        ForEach(store.phases, id: \.self) { phase in
+                            Button(phase) { store.choosePhase(phase) }
+                        }
+                    } label: {
+                        Text(store.phase == TimelineState.all ? "All" : store.phase)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } label: {
-                    Text(store.phase == TimelineState.all ? "All" : store.phase)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .menuStyle(.button)
                 }
-                .menuStyle(.button)
+                .padding(8)
             }
-            .padding(8)
+            .background(.background)
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 280)
     }

@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var modelProbing = false
     @State private var models: [ModelInfo] = []
     @State private var modelQuery = ""
+    @State private var modelRequestSucceeded = false
 
     var body: some View {
         TabView {
@@ -22,68 +23,75 @@ struct SettingsView: View {
             logs
                 .tabItem { Text("Logs") }
         }
-        .padding(12)
-        .frame(width: 680, height: 640)
+        .frame(minWidth: 760, idealWidth: 900, minHeight: 640, idealHeight: 760)
     }
 
     private var environments: some View {
         Form {
-            TextField("Repository", text: repository)
-            Text("Checkout that contains scripts/mac-container-run.sh and harness/scripts/live.mjs.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Picker("Environment", selection: environment) {
-                ForEach(GameEnvironment.allCases) { item in
-                    Text(item.displayName).tag(item)
+            Section {
+                labeled("Repository", text: repository, prompt: "Path to the checkout")
+            } footer: {
+                help("Checkout that contains scripts/mac-container-run.sh and harness/scripts/live.mjs.")
+            }
+            Section {
+                labeledPicker("Environment", selection: environment) {
+                    ForEach(GameEnvironment.allCases) { item in
+                        Text(item.displayName).tag(item)
+                    }
                 }
+                notice
             }
-            notice
-            TextField("API base URL", text: profileString(\.apiBaseURL))
-            TextField("Socket URL", text: profileString(\.socketURL))
-            Text("A raw socket such as /3010 is stored and is not sent. A path under /api/dev/ is sent as DEV_STREAM_PATH.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("OAuth client id", text: profileString(\.oauthClientID))
-            secretRow(
-                "Client secret",
-                text: clientSecret,
-                reveal: $revealClient
-            )
-            Text("The client secret is a Keychain item for this environment (\(SecretAccount.service)). It is not written to the config file.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Setup id", text: profileString(\.setupID))
-            Stepper(value: botCount, in: 1 ... 50) {
-                Text("Bot count: \(config.selectedProfile.botCount)")
+            Section {
+                labeled("API base URL", text: profileString(\.apiBaseURL), prompt: "https://")
+                labeled("Socket URL", text: profileString(\.socketURL), prompt: "wss://")
+                labeled("OAuth client id", text: profileString(\.oauthClientID), prompt: "")
+                secretField("Client secret", text: clientSecret, reveal: $revealClient)
+                labeled("Setup id", text: profileString(\.setupID), prompt: "")
+                LabeledContent("Bot count") {
+                    Stepper(value: botCount, in: 1 ... 50) {
+                        Text("\(config.selectedProfile.botCount)")
+                            .monospacedDigit()
+                    }
+                }
+                labeled("Lobby", text: profileString(\.lobby), prompt: "Testing")
+            } footer: {
+                help("A raw socket such as /3010 is stored and is not sent. A path under /api/dev/ is sent as DEV_STREAM_PATH. The client secret is a Keychain item (\(SecretAccount.service)) and is not written to the config file. Lobby is sent as LOBBY_NAME.")
             }
-            TextField("Lobby", text: profileString(\.lobby))
-            Text("Sent as LOBBY_NAME. The default is Testing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
             if config.selectedProfile.id.showsTunnel {
-                tunnel
-            }
-            HStack {
-                Button(apiProbing ? "Testing…" : "Test connection") {
-                    probeAPI()
+                Section {
+                    labeled("SSH host alias", text: tunnelString(\.sshHostAlias), prompt: "")
+                    labeledInteger("API port", value: tunnelInt(\.apiPort))
+                    labeledInteger("Bridge port", value: tunnelInt(\.bridgePort))
+                    labeledInteger("Socket port", value: tunnelInt(\.socketPort))
+                    labeled("Container gateway", text: tunnelString(\.containerGateway), prompt: "192.168.64.1")
+                } footer: {
+                    help("Stored only. The app does not open the tunnel.")
                 }
-                .disabled(apiProbing)
-                Text(apiProbe)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
-            if let keychainError = config.keychainError {
-                Text(keychainError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-            if let saveError = config.saveError {
-                Text(saveError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            Section {
+                HStack {
+                    Button(apiProbing ? "Testing…" : "Test connection") {
+                        probeAPI()
+                    }
+                    .disabled(apiProbing)
+                    .accessibilityLabel("Test \(config.selectedProfile.id.displayName) connection")
+                    Text(apiProbe)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let keychainError = config.keychainError {
+                    Text(keychainError)
+                        .foregroundStyle(.red)
+                }
+                if let saveError = config.saveError {
+                    Text(saveError)
+                        .foregroundStyle(.red)
+                }
             }
         }
+        .formStyle(.grouped)
         .onChange(of: config.config.selectedEnvironment) { _, _ in
             apiProbe = ""
             revealClient = false
@@ -94,151 +102,160 @@ struct SettingsView: View {
     private var notice: some View {
         let id = config.selectedProfile.id
         if id == .legacy {
-            Text("Not supported by the harness yet. Start stays off. ultimafia.com uses a cookie and a raw socket, and the harness speaks the Dev API.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            help("Not supported by the harness yet. Start stays off. ultimafia.com uses a cookie and a raw socket, and the harness speaks the Dev API.")
         } else if id == .production {
-            Text("Production. Start asks you to type ultimafia.gg. The harness allowlist still rejects this host.")
-                .font(.caption)
-                .foregroundStyle(.orange)
+            help("Production. Start asks you to type ultimafia.gg. The harness allowlist still rejects this host.", color: .orange)
         } else if id == .qa {
-            Text("qa.ultimafia.gg is not on the harness allowlist. Start stays available. The process will start, and the harness will refuse the host.")
-                .font(.caption)
-                .foregroundStyle(.orange)
-        }
-    }
-
-    private var tunnel: some View {
-        Group {
-            TextField("SSH host alias", text: tunnelString(\.sshHostAlias))
-            Text("Stored only. The app does not open the tunnel.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("API port", value: tunnelInt(\.apiPort), format: .number)
-            TextField("Bridge port", value: tunnelInt(\.bridgePort), format: .number)
-            TextField("Socket port", value: tunnelInt(\.socketPort), format: .number)
-            TextField("Container gateway", text: tunnelString(\.containerGateway))
+            help("qa.ultimafia.gg is not on the harness allowlist. Start stays available. The process will start, and the harness will refuse the host.", color: .orange)
         }
     }
 
     private var inference: some View {
         Form {
-            Picker("Provider", selection: provider) {
-                ForEach(ProviderKind.allCases) { item in
-                    Text(item.displayName).tag(item)
+            Section {
+                labeledPicker("Provider", selection: provider) {
+                    ForEach(ProviderKind.allCases) { item in
+                        Text(item.displayName).tag(item)
+                    }
                 }
+            } footer: {
+                help(providerHelp)
             }
-            Text(providerHelp)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Base URL", text: baseURL)
-            Text("Model id")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField(modelPlaceholder, text: modelID)
-            Text("The list comes from /models. Type an id if that request fails.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Search models", text: $modelQuery)
+            Section {
+                labeled("Base URL", text: baseURL, prompt: "https://")
+                LabeledContent("Model id") {
+                    TextField("Model id", text: modelID, prompt: Text(modelPlaceholder))
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                }
+            } footer: {
+                help("The list comes from /models. Type an id if that request fails.")
+            }
             if config.config.inference.provider == .openRouter {
                 Toggle("Free only", isOn: inferenceBool(\.openRouterFreeOnly))
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    if visibleModels.isEmpty {
-                        Text("No model list yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            if showsModelSearch {
+                Section {
+                    LabeledContent("Search models") {
+                        TextField("Search models", text: $modelQuery, prompt: Text("Name or id"))
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
                     }
-                    ForEach(visibleModels) { model in
-                        Button {
-                            let id = model.id
-                            let kind = config.config.inference.provider
-                            config.updateInference { $0.setModel(id, for: kind) }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.id)
-                                    .lineLimit(1)
-                                if !modelDetail(model).isEmpty {
-                                    Text(modelDetail(model))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    modelList
                 }
             }
-            .frame(minHeight: 120, maxHeight: 180)
             providerExtras
-            Picker("Reasoning", selection: reasoningMode) {
-                ForEach(ReasoningMode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
+            Section {
+                labeledPicker("Reasoning", selection: reasoningMode) {
+                    ForEach(ReasoningMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
                 }
-            }
-            Text("Automatic omits MAFIOSO_REASONING. On sends 1. Off sends 0.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Stepper(value: concurrency, in: 0 ... 64) {
-                Text(concurrencyLabel)
-            }
-            Text("0 omits MAFIOSO_LLM_CONCURRENCY. The harness then uses 1 for LM Studio and 4 for the others.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Toggle("Trace reasoning", isOn: traceReasoning)
-            Text("On sets MAFIOSO_TRACE_REASONING=1. Off omits it, and the harness leaves reasoning out of the trace.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            secretRow("API key", text: apiKey, reveal: $revealKey)
-            Text(keyHelp)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Button(modelProbing ? "Testing…" : "Test connection") {
-                    probeModels()
+                LabeledContent("Concurrency") {
+                    Stepper(value: concurrency, in: 0 ... 64) {
+                        Text(concurrencyValue)
+                            .monospacedDigit()
+                    }
                 }
-                .disabled(modelProbing)
-                Text(modelProbe)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Toggle("Trace reasoning", isOn: traceReasoning)
+            } footer: {
+                help("Automatic omits MAFIOSO_REASONING. On sends 1. Off sends 0. Concurrency 0 omits MAFIOSO_LLM_CONCURRENCY, and the harness then uses 1 for LM Studio and 4 for the others. Trace reasoning on sets MAFIOSO_TRACE_REASONING=1.")
+            }
+            Section {
+                secretField("API key", text: apiKey, reveal: $revealKey)
+                HStack {
+                    Button(modelProbing ? "Testing…" : "Test connection") {
+                        probeModels()
+                    }
+                    .disabled(modelProbing)
+                    .accessibilityLabel("Test \(config.config.inference.provider.displayName) connection")
+                    Text(modelProbe)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } footer: {
+                help(keyHelp)
             }
         }
+        .formStyle(.grouped)
         .onChange(of: config.config.inference.provider) { _, _ in
             models = []
             modelProbe = ""
             modelQuery = ""
+            modelRequestSucceeded = false
             revealKey = false
         }
+    }
+
+    private var showsModelSearch: Bool {
+        ModelListUI.showsSearch(
+            provider: config.config.inference.provider,
+            modelsRequestSucceeded: modelRequestSucceeded
+        )
+    }
+
+    private var modelList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                if visibleModels.isEmpty {
+                    help("No model list yet.")
+                }
+                ForEach(visibleModels) { model in
+                    Button {
+                        let id = model.id
+                        let kind = config.config.inference.provider
+                        config.updateInference { $0.setModel(id, for: kind) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.id)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if !modelDetail(model).isEmpty {
+                                Text(modelDetail(model))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(minHeight: 80, maxHeight: 180)
     }
 
     @ViewBuilder
     private var providerExtras: some View {
         switch config.config.inference.provider {
         case .experiential:
-            Toggle("Zero data retention", isOn: inferenceBool(\.experientialZDR))
-            Text("On sends EXPLABS_ZDR=1. Off omits it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case .openCodeGo:
-            TextField("Session", text: inferenceString(\.openCodeSession))
-            Text("Optional. An empty OPENCODE_SESSION lets the harness generate one. The factory sets user-agent mafioso/0.1.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case .openRouter:
-            Picker("OpenRouter reasoning", selection: reasoningEffort) {
-                ForEach(ReasoningEffort.allCases) { effort in
-                    Text(effort.displayName).tag(effort)
-                }
+            Section {
+                Toggle("Zero data retention", isOn: inferenceBool(\.experientialZDR))
+            } footer: {
+                help("On sends EXPLABS_ZDR=1. Off omits it.")
             }
-            TextField("HTTP referer", text: inferenceString(\.openRouterReferer))
-            TextField("Title", text: inferenceString(\.openRouterTitle))
-            Text("OPENROUTER_HTTP_REFERER and OPENROUTER_TITLE are sent only when set. None sends OPENROUTER_REASONING=off.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        case .openCodeGo:
+            Section {
+                labeled("Session", text: inferenceString(\.openCodeSession), prompt: "Optional")
+            } footer: {
+                help("Optional. An empty OPENCODE_SESSION lets the harness generate one. The factory sets user-agent mafioso/0.1.")
+            }
+        case .openRouter:
+            Section {
+                labeledPicker("OpenRouter reasoning", selection: reasoningEffort) {
+                    ForEach(ReasoningEffort.allCases) { effort in
+                        Text(effort.displayName).tag(effort)
+                    }
+                }
+                labeled("HTTP referer", text: inferenceString(\.openRouterReferer), prompt: "Optional")
+                labeled("Title", text: inferenceString(\.openRouterTitle), prompt: "Optional")
+            } footer: {
+                help("OPENROUTER_HTTP_REFERER and OPENROUTER_TITLE are sent only when set. None sends OPENROUTER_REASONING=off.")
+            }
         case .lmStudio:
             EmptyView()
         }
@@ -246,23 +263,65 @@ struct SettingsView: View {
 
     private var logs: some View {
         Form {
-            TextField("Logs root", text: $logsRoot)
-            Text("Folder of game directories. Each game is a folder of seat JSONL files. The default is ~/mafioso-mac/logs. A launch turns tracing on and writes here. A container run mounts this folder at /app/logs/traces.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Section {
+                labeled("Logs root", text: $logsRoot, prompt: LogsRoot.defaultPath)
+            } footer: {
+                help("Folder of game directories. Each game is a folder of seat JSONL files. The default is ~/mafioso-mac/logs. A launch turns tracing on and writes here. A container run mounts this folder at /app/logs/traces.")
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func help(_ text: String, color: Color = .secondary) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func labeled(_ title: String, text: Binding<String>, prompt: String) -> some View {
+        LabeledContent(title) {
+            TextField(title, text: text, prompt: prompt.isEmpty ? nil : Text(prompt))
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
         }
     }
 
-    private func secretRow(_ title: String, text: Binding<String>, reveal: Binding<Bool>) -> some View {
-        HStack {
-            if reveal.wrappedValue {
-                TextField(title, text: text)
-            } else {
-                SecureField(title, text: text)
-            }
-            Button(reveal.wrappedValue ? "Hide" : "Show") {
-                reveal.wrappedValue.toggle()
+    private func labeledInteger(_ title: String, value: Binding<Int>) -> some View {
+        LabeledContent(title) {
+            TextField(title, value: value, format: IntegerFormatStyle<Int>.number.grouping(.never))
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func labeledPicker<Selection: Hashable, Content: View>(
+        _ title: String,
+        selection: Binding<Selection>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        LabeledContent(title) {
+            Picker(title, selection: selection, content: content)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func secretField(_ title: String, text: Binding<String>, reveal: Binding<Bool>) -> some View {
+        LabeledContent(title) {
+            HStack {
+                if reveal.wrappedValue {
+                    TextField(title, text: text)
+                        .labelsHidden()
+                } else {
+                    SecureField(title, text: text)
+                        .labelsHidden()
+                }
+                Button(reveal.wrappedValue ? "Hide" : "Show") {
+                    reveal.wrappedValue.toggle()
+                }
+                .accessibilityLabel("\(reveal.wrappedValue ? "Hide" : "Show") \(title)")
             }
         }
     }
@@ -297,10 +356,10 @@ struct SettingsView: View {
         }
     }
 
-    private var concurrencyLabel: String {
+    private var concurrencyValue: String {
         let value = config.config.inference.concurrency
-        if value <= 0 { return "Concurrency: harness default" }
-        return "Concurrency: \(value)"
+        if value <= 0 { return "Default" }
+        return String(value)
     }
 
     private var visibleModels: [ModelInfo] {
@@ -465,6 +524,7 @@ struct SettingsView: View {
             let report = await ConnectionProbe.models(base: base, apiKey: key, provider: kind, sessionHeader: session)
             modelProbe = report.summary
             models = report.models
+            modelRequestSucceeded = report.succeeded
             modelProbing = false
         }
     }

@@ -231,6 +231,14 @@ final class RunConfigTests: XCTestCase {
         XCTAssertNil(ModelCatalog.apiURL(base: "not a url"))
     }
 
+    func testExperientialSearchWaitsForAModelsResponse() {
+        XCTAssertFalse(ModelListUI.showsSearch(provider: .experiential, modelsRequestSucceeded: false))
+        XCTAssertTrue(ModelListUI.showsSearch(provider: .experiential, modelsRequestSucceeded: true))
+        XCTAssertTrue(ModelListUI.showsSearch(provider: .lmStudio, modelsRequestSucceeded: false))
+        XCTAssertTrue(ModelListUI.showsSearch(provider: .openCodeGo, modelsRequestSucceeded: false))
+        XCTAssertTrue(ModelListUI.showsSearch(provider: .openRouter, modelsRequestSucceeded: false))
+    }
+
     func testNewTraceDirectoryIsChosenOnce() {
         let older = game("old", age: 100)
         let fresh = game("g-new", age: 1)

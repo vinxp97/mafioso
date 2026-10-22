@@ -138,6 +138,16 @@ public enum ProviderKind: String, Codable, CaseIterable, Identifiable, Sendable 
     }
 }
 
+/// Which inference providers show a model search box. The model id field is always available.
+public enum ModelListUI {
+    public static func showsSearch(provider: ProviderKind, modelsRequestSucceeded: Bool) -> Bool {
+        if provider == .experiential {
+            return modelsRequestSucceeded
+        }
+        return true
+    }
+}
+
 public enum ReasoningEffort: String, Codable, CaseIterable, Identifiable, Sendable {
     case none
     case low

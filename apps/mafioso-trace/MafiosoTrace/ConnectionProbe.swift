@@ -4,9 +4,10 @@ import MafiosoTraceCore
 struct ProbeReport: Equatable {
     var summary: String
     var models: [ModelInfo]
+    var succeeded: Bool
 
     static func message(_ summary: String) -> ProbeReport {
-        ProbeReport(summary: summary, models: [])
+        ProbeReport(summary: summary, models: [], succeeded: false)
     }
 }
 
@@ -51,11 +52,12 @@ enum ConnectionProbe {
         do {
             let (data, response) = try await session.data(for: request)
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let succeeded = (200 ..< 300).contains(code)
             guard parseModels else {
-                return .message("HTTP \(code)")
+                return ProbeReport(summary: "HTTP \(code)", models: [], succeeded: succeeded)
             }
             let models = ModelCatalog.parse(data)
-            return ProbeReport(summary: "HTTP \(code), \(models.count) models", models: models)
+            return ProbeReport(summary: "HTTP \(code), \(models.count) models", models: models, succeeded: succeeded)
         } catch {
             return .message("Could not connect.")
         }
