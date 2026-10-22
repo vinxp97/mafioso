@@ -41,6 +41,27 @@ final class AppConfigController: ObservableObject {
         save()
     }
 
+    func setRepositoryKind(_ kind: RepositoryKind) {
+        var next = config
+        next.repositoryKind = kind
+        config = next
+        save()
+    }
+
+    func setRepositoryURL(_ url: String) {
+        var next = config
+        next.repositoryURL = url
+        config = next
+        save()
+    }
+
+    func setRepositoryBranch(_ branch: String) {
+        var next = config
+        next.repositoryBranch = branch
+        config = next
+        save()
+    }
+
     func selectEnvironment(_ id: GameEnvironment) {
         var next = config
         next.selectedEnvironment = id

@@ -44,6 +44,43 @@ final class RunConfigTests: XCTestCase {
         XCTAssertFalse(text.contains("client-secret-value"))
         let decoded = try AppConfig.decode(data)
         XCTAssertEqual(decoded, config)
+        XCTAssertEqual(decoded.repositoryKind, .localFolder)
+        XCTAssertEqual(decoded.repositoryBranch, "main")
+    }
+
+    func testOldConfigWithoutRepositoryKindStaysALocalFolder() throws {
+        let decoded = try AppConfig.decode(Data(#"{"repositoryPath":"/Users/ada/mafioso"}"#.utf8))
+        XCTAssertEqual(decoded.repositoryKind, .localFolder)
+        XCTAssertEqual(decoded.repositoryURL, "")
+        XCTAssertEqual(decoded.repositoryBranch, "main")
+        XCTAssertEqual(decoded.repositoryPath, "/Users/ada/mafioso")
+        XCTAssertEqual(decoded.repositorySource.kind, .localFolder)
+    }
+
+    func testGitURLIsRequiredWhenThatSourceIsSelected() {
+        let secrets = LaunchSecrets(clientSecret: "client-secret-value", apiKey: "lm-studio")
+        let inference = InferenceSettings()
+        let profile = filled(.dev, base: "https://dev.ultimafia.gg")
+        let token = RepositorySource(
+            kind: .git,
+            url: "https://ada:ghp_secret@github.com/vinxp97/mafioso",
+            branch: "main",
+            localPath: ""
+        )
+        XCTAssertEqual(
+            StartPolicy.decide(profile: profile, inference: inference, secrets: secrets, repository: "", source: token),
+            .blocked("Set an https repository URL without a token.")
+        )
+        let clean = RepositorySource(
+            kind: .git,
+            url: "https://github.com/vinxp97/mafioso",
+            branch: "",
+            localPath: ""
+        )
+        XCTAssertEqual(
+            StartPolicy.decide(profile: profile, inference: inference, secrets: secrets, repository: "", source: clean),
+            .ready(warning: nil)
+        )
     }
 
     func testMemorySecretStore() throws {
@@ -189,6 +226,19 @@ final class RunConfigTests: XCTestCase {
         XCTAssertEqual(request.environment["OPENROUTER_API_KEY"], "sk-or-supersecretkey")
         XCTAssertFalse(request.arguments.joined(separator: "\n").contains("sk-or-supersecretkey"))
         XCTAssertNil(request.environment["DEV_STREAM_PATH"])
+        XCTAssertNil(request.environment["MAFIOSO_CONTAINER_SKIP_BUILD"])
+        let skipped = LaunchPlan.make(
+            profile: local,
+            inference: inference,
+            secrets: secrets,
+            repository: "/repo",
+            logsRoot: "~/mafioso-mac/logs",
+            parentEnvironment: ["PATH": "/usr/bin", "HOME": "/Users/ada"],
+            skipContainerBuild: true
+        )
+        XCTAssertEqual(skipped.environment["MAFIOSO_CONTAINER_SKIP_BUILD"], "1")
+        let node = launch(filled(.dev, base: "https://dev.ultimafia.gg"), inference, secrets)
+        XCTAssertNil(node.environment["MAFIOSO_CONTAINER_SKIP_BUILD"])
     }
 
     func testDevStreamPathIsOnlyTheDevAPIPath() {

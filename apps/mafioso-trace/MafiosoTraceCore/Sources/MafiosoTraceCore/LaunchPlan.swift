@@ -57,13 +57,22 @@ public enum StartPolicy {
         profile: EnvironmentProfile,
         inference: InferenceSettings,
         secrets: LaunchSecrets,
-        repository: String
+        repository: String,
+        source: RepositorySource? = nil
     ) -> StartDecision {
         if !profile.id.harnessSupported {
             return .blocked("Not supported by the harness yet.")
         }
-        if repository.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .blocked("Set the repository path in Settings.")
+        let spec = source ?? RepositorySource(kind: .localFolder, url: "", branch: "main", localPath: repository)
+        switch spec.kind {
+        case .localFolder:
+            if spec.localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return .blocked("Set the repository path in Settings.")
+            }
+        case .git:
+            if RepositoryURL.accepted(spec.url) == nil {
+                return .blocked("Set an https repository URL without a token.")
+            }
         }
         if profile.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .blocked("Set the API base URL.")
@@ -127,7 +136,8 @@ public enum LaunchPlan {
         repository: String,
         logsRoot: String,
         parentEnvironment: [String: String] = [:],
-        warning: String? = nil
+        warning: String? = nil,
+        skipContainerBuild: Bool = false
     ) -> LaunchRequest {
         let repo = (repository as NSString).expandingTildeInPath
         let logs = (logsRoot as NSString).expandingTildeInPath
@@ -153,6 +163,9 @@ public enum LaunchPlan {
             env["MAFIOSO_HOST_GATEWAY"] = host
             env["DEV_API_BASE_URL"] = "http://\(host):\(profile.tunnel.apiPort == 0 ? 3000 : profile.tunnel.apiPort)"
             env["MAFIOSO_TRACE_MOUNT"] = logs
+            if skipContainerBuild {
+                env["MAFIOSO_CONTAINER_SKIP_BUILD"] = "1"
+            }
         } else {
             env["MAFIOSO_TRACE_DIR"] = logs
         }

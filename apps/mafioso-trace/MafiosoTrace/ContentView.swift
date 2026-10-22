@@ -158,7 +158,8 @@ struct ContentView: View {
             profile: profile,
             inference: config.config.inference,
             secrets: config.launchSecrets(environment: profile.id, provider: config.config.inference.provider),
-            repository: config.config.repositoryPath
+            repository: config.config.repositoryPath,
+            source: config.config.repositorySource
         )
     }
 

@@ -29,9 +29,19 @@ struct SettingsView: View {
     private var environments: some View {
         Form {
             Section {
-                labeled("Repository", text: repository, prompt: "Path to the checkout")
+                labeledPicker("Repository", selection: repositoryKind) {
+                    ForEach(RepositoryKind.allCases, id: \.self) { kind in
+                        Text(kind.displayName).tag(kind)
+                    }
+                }
+                if config.config.repositoryKind == .git {
+                    labeled("URL", text: repositoryURL, prompt: "https://github.com/vinxp97/mafioso")
+                    labeled("Branch", text: repositoryBranch, prompt: "main")
+                } else {
+                    labeled("Folder", text: repository, prompt: "Path to the checkout")
+                }
             } footer: {
-                help("Checkout that contains scripts/mac-container-run.sh and harness/scripts/live.mjs.")
+                help("A Git URL is cloned into ~/Library/Caches/MafiosoTrace/repos and updated on each Start. A local folder is never reset. engine and harness install when node_modules is missing or package.json changed. The checkout contains scripts/mac-container-run.sh and harness/scripts/live.mjs.")
             }
             Section {
                 labeledPicker("Environment", selection: environment) {
@@ -451,6 +461,18 @@ struct SettingsView: View {
 
     private var repository: Binding<String> {
         Binding(get: { config.config.repositoryPath }, set: { config.setRepository($0) })
+    }
+
+    private var repositoryKind: Binding<RepositoryKind> {
+        Binding(get: { config.config.repositoryKind }, set: { config.setRepositoryKind($0) })
+    }
+
+    private var repositoryURL: Binding<String> {
+        Binding(get: { config.config.repositoryURL }, set: { config.setRepositoryURL($0) })
+    }
+
+    private var repositoryBranch: Binding<String> {
+        Binding(get: { config.config.repositoryBranch }, set: { config.setRepositoryBranch($0) })
     }
 
     private var environment: Binding<GameEnvironment> {

@@ -279,20 +279,65 @@ public struct InferenceSettings: Codable, Equatable, Sendable {
 
 public struct AppConfig: Codable, Equatable, Sendable {
     public var repositoryPath: String
+    public var repositoryKind: RepositoryKind
+    public var repositoryURL: String
+    public var repositoryBranch: String
     public var selectedEnvironment: GameEnvironment
     public var environments: [EnvironmentProfile]
     public var inference: InferenceSettings
 
     public init(
         repositoryPath: String = "",
+        repositoryKind: RepositoryKind = .localFolder,
+        repositoryURL: String = "",
+        repositoryBranch: String = "main",
         selectedEnvironment: GameEnvironment = .dev,
         environments: [EnvironmentProfile] = AppConfig.prefilledEnvironments(),
         inference: InferenceSettings = InferenceSettings()
     ) {
         self.repositoryPath = repositoryPath
+        self.repositoryKind = repositoryKind
+        self.repositoryURL = repositoryURL
+        self.repositoryBranch = repositoryBranch
         self.selectedEnvironment = selectedEnvironment
         self.environments = environments
         self.inference = inference
+    }
+
+    public var repositorySource: RepositorySource {
+        RepositorySource(kind: repositoryKind, url: repositoryURL, branch: repositoryBranch, localPath: repositoryPath)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case repositoryPath
+        case repositoryKind
+        case repositoryURL
+        case repositoryBranch
+        case selectedEnvironment
+        case environments
+        case inference
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        repositoryPath = try container.decodeIfPresent(String.self, forKey: .repositoryPath) ?? ""
+        repositoryKind = try container.decodeIfPresent(RepositoryKind.self, forKey: .repositoryKind) ?? .localFolder
+        repositoryURL = try container.decodeIfPresent(String.self, forKey: .repositoryURL) ?? ""
+        repositoryBranch = try container.decodeIfPresent(String.self, forKey: .repositoryBranch) ?? "main"
+        selectedEnvironment = try container.decodeIfPresent(GameEnvironment.self, forKey: .selectedEnvironment) ?? .dev
+        environments = try container.decodeIfPresent([EnvironmentProfile].self, forKey: .environments) ?? AppConfig.prefilledEnvironments()
+        inference = try container.decodeIfPresent(InferenceSettings.self, forKey: .inference) ?? InferenceSettings()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(repositoryPath, forKey: .repositoryPath)
+        try container.encode(repositoryKind, forKey: .repositoryKind)
+        try container.encode(repositoryURL, forKey: .repositoryURL)
+        try container.encode(repositoryBranch, forKey: .repositoryBranch)
+        try container.encode(selectedEnvironment, forKey: .selectedEnvironment)
+        try container.encode(environments, forKey: .environments)
+        try container.encode(inference, forKey: .inference)
     }
 
     public static func prefilled() -> AppConfig {
