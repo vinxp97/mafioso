@@ -53,12 +53,13 @@ struct ContentView: View {
             .labelsHidden()
             HStack(spacing: 6) {
                 Text("Trace reasoning")
+                    .lineLimit(1)
                 Toggle("", isOn: traceReasoning)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .accessibilityLabel("Trace reasoning")
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
             .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
         }
         ToolbarItemGroup(placement: .primaryAction) {
@@ -71,7 +72,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .fixedSize()
+                .layoutPriority(1)
                 .help(run.statusText)
         }
         if let banner {
@@ -108,7 +109,7 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(height: 160)
+        .frame(minHeight: 80, idealHeight: 160, maxHeight: .infinity)
     }
 
     private var confirmSheet: some View {
@@ -266,19 +267,31 @@ struct ContentView: View {
     }
 
     private var detail: some View {
+        Group {
+            if showLog {
+                VSplitView {
+                    traceBody
+                    logPane
+                        .background(Color(nsColor: .windowBackgroundColor))
+                }
+            } else {
+                traceBody
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle(store.selectedGameID ?? "Trace")
+    }
+
+    /// Timeline and the selected event. The log, when shown, is the other half of a split, not a fixed band.
+    private var traceBody: some View {
         VStack(spacing: 0) {
             toolbar
             timeline
             Divider()
             DetailPane(event: store.selectedEvent, pair: pair)
-                .frame(minHeight: 180)
-            if showLog {
-                Divider()
-                logPane
-                    .background(Color(nsColor: .windowBackgroundColor))
-            }
+                .frame(minHeight: 140)
         }
-        .navigationTitle(store.selectedGameID ?? "Trace")
+        .frame(minHeight: 240, maxHeight: .infinity)
     }
 
     private var toolbar: some View {

@@ -26,8 +26,11 @@ struct MafiosoTraceApp: App {
                 .environmentObject(config)
                 .environmentObject(run)
                 .onAppear { AppDelegate.pendingRun = run }
-                .frame(minWidth: 960, minHeight: 640)
+                .frame(minWidth: 900, minHeight: 600)
         }
+        // The floor is the content minimum. A fitted content size used to be the
+        // window size too, so the window could not grow or shrink.
+        .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Reload Trace") {
