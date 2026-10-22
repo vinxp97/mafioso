@@ -3,11 +3,15 @@ import SwiftUI
 @main
 struct MafiosoTraceApp: App {
     @StateObject private var store = GameStore()
+    @StateObject private var config = AppConfigController()
+    @StateObject private var run = RunController()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(config)
+                .environmentObject(run)
                 .frame(minWidth: 960, minHeight: 640)
         }
         .commands {
@@ -20,6 +24,7 @@ struct MafiosoTraceApp: App {
         }
         Settings {
             SettingsView()
+                .environmentObject(config)
         }
     }
 }

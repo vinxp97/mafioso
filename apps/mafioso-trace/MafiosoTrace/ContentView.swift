@@ -4,16 +4,26 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: GameStore
+    @EnvironmentObject private var config: AppConfigController
+    @EnvironmentObject private var run: RunController
     @AppStorage(LogsRoot.storageKey) private var logsRoot = LogsRoot.defaultPath
     @FocusState private var focusedRow: TraceEvent.ID?
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } content: {
-            seatColumn
-        } detail: {
-            detail
+        VStack(spacing: 0) {
+            runBar
+            Divider()
+            NavigationSplitView {
+                sidebar
+            } content: {
+                seatColumn
+            } detail: {
+                detail
+            }
+            if showLog {
+                Divider()
+                logPane
+            }
         }
         .onAppear {
             store.start(arguments: CommandLine.arguments)
@@ -22,6 +32,158 @@ struct ContentView: View {
         .onChange(of: logsRoot) { _, path in
             store.setLogsRoot(path)
         }
+        .sheet(isPresented: confirmPresented) {
+            confirmSheet
+        }
+    }
+
+    private var runBar: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Button("Start game") {
+                    run.requestStart(config: config, store: store)
+                }
+                .disabled(startDisabled)
+                Picker("Environment", selection: environment) {
+                    ForEach(GameEnvironment.allCases) { item in
+                        Text(item.displayName).tag(item)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 220)
+                Toggle("Trace reasoning", isOn: traceReasoning)
+                    .toggleStyle(.switch)
+                    .help("On sets MAFIOSO_TRACE_REASONING=1 for the next run.")
+                if run.isRunning {
+                    Button("Stop") {
+                        run.stop()
+                    }
+                }
+                Spacer()
+                Text(run.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let banner {
+                Text(banner.text)
+                    .font(.caption)
+                    .foregroundStyle(banner.warning ? Color.orange : Color.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    private var logPane: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                Text(run.logText)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                Color.clear.frame(height: 1).id("run-log-end")
+            }
+            .onChange(of: run.logTick) { _, _ in
+                DispatchQueue.main.async {
+                    proxy.scrollTo("run-log-end", anchor: .bottom)
+                }
+            }
+        }
+        .frame(height: 160)
+    }
+
+    private var confirmSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Type \(run.confirmName ?? "") to start.")
+                .font(.headline)
+            if let warning = run.confirmWarning {
+                Text(warning)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TextField(run.confirmName ?? "", text: Binding(
+                get: { run.confirmDraft },
+                set: { run.confirmDraft = $0 }
+            ))
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    run.cancelConfirm()
+                }
+                Button("Start") {
+                    run.confirm(config: config, store: store)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!confirmMatches)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+
+    private var showLog: Bool {
+        if case .idle = run.phase { return !run.logText.isEmpty }
+        return true
+    }
+
+    private var startDisabled: Bool {
+        if run.isRunning { return true }
+        if case .blocked = decision { return true }
+        return false
+    }
+
+    private var decision: StartDecision {
+        let profile = config.selectedProfile
+        return StartPolicy.decide(
+            profile: profile,
+            inference: config.config.inference,
+            secrets: config.launchSecrets(environment: profile.id, provider: config.config.inference.provider),
+            repository: config.config.repositoryPath
+        )
+    }
+
+    private var banner: (text: String, warning: Bool)? {
+        switch decision {
+        case .blocked(let reason):
+            return (reason, false)
+        case .ready(let warning), .needsConfirmation(_, let warning):
+            if let warning { return (warning, true) }
+            return nil
+        }
+    }
+
+    private var confirmMatches: Bool {
+        guard let name = run.confirmName else { return false }
+        let environment = GameEnvironment.allCases.first { $0.confirmName == name }
+        guard let environment else { return false }
+        return ProdGate.accepts(environment: environment, typed: run.confirmDraft)
+    }
+
+    private var confirmPresented: Binding<Bool> {
+        Binding(
+            get: { run.confirmName != nil },
+            set: { presented in
+                if !presented { run.cancelConfirm() }
+            }
+        )
+    }
+
+    private var environment: Binding<GameEnvironment> {
+        Binding(
+            get: { config.config.selectedEnvironment },
+            set: { config.selectEnvironment($0) }
+        )
+    }
+
+    private var traceReasoning: Binding<Bool> {
+        Binding(
+            get: { !config.config.inference.excludeReasoning },
+            set: { on in config.updateInference { $0.excludeReasoning = !on } }
+        )
     }
 
     private var sidebar: some View {

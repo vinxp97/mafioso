@@ -182,6 +182,23 @@ final class GameStore: ObservableObject {
         pinnedID = timeline.selectedIDs.first
     }
 
+    /// Wake the directory watcher. A launch polls this until a new game directory has a JSONL file.
+    func nudge() {
+        wake.signal()
+    }
+
+    /// Switch the sidebar to a game that appeared after `previous` was snapshotted. A fixture stays put.
+    @discardableResult
+    func adoptNewGame(notIn previous: Set<String>) -> Bool {
+        guard fixtureURL == nil else { return false }
+        guard let id = TraceArrival.newest(previous: previous, games: games) else { return false }
+        if id != selectedGameID {
+            select(game: id)
+            follow = true
+        }
+        return true
+    }
+
     func reload() {
         clearTimeline()
         if fixtureURL != nil {

@@ -18,7 +18,17 @@ apps/mafioso-trace/build/Build/Products/Debug/MafiosoTrace.app/Contents/MacOS/Ma
   -fixture apps/mafioso-trace/Fixtures/sample-game.jsonl
 ```
 
-The fixture is synthetic. The names are Ada, Bea, Cal, Dee, and Eli. Cmd-R reloads. Settings changes the logs root. The default is `~/mafioso-mac/logs`.
+The fixture is synthetic. The names are Ada, Bea, Cal, Dee, and Eli. Cmd-R reloads. Settings has three tabs.
+
+**Environments.** One profile for Local Apple container, dev.ultimafia.gg, qa.ultimafia.gg, ultimafia.gg, and ultimafia.com. Dev and local start from the harness defaults (API `http://192.168.64.1:3000` or `https://dev.ultimafia.gg`, socket on port 3010, lobby Testing, bot count 9). QA and production URLs start blank. The repository path is the checkout that contains `scripts/mac-container-run.sh` and `harness/scripts/live.mjs`. The SSH alias and the ports 3000, 2999, and 3010 are stored. The app does not open the tunnel. ultimafia.com is marked not supported by the harness yet, and Start stays off, because that host is the cookie-and-socket client. ultimafia.gg is production: Start asks you to type `ultimafia.gg`. That confirm does not add the host to the harness allowlist. QA is not production; Start stays available and warns that the harness will refuse the host.
+
+**Inference.** LM Studio, Experiential Labs, OpenCode Go, and OpenRouter, the four backends the harness already has. Each one keeps its own variables (`LM_STUDIO_*` and `LM_API_KEY`, `EXPLABS_*`, `OPENCODE_*`, `OPENROUTER_*`) plus `MAFIOSO_REASONING` and `MAFIOSO_LLM_CONCURRENCY`. Test connection requests that provider's `/models` endpoint. The model id field is the fallback when the list does not come back. There is no custom provider.
+
+**Logs.** The logs root stays in preferences. The default is `~/mafioso-mac/logs`.
+
+The client secret (one per environment) and each provider API key are Keychain generic passwords, service `gg.mafioso.trace`. They are not in the config file, UserDefaults, or the child argv. Other settings are `~/Library/Application Support/MafiosoTrace/config.json`.
+
+**Start game** is in the window toolbar, next to the environment menu, Trace reasoning, and Stop. Trace reasoning sets `MAFIOSO_TRACE_REASONING=1` for that run. The child is `scripts/mac-container-run.sh` for the local container (`MAFIOSO_ENV_FROM_PROCESS=1`, logs mounted at `/app/logs/traces`) or `node harness/scripts/live.mjs` otherwise (`MAFIOSO_TRACE_DIR` is the logs root). `MAFIOSO_LIVE=1` and `MAFIOSO_TRACE=1` are set. Stdout and stderr show in the log pane with secrets replaced by `[redacted]`. When a new game directory gets a JSONL file, the sidebar selects it. The Edit menu is the standard one, so Cut, Copy, Paste, and Select All stay, including in Settings.
 
 The sidebar is one row per game directory. A game whose files changed in the last 15 seconds is marked live. The app opens on seat All and phase All. Choosing a row does not change those filters. The detail column is a timeline and the selected event. The scrubber and the `n / N` counter stay on the selected row. Reasoning is monospaced text you can select. An `llm.call` shows Proposal vs Verdict at the top: the parsed proposal beside the engine verdict with the same `callId`. Follow scrolls to the new line until you pick an older row or turn Follow off. A finished game can be scrubbed with the slider when more than one event is visible. Zero or one event shows the position label only.
 

@@ -33,6 +33,8 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
+        # Merged with the generated plist. Lets Test connection reach http://192.168.64.1 and other local hosts.
+        INFOPLIST_FILE: Support/LocalNetwork.plist
         INFOPLIST_KEY_CFBundleDisplayName: Mafioso Trace
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright (c) 2026 Vincent Deriu"

@@ -162,4 +162,6 @@ Offline unless noted. Run them from `harness/`.
 
 The image copies `engine/` and `harness/`, installs production dependencies, and runs `node scripts/live.mjs`. Prompt history is mounted at `harness/data/prompts/runtime`. The image does not copy `.env`; Compose reads it via `env_file`.
 
-`scripts/mac-container-run.sh` builds and runs the image with Apple's `container` CLI. It sets `DEV_API_BASE_URL` to the host gateway on `DEV_HOSTS`. `MAFIOSO_HOST_GATEWAY` overrides that address. The script reads `.env` and exits when `OPENROUTER_API_KEY` is empty. Do not commit `.env`.
+`scripts/mac-container-run.sh` builds and runs the image with Apple's `container` CLI. It sets `DEV_API_BASE_URL` to the host gateway on `DEV_HOSTS` when that variable is empty. `MAFIOSO_HOST_GATEWAY` overrides that address. The script reads `.env` and exits when `OPENROUTER_API_KEY` is empty. Do not commit `.env`.
+
+`MAFIOSO_ENV_FROM_PROCESS=1` reads the same variables from the process environment instead of `.env`. Values are passed to `container run` as `-e NAME` with no value on argv, and they are not written to a temp file. The `.env` path is unchanged. `MAFIOSO_TRACE_MOUNT` is a host path (the trace viewer sets it to the logs root). The script mounts that directory at `/app/logs/traces` and does not forward `MAFIOSO_TRACE_DIR`, so the writer keeps its container default. Without the mount, `$ROOT/logs` is mounted at `/app/logs` as before.

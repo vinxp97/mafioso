@@ -22,6 +22,14 @@ public struct LineBuffer: Equatable, Sendable {
         }
         return lines
     }
+
+    /// The unfinished tail, if the child exited without a final newline.
+    public mutating func flush() -> String? {
+        guard !remainder.isEmpty else { return nil }
+        let line = String(decoding: remainder, as: UTF8.self)
+        remainder.removeAll()
+        return line
+    }
 }
 
 /// Read newly appended bytes from one JSONL file. Each call reads a bounded number of chunks.
